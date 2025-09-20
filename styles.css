@@ -15,6 +15,9 @@
   --card-neon: rgba(90,110,255,0.08);
   --max-width: min(1100px, 92vw);
   --transition: 0.2s ease;
+  --header-padding-y: clamp(0.7rem, 1.12vw, 0.98rem);
+  --header-padding-x: clamp(1.2rem, 2vw, 2.4rem);
+  --status-padding-y: clamp(1.05rem, 1.7vw, 1.5rem);
 }
 
 * {
@@ -47,12 +50,10 @@ body.theme-neon {
   z-index: 20;
   background: rgba(8, 11, 19, 0.72);
   backdrop-filter: blur(12px);
-  padding: clamp(1rem, 1.6vw, 1.4rem) clamp(1.2rem, 2vw, 2.4rem);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.2rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 body.theme-light .app-header {
@@ -65,11 +66,73 @@ body.theme-neon .app-header {
   border-bottom-color: rgba(90, 120, 255, 0.22);
 }
 
+.header-main {
+  padding: var(--header-padding-y) var(--header-padding-x);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+}
+
 .brand {
   font-family: 'Orbitron', monospace;
   font-size: clamp(1.1rem, 1.8vw, 1.6rem);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.status-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  padding: var(--status-padding-y) var(--header-padding-x);
+  gap: clamp(0.6rem, 1vw, 1rem);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.status-item--left {
+  text-align: left;
+  align-items: flex-start;
+}
+
+.status-item--center {
+  text-align: center;
+  align-items: center;
+}
+
+.status-item--right {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.status-label {
+  font-size: clamp(0.65rem, 1vw, 0.8rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.status-value {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+}
+
+.status-value--main {
+  font-size: clamp(1.4rem, 2.6vw, 1.95rem);
+}
+
+body.theme-light .status-bar {
+  border-top-color: rgba(12, 16, 32, 0.08);
+}
+
+body.theme-neon .status-bar {
+  border-top-color: rgba(90, 120, 255, 0.22);
 }
 
 .nav-menu {

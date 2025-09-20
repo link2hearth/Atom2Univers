@@ -554,6 +554,9 @@ const elements = {
   atomsLifetime: document.getElementById('atomsLifetime'),
   atomsPerClick: document.getElementById('atomsPerClick'),
   atomsPerSecond: document.getElementById('atomsPerSecond'),
+  statusAtoms: document.getElementById('statusAtoms'),
+  statusApc: document.getElementById('statusApc'),
+  statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
   shopList: document.getElementById('shopList'),
   nextMilestone: document.getElementById('nextMilestone'),
@@ -691,6 +694,15 @@ function updateUI() {
   elements.atomsLifetime.textContent = gameState.lifetime.toString();
   elements.atomsPerClick.textContent = `${gameState.perClick.toString()} APC`;
   elements.atomsPerSecond.textContent = `${gameState.perSecond.toString()} APS`;
+  if (elements.statusAtoms) {
+    elements.statusAtoms.textContent = gameState.atoms.toString();
+  }
+  if (elements.statusApc) {
+    elements.statusApc.textContent = gameState.perClick.toString();
+  }
+  if (elements.statusAps) {
+    elements.statusAps.textContent = gameState.perSecond.toString();
+  }
   updateMilestone();
 }
 

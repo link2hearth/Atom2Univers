@@ -11,13 +11,29 @@
 </head>
 <body class="theme-dark">
   <header class="app-header">
-    <div class="brand">Atom → Univers</div>
-    <nav class="nav-menu" aria-label="Navigation principale">
-      <button class="nav-button active" data-target="game">Jeu</button>
-      <button class="nav-button" data-target="shop">Boutique</button>
-      <button class="nav-button" data-target="info">Infos</button>
-      <button class="nav-button" data-target="options">Options</button>
-    </nav>
+    <div class="header-main">
+      <div class="brand">Atom → Univers</div>
+      <nav class="nav-menu" aria-label="Navigation principale">
+        <button class="nav-button active" data-target="game">Jeu</button>
+        <button class="nav-button" data-target="shop">Boutique</button>
+        <button class="nav-button" data-target="info">Infos</button>
+        <button class="nav-button" data-target="options">Options</button>
+      </nav>
+    </div>
+    <div class="status-bar" aria-live="polite">
+      <div class="status-item status-item--left">
+        <span class="status-label">APC</span>
+        <span class="status-value" id="statusApc">1</span>
+      </div>
+      <div class="status-item status-item--center">
+        <span class="status-label">Atoms</span>
+        <span class="status-value status-value--main" id="statusAtoms">0</span>
+      </div>
+      <div class="status-item status-item--right">
+        <span class="status-label">APS</span>
+        <span class="status-value" id="statusAps">0</span>
+      </div>
+    </div>
   </header>
 
   <main id="pageContainer">
