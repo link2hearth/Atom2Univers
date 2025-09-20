@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atom to Univers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="theme-dark">
+  <header class="app-header">
+    <div class="brand">Atom → Univers</div>
+    <nav class="nav-menu" aria-label="Navigation principale">
+      <button class="nav-button active" data-target="game">Jeu</button>
+      <button class="nav-button" data-target="shop">Boutique</button>
+      <button class="nav-button" data-target="info">Infos</button>
+      <button class="nav-button" data-target="options">Options</button>
+    </nav>
+  </header>
+
+  <main id="pageContainer">
+    <section id="game" class="page active" aria-labelledby="game-title">
+      <div class="stats-grid">
+        <article class="stat-card">
+          <h2 id="game-title">Atomes</h2>
+          <p class="stat-value" id="atomsTotal">0</p>
+          <p class="stat-sub">Total accumulé : <span id="atomsLifetime">0</span></p>
+        </article>
+        <article class="stat-card">
+          <h3>Production</h3>
+          <div class="stat-row">
+            <span>Atoms par clic</span>
+            <strong id="atomsPerClick">1</strong>
+          </div>
+          <div class="stat-row">
+            <span>Atoms par seconde</span>
+            <strong id="atomsPerSecond">0</strong>
+          </div>
+        </article>
+      </div>
+
+      <button class="atom-button" id="atomButton" aria-label="Créer des atomes">
+        <span class="atom-core"></span>
+        <span class="atom-ring"></span>
+        <span class="atom-label">Clic !</span>
+      </button>
+
+      <section class="milestones" aria-live="polite">
+        <h3>Prochain objectif</h3>
+        <p id="nextMilestone">Collectez 100 atomes pour débloquer la fusion auto.</p>
+      </section>
+    </section>
+
+    <section id="shop" class="page" aria-labelledby="shop-title">
+      <h2 id="shop-title">Boutique quantique</h2>
+      <p class="section-intro">Investissez vos atomes pour booster votre production.</p>
+      <div class="shop-list" id="shopList" role="list"></div>
+    </section>
+
+    <section id="info" class="page" aria-labelledby="info-title">
+      <article class="info-card">
+        <h2 id="info-title">Bienvenue dans Atom → Univers</h2>
+        <p>Ce clicker vous fait gravir les échelles de la matière, d’un simple atome jusqu’aux structures les plus vastes de l’univers. Cliquez pour créer des atomes, automatisez la production et gérez judicieusement vos améliorations pour atteindre des grandeurs inouïes.</p>
+        <h3>Concepts clés</h3>
+        <ul>
+          <li><strong>APC</strong> – Atomes par clic. Chaque pression sur le noyau en produit cette quantité.</li>
+          <li><strong>APS</strong> – Atomes par seconde. Générés automatiquement grâce aux améliorations.</li>
+          <li><strong>Système de nombres à layers</strong> – Les valeurs dépassant l’entendement sont représentées avec des couches exponentielles. Vous verrez des notations comme <code>10^123</code> ou même des tours d’exponentielles.</li>
+        </ul>
+        <h3>Conseils</h3>
+        <ul>
+          <li>Montez vos clics pour amorcer la progression.</li>
+          <li>Investissez tôt dans la production automatique pour profiter du temps réel.</li>
+          <li>Revenez régulièrement : le jeu continue de produire lorsque vous êtes absent (si vous laissez l’onglet ouvert).</li>
+        </ul>
+      </article>
+    </section>
+
+    <section id="options" class="page" aria-labelledby="options-title">
+      <h2 id="options-title">Options</h2>
+      <div class="options-grid">
+        <div class="option-card">
+          <h3>Thème</h3>
+          <div class="option-row">
+            <label for="themeSelect">Apparence</label>
+            <select id="themeSelect">
+              <option value="dark">Sombre</option>
+              <option value="light">Clair</option>
+              <option value="neon">Néon</option>
+            </select>
+          </div>
+        </div>
+        <div class="option-card">
+          <h3>Progression</h3>
+          <div class="option-row">
+            <button id="saveButton" class="primary">Sauvegarder maintenant</button>
+            <button id="resetButton" class="danger">Réinitialiser</button>
+          </div>
+          <p class="option-note">Les sauvegardes sont automatiques toutes les 30 secondes.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Projet Atom → Univers &mdash; Expérience clicker scientifique</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
