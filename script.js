@@ -478,6 +478,10 @@ const periodicElements = Array.isArray(globalThis.PERIODIC_ELEMENTS)
 
 const TOTAL_ELEMENT_COUNT = periodicElements.length;
 
+const periodicElementIndex = new Map(
+  periodicElements.map(def => [def.id, def])
+);
+
 const CATEGORY_LABELS = {
   'alkali-metal': 'métal alcalin',
   'alkaline-earth-metal': 'métal alcalino-terreux',
@@ -643,6 +647,17 @@ const elements = {
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
+  elementInfoPanel: document.getElementById('elementInfoPanel'),
+  elementInfoPlaceholder: document.getElementById('elementInfoPlaceholder'),
+  elementInfoContent: document.getElementById('elementInfoContent'),
+  elementInfoNumber: document.getElementById('elementInfoNumber'),
+  elementInfoSymbol: document.getElementById('elementInfoSymbol'),
+  elementInfoName: document.getElementById('elementInfoName'),
+  elementInfoCategory: document.getElementById('elementInfoCategory'),
+  elementInfoMass: document.getElementById('elementInfoMass'),
+  elementInfoPeriod: document.getElementById('elementInfoPeriod'),
+  elementInfoGroup: document.getElementById('elementInfoGroup'),
+  elementInfoCollection: document.getElementById('elementInfoCollection'),
   collectionProgress: document.getElementById('elementCollectionProgress'),
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
@@ -652,6 +667,7 @@ const elements = {
 
 const shopRows = new Map();
 const periodicCells = new Map();
+let selectedElementId = null;
 
 function formatAtomicMass(value) {
   if (value == null) return '';
@@ -667,6 +683,101 @@ function formatAtomicMass(value) {
   return String(value);
 }
 
+function updateElementInfoPanel(definition) {
+  const panel = elements.elementInfoPanel;
+  const placeholder = elements.elementInfoPlaceholder;
+  const content = elements.elementInfoContent;
+  if (!panel) return;
+
+  if (!definition) {
+    if (panel.dataset.category) {
+      delete panel.dataset.category;
+    }
+    if (content) {
+      content.hidden = true;
+    }
+    if (placeholder) {
+      placeholder.hidden = false;
+    }
+    return;
+  }
+
+  if (definition.category) {
+    panel.dataset.category = definition.category;
+  } else if (panel.dataset.category) {
+    delete panel.dataset.category;
+  }
+
+  if (placeholder) {
+    placeholder.hidden = true;
+  }
+  if (content) {
+    content.hidden = false;
+  }
+
+  if (elements.elementInfoNumber) {
+    elements.elementInfoNumber.textContent =
+      definition.atomicNumber != null ? definition.atomicNumber : '—';
+  }
+  if (elements.elementInfoSymbol) {
+    elements.elementInfoSymbol.textContent = definition.symbol ?? '';
+  }
+  if (elements.elementInfoName) {
+    elements.elementInfoName.textContent = definition.name ?? '';
+  }
+  if (elements.elementInfoCategory) {
+    const label = definition.category
+      ? CATEGORY_LABELS[definition.category] || definition.category
+      : '—';
+    elements.elementInfoCategory.textContent = label;
+  }
+  if (elements.elementInfoMass) {
+    const massText = formatAtomicMass(definition.atomicMass);
+    elements.elementInfoMass.textContent = massText || '—';
+  }
+  if (elements.elementInfoPeriod) {
+    elements.elementInfoPeriod.textContent =
+      definition.period != null ? definition.period : '—';
+  }
+  if (elements.elementInfoGroup) {
+    elements.elementInfoGroup.textContent =
+      definition.group != null ? definition.group : '—';
+  }
+  if (elements.elementInfoCollection) {
+    const entry = gameState.elements?.[definition.id];
+    elements.elementInfoCollection.textContent = entry?.owned ? 'Possédé' : 'Non possédé';
+  }
+}
+
+function selectPeriodicElement(id, { focus = false } = {}) {
+  if (!id || !periodicElementIndex.has(id)) {
+    selectedElementId = null;
+    periodicCells.forEach(cell => {
+      cell.classList.remove('is-selected');
+      cell.setAttribute('aria-pressed', 'false');
+    });
+    updateElementInfoPanel(null);
+    return;
+  }
+
+  selectedElementId = id;
+  periodicCells.forEach((cell, elementId) => {
+    const isSelected = elementId === id;
+    cell.classList.toggle('is-selected', isSelected);
+    cell.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  });
+
+  const definition = periodicElementIndex.get(id);
+  updateElementInfoPanel(definition);
+
+  if (focus) {
+    const target = periodicCells.get(id);
+    if (target) {
+      target.focus();
+    }
+  }
+}
+
 function renderPeriodicTable() {
   if (!elements.periodicTable) return;
   elements.periodicTable.innerHTML = '';
@@ -680,6 +791,7 @@ function renderPeriodicTable() {
     if (elements.collectionProgress) {
       elements.collectionProgress.textContent = 'Collection en préparation';
     }
+    selectPeriodicElement(null);
     return;
   }
 
@@ -726,9 +838,10 @@ function renderPeriodicTable() {
     cell.innerHTML = `
       <span class="periodic-element__number">${def.atomicNumber}</span>
       <span class="periodic-element__symbol">${def.symbol}</span>
-      <span class="periodic-element__name">${def.name}</span>
-      <span class="periodic-element__mass">${massText}</span>
     `;
+    cell.setAttribute('aria-pressed', 'false');
+    cell.addEventListener('click', () => selectPeriodicElement(def.id));
+    cell.addEventListener('focus', () => selectPeriodicElement(def.id));
 
     const state = gameState.elements[def.id];
     if (state?.owned) {
@@ -740,6 +853,13 @@ function renderPeriodicTable() {
   });
 
   elements.periodicTable.appendChild(fragment);
+  if (selectedElementId && periodicCells.has(selectedElementId)) {
+    selectPeriodicElement(selectedElementId);
+  } else if (periodicElements.length) {
+    selectPeriodicElement(periodicElements[0].id);
+  } else {
+    selectPeriodicElement(null);
+  }
   updateCollectionDisplay();
 }
 
@@ -759,6 +879,10 @@ function updateCollectionDisplay() {
     const entry = gameState.elements?.[id];
     cell.classList.toggle('is-owned', Boolean(entry?.owned));
   });
+
+  if (selectedElementId && periodicElementIndex.has(selectedElementId)) {
+    updateElementInfoPanel(periodicElementIndex.get(selectedElementId));
+  }
 }
 
 let toastElement = null;
