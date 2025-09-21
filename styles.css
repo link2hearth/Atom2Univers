@@ -226,7 +226,7 @@ main {
   margin: 0 auto;
   padding: clamp(0.5rem, 1vw, 1rem);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   min-height: 0;
   overflow: auto;
@@ -249,10 +249,11 @@ main {
   --category-border: rgba(255, 255, 255, 0.1);
   position: relative;
   display: grid;
-  grid-template-rows: auto auto auto auto;
+  grid-template-rows: auto 1fr;
   justify-items: center;
-  gap: 0.18rem;
-  padding: clamp(0.35rem, 0.9vw, 0.55rem);
+  align-items: center;
+  gap: clamp(0.1rem, 0.5vw, 0.25rem);
+  padding: clamp(0.45rem, 1vw, 0.65rem);
   border-radius: 12px;
   background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
   border: 1px solid var(--category-border);
@@ -276,6 +277,11 @@ main {
   box-shadow: 0 0 0 2px rgba(76, 141, 255, 0.35);
 }
 
+.periodic-element.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(76, 141, 255, 0.55);
+}
+
 .periodic-element__number {
   font-size: clamp(0.6rem, 0.9vw, 0.75rem);
   opacity: 0.7;
@@ -284,7 +290,7 @@ main {
 
 .periodic-element__symbol {
   font-family: 'Orbitron', sans-serif;
-  font-size: clamp(1.1rem, 2.6vw, 1.8rem);
+  font-size: clamp(1.2rem, 3vw, 2rem);
   letter-spacing: 0.08em;
 }
 
@@ -299,6 +305,96 @@ main {
   opacity: 0.72;
 }
 
+.element-info-panel {
+  --category-strong: rgba(255, 255, 255, 0.08);
+  --category-weak: rgba(255, 255, 255, 0.02);
+  --category-border: rgba(255, 255, 255, 0.1);
+  grid-column: 3 / 13;
+  grid-row: 1 / 4;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 1.5vw, 1.15rem);
+  padding: clamp(1.1rem, 2.2vw, 1.6rem);
+  border-radius: 16px;
+  background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
+  border: 1px solid var(--category-border);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  color: inherit;
+  min-width: 0;
+  min-height: 0;
+}
+
+.element-info-panel__placeholder {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+
+.element-info-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 1.6vw, 1.2rem);
+}
+
+.element-info-panel__header {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(0.75rem, 1.5vw, 1rem);
+}
+
+.element-info-panel__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.element-info-panel__number {
+  font-size: clamp(0.75rem, 1vw, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.element-info-panel__symbol {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  letter-spacing: 0.1em;
+}
+
+.element-info-panel__name {
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.element-info-panel__details {
+  display: grid;
+  gap: clamp(0.45rem, 1vw, 0.7rem);
+  margin: 0;
+}
+
+.element-info-panel__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
+}
+
+.element-info-panel__row dt {
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.element-info-panel__row dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 500;
+}
+
 .periodic-placeholder {
   margin: 0;
   padding: clamp(1rem, 2vw, 1.4rem);
@@ -309,61 +405,71 @@ main {
   opacity: 0.75;
 }
 
-.periodic-element[data-category='alkali-metal'] {
+.periodic-element[data-category='alkali-metal'],
+.element-info-panel[data-category='alkali-metal'] {
   --category-strong: rgba(255, 146, 70, 0.38);
   --category-weak: rgba(255, 146, 70, 0.12);
   --category-border: rgba(255, 146, 70, 0.4);
 }
 
-.periodic-element[data-category='alkaline-earth-metal'] {
+.periodic-element[data-category='alkaline-earth-metal'],
+.element-info-panel[data-category='alkaline-earth-metal'] {
   --category-strong: rgba(255, 211, 95, 0.36);
   --category-weak: rgba(255, 211, 95, 0.12);
   --category-border: rgba(255, 211, 95, 0.36);
 }
 
-.periodic-element[data-category='transition-metal'] {
+.periodic-element[data-category='transition-metal'],
+.element-info-panel[data-category='transition-metal'] {
   --category-strong: rgba(82, 200, 235, 0.36);
   --category-weak: rgba(82, 200, 235, 0.12);
   --category-border: rgba(82, 200, 235, 0.36);
 }
 
-.periodic-element[data-category='post-transition-metal'] {
+.periodic-element[data-category='post-transition-metal'],
+.element-info-panel[data-category='post-transition-metal'] {
   --category-strong: rgba(200, 150, 255, 0.36);
   --category-weak: rgba(200, 150, 255, 0.12);
   --category-border: rgba(200, 150, 255, 0.36);
 }
 
-.periodic-element[data-category='metalloid'] {
+.periodic-element[data-category='metalloid'],
+.element-info-panel[data-category='metalloid'] {
   --category-strong: rgba(130, 220, 160, 0.32);
   --category-weak: rgba(130, 220, 160, 0.12);
   --category-border: rgba(130, 220, 160, 0.32);
 }
 
-.periodic-element[data-category='nonmetal'] {
+.periodic-element[data-category='nonmetal'],
+.element-info-panel[data-category='nonmetal'] {
   --category-strong: rgba(110, 170, 255, 0.36);
   --category-weak: rgba(110, 170, 255, 0.14);
   --category-border: rgba(110, 170, 255, 0.34);
 }
 
-.periodic-element[data-category='halogen'] {
+.periodic-element[data-category='halogen'],
+.element-info-panel[data-category='halogen'] {
   --category-strong: rgba(255, 120, 200, 0.36);
   --category-weak: rgba(255, 120, 200, 0.14);
   --category-border: rgba(255, 120, 200, 0.34);
 }
 
-.periodic-element[data-category='noble-gas'] {
+.periodic-element[data-category='noble-gas'],
+.element-info-panel[data-category='noble-gas'] {
   --category-strong: rgba(180, 140, 255, 0.36);
   --category-weak: rgba(180, 140, 255, 0.14);
   --category-border: rgba(180, 140, 255, 0.34);
 }
 
-.periodic-element[data-category='lanthanide'] {
+.periodic-element[data-category='lanthanide'],
+.element-info-panel[data-category='lanthanide'] {
   --category-strong: rgba(255, 184, 120, 0.34);
   --category-weak: rgba(255, 184, 120, 0.12);
   --category-border: rgba(255, 184, 120, 0.32);
 }
 
-.periodic-element[data-category='actinide'] {
+.periodic-element[data-category='actinide'],
+.element-info-panel[data-category='actinide'] {
   --category-strong: rgba(255, 130, 150, 0.34);
   --category-weak: rgba(255, 130, 150, 0.12);
   --category-border: rgba(255, 130, 150, 0.32);

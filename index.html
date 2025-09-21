@@ -57,6 +57,42 @@
     <section id="tableau" class="page page--table" aria-label="Tableau périodique des éléments">
       <div class="periodic-table-wrapper" role="presentation">
         <div class="periodic-table" id="periodicTable" role="grid" aria-label="Tableau périodique des éléments">
+          <aside class="element-info-panel" id="elementInfoPanel" aria-live="polite">
+            <p class="element-info-panel__placeholder" id="elementInfoPlaceholder">
+              Sélectionnez un élément pour afficher ses propriétés.
+            </p>
+            <div class="element-info-panel__content" id="elementInfoContent" hidden>
+              <header class="element-info-panel__header">
+                <span class="element-info-panel__number" id="elementInfoNumber"></span>
+                <div class="element-info-panel__identity">
+                  <span class="element-info-panel__symbol" id="elementInfoSymbol"></span>
+                  <span class="element-info-panel__name" id="elementInfoName"></span>
+                </div>
+              </header>
+              <dl class="element-info-panel__details">
+                <div class="element-info-panel__row">
+                  <dt>Famille</dt>
+                  <dd id="elementInfoCategory"></dd>
+                </div>
+                <div class="element-info-panel__row">
+                  <dt>Masse atomique</dt>
+                  <dd id="elementInfoMass"></dd>
+                </div>
+                <div class="element-info-panel__row">
+                  <dt>Période</dt>
+                  <dd id="elementInfoPeriod"></dd>
+                </div>
+                <div class="element-info-panel__row">
+                  <dt>Groupe</dt>
+                  <dd id="elementInfoGroup"></dd>
+                </div>
+                <div class="element-info-panel__row">
+                  <dt>Collection</dt>
+                  <dd id="elementInfoCollection"></dd>
+                </div>
+              </dl>
+            </div>
+          </aside>
           <!-- Le tableau est généré dynamiquement par script.js -->
         </div>
       </div>
