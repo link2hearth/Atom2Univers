@@ -550,10 +550,7 @@ const milestoneList = [
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
   pages: document.querySelectorAll('.page'),
-  atomsTotal: document.getElementById('atomsTotal'),
   atomsLifetime: document.getElementById('atomsLifetime'),
-  atomsPerClick: document.getElementById('atomsPerClick'),
-  atomsPerSecond: document.getElementById('atomsPerSecond'),
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
@@ -566,6 +563,101 @@ const elements = {
 };
 
 let toastElement = null;
+
+const CLICK_WINDOW_MS = 1000;
+const MAX_CLICKS_PER_SECOND = 20;
+const clickHistory = [];
+let targetClickStrength = 0;
+let displayedClickStrength = 0;
+
+function isGamePageActive() {
+  const active = document.querySelector('.page.active');
+  return active && active.id === 'game';
+}
+
+function updateClickHistory(now = performance.now()) {
+  while (clickHistory.length && now - clickHistory[0] > CLICK_WINDOW_MS) {
+    clickHistory.shift();
+  }
+  const effective = Math.min(MAX_CLICKS_PER_SECOND, clickHistory.length);
+  targetClickStrength = effective / MAX_CLICKS_PER_SECOND;
+}
+
+const glowStops = [
+  { stop: 0, color: [252, 234, 170] },
+  { stop: 0.5, color: [255, 184, 96] },
+  { stop: 1, color: [255, 78, 32] }
+];
+
+function interpolateGlowColor(strength) {
+  const clamped = Math.max(0, Math.min(1, strength));
+  for (let i = 0; i < glowStops.length - 1; i += 1) {
+    const current = glowStops[i];
+    const next = glowStops[i + 1];
+    if (clamped <= next.stop) {
+      const range = next.stop - current.stop;
+      const t = range === 0 ? 0 : (clamped - current.stop) / range;
+      const r = Math.round(current.color[0] + (next.color[0] - current.color[0]) * t);
+      const g = Math.round(current.color[1] + (next.color[1] - current.color[1]) * t);
+      const b = Math.round(current.color[2] + (next.color[2] - current.color[2]) * t);
+      return `${r}, ${g}, ${b}`;
+    }
+  }
+  const last = glowStops[glowStops.length - 1];
+  return `${last.color[0]}, ${last.color[1]}, ${last.color[2]}`;
+}
+
+function applyClickStrength(strength) {
+  if (!elements.atomButton) return;
+  const clamped = Math.max(0, Math.min(1, strength));
+  const button = elements.atomButton;
+  button.style.setProperty('--glow-strength', clamped.toFixed(3));
+  button.style.setProperty('--shake-distance', `${(clamped * 8).toFixed(3)}px`);
+  button.style.setProperty('--shake-rotation', `${(clamped * 0.9).toFixed(3)}deg`);
+  button.style.setProperty('--glow-color', interpolateGlowColor(clamped));
+  if (clamped > 0.02) {
+    button.classList.add('is-active');
+  } else {
+    button.classList.remove('is-active');
+  }
+}
+
+function updateClickVisuals(now = performance.now()) {
+  updateClickHistory(now);
+  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.18;
+  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0005) {
+    displayedClickStrength = targetClickStrength;
+  }
+  applyClickStrength(displayedClickStrength);
+}
+
+function registerManualClick() {
+  const now = performance.now();
+  clickHistory.push(now);
+  updateClickVisuals(now);
+}
+
+function animateAtomPress() {
+  if (!elements.atomButton) return;
+  elements.atomButton.classList.add('is-pressed');
+  clearTimeout(animateAtomPress.timeout);
+  animateAtomPress.timeout = setTimeout(() => {
+    elements.atomButton.classList.remove('is-pressed');
+  }, 110);
+}
+
+function handleManualAtomClick() {
+  gainAtoms(gameState.perClick, true);
+  registerManualClick();
+  animateAtomPress();
+}
+
+function shouldTriggerGlobalClick(event) {
+  if (!isGamePageActive()) return false;
+  if (event.target.closest('.app-header')) return false;
+  if (event.target.closest('.status-bar')) return false;
+  return true;
+}
 
 function showPage(pageId) {
   elements.pages.forEach(page => {
@@ -580,18 +672,21 @@ elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.target));
 });
 
-elements.atomButton.addEventListener('click', () => {
-  gainAtoms(gameState.perClick, true);
+if (elements.atomButton) {
+  elements.atomButton.addEventListener('click', event => {
+    event.stopPropagation();
+    handleManualAtomClick();
+  });
+}
+
+document.addEventListener('click', event => {
+  if (!shouldTriggerGlobalClick(event)) return;
+  handleManualAtomClick();
 });
 
 function gainAtoms(amount, fromClick = false) {
   gameState.atoms = gameState.atoms.add(amount);
   gameState.lifetime = gameState.lifetime.add(amount);
-  if (fromClick) {
-    // slight animation
-    elements.atomButton.classList.add('pulse');
-    setTimeout(() => elements.atomButton.classList.remove('pulse'), 120);
-  }
 }
 
 function computeUpgradeCost(def) {
@@ -690,10 +785,9 @@ function updateMilestone() {
 }
 
 function updateUI() {
-  elements.atomsTotal.textContent = gameState.atoms.toString();
-  elements.atomsLifetime.textContent = gameState.lifetime.toString();
-  elements.atomsPerClick.textContent = `${gameState.perClick.toString()} APC`;
-  elements.atomsPerSecond.textContent = `${gameState.perSecond.toString()} APS`;
+  if (elements.atomsLifetime) {
+    elements.atomsLifetime.textContent = gameState.lifetime.toString();
+  }
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
@@ -837,6 +931,8 @@ function loop(now) {
     const gain = gameState.perSecond.multiplyNumber(delta);
     gainAtoms(gain);
   }
+
+  updateClickVisuals(now);
 
   if (now - lastUIUpdate > 250) {
     updateUI();
