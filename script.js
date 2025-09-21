@@ -946,10 +946,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const baseAutoAdd = 0.1 * level * tierMultiplier;
-        const autoAdd = level > 0 ? Math.max(1, Math.round(baseAutoAdd)) : 0;
-        const rawClickAdd = level >= 100 ? 0.01 * level : 0;
-        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
+        const rawAutoAdd = level * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
+        const clickAdd = level >= 100 ? level : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
           result.clickAdd = clickAdd;
@@ -973,7 +972,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (acceleratorLevel >= 200) {
           productionMultiplier *= 1.2;
         }
-        const autoAdd = level * 1 * productionMultiplier;
+        const rawAutoAdd = level * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
         const clickBonus = Math.pow(1.05, Math.floor(level / 10));
         return {
           autoAdd,
@@ -1001,7 +1001,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (labLevel >= 200) {
           productionMultiplier *= 1.2;
         }
-        const autoAdd = 10 * level * productionMultiplier;
+        const baseAmount = 10 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 2 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -1024,7 +1026,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (supercomputerLevel >= 100) {
           productionMultiplier *= 1.5;
         }
-        const autoAdd = 50 * level * productionMultiplier;
+        const baseAmount = 50 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = Math.pow(1.02, level);
         return { autoAdd, clickMult };
       }
@@ -1045,7 +1049,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (stationLevel >= 300) {
           productionMultiplier *= 2;
         }
-        const autoAdd = 500 * level * productionMultiplier;
+        const baseAmount = 500 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const autoMult = Math.pow(1.01, Math.floor(level / 25));
         return autoMult > 1
           ? { autoAdd, autoMult }
@@ -1068,7 +1074,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (reactorLevel > 0) {
           productionMultiplier *= 1 + 0.001 * reactorLevel;
         }
-        const autoAdd = 5000 * level * productionMultiplier;
+        const baseAmount = 5000 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickAdd = level >= 150 ? level : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
@@ -1088,7 +1096,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 50_000 * level * tierMultiplier;
+        const baseAmount = 50_000 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = Math.pow(1.05, level);
         return { autoAdd, clickMult };
       }
@@ -1109,7 +1119,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (stationLevel > 0) {
           productionMultiplier *= 1 + 0.02 * stationLevel;
         }
-        const autoAdd = 500_000 * level * productionMultiplier;
+        const baseAmount = 500_000 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 1.25 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -1132,7 +1144,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         if (libraryLevel >= 300) {
           productionMultiplier *= 2;
         }
-        const autoAdd = 5e6 * level * productionMultiplier;
+        const baseAmount = 5e6 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const autoMult = Math.pow(1.1, level);
         const clickMult = level >= 100 ? 1.5 : 1;
         const result = { autoAdd };
@@ -1156,7 +1170,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 5e8 * level * tierMultiplier;
+        const baseAmount = 5e8 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const totalBuildings = getTotal(context);
         const autoMult = totalBuildings > 0 ? Math.pow(1.005, totalBuildings) : 1;
         return autoMult > 1
@@ -1176,7 +1192,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeMultiplier(level);
         const totalBuildings = getTotal(context);
-        const autoAdd = 1e10 * level * tierMultiplier;
+        const baseAmount = 1e10 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const rawClickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
         const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const globalMult = level >= 300 ? 2 : 1;
@@ -1202,7 +1220,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 1e12 * level * tierMultiplier;
+        const baseAmount = 1e12 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 1.2 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -1220,7 +1240,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 1e14 * level * tierMultiplier;
+        const baseAmount = 1e14 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         return { autoAdd };
       }
     },
@@ -1235,7 +1257,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 1e16 * level * tierMultiplier;
+        const baseAmount = 1e16 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const parallelLevel = getLevel(context, 'parallelUniverse');
         const globalBoost = parallelLevel > 0 ? Math.pow(1.02, parallelLevel) : 1;
         if (globalBoost > 1) {
@@ -1259,7 +1283,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 1e18 * level * tierMultiplier;
+        const baseAmount = 1e18 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const globalMult = level >= 100 ? 2 : 1;
         return globalMult > 1
           ? { autoAdd, autoMult: globalMult, clickMult: globalMult }
@@ -1529,8 +1555,14 @@ function applyFrenzyEffects(now = performance.now()) {
   const clickMultiplier = getFrenzyMultiplier('perClick', now);
   const autoMultiplier = getFrenzyMultiplier('perSecond', now);
 
-  gameState.perClick = basePerClick.multiplyNumber(clickMultiplier);
-  gameState.perSecond = basePerSecond.multiplyNumber(autoMultiplier);
+  let perClickResult = basePerClick.multiplyNumber(clickMultiplier);
+  let perSecondResult = basePerSecond.multiplyNumber(autoMultiplier);
+
+  perClickResult = normalizeProductionUnit(perClickResult);
+  perSecondResult = normalizeProductionUnit(perSecondResult);
+
+  gameState.perClick = perClickResult.clone();
+  gameState.perSecond = perSecondResult.clone();
 
   const baseProduction = gameState.productionBase || createEmptyProductionBreakdown();
   const clickEntry = cloneProductionEntry(baseProduction.perClick);
@@ -1550,7 +1582,7 @@ function applyFrenzyEffects(now = performance.now()) {
       });
     }
     clickEntry.totalMultiplier = clickEntry.totalMultiplier.multiply(clickMultiplierLayered);
-    clickEntry.total = clickEntry.total.multiply(clickMultiplierLayered);
+    clickEntry.total = perClickResult.clone();
   }
 
   if (autoEntry) {
@@ -1564,7 +1596,7 @@ function applyFrenzyEffects(now = performance.now()) {
       });
     }
     autoEntry.totalMultiplier = autoEntry.totalMultiplier.multiply(autoMultiplierLayered);
-    autoEntry.total = autoEntry.total.multiply(autoMultiplierLayered);
+    autoEntry.total = perSecondResult.clone();
   }
 
   gameState.production = {
@@ -2682,6 +2714,26 @@ function toLayeredValue(value, fallback = 0) {
   return new LayeredNumber(value);
 }
 
+function normalizeProductionUnit(value, options = {}) {
+  const minimum = Math.max(1, Number(options.minimum) || 1);
+  const layered = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
+  if (layered.isZero() || layered.sign <= 0) {
+    return LayeredNumber.zero();
+  }
+  if (layered.layer > 0) {
+    return layered;
+  }
+  if (layered.exponent < 0) {
+    return new LayeredNumber(minimum);
+  }
+  if (layered.exponent <= 14) {
+    const numeric = layered.mantissa * Math.pow(10, layered.exponent);
+    const rounded = Math.max(minimum, Math.round(numeric));
+    return new LayeredNumber(rounded);
+  }
+  return layered;
+}
+
 function toMultiplierLayered(value) {
   if (value instanceof LayeredNumber) {
     return value.clone();
@@ -2754,7 +2806,8 @@ function getMultiplierSourceValue(entry, step) {
 
 function formatFlatValue(value) {
   const layered = value instanceof LayeredNumber ? value : toLayeredValue(value, 0);
-  return layered.isZero() ? '+0' : `+${layered.toString()}`;
+  const normalized = normalizeProductionUnit(layered);
+  return normalized.isZero() ? '+0' : `+${normalized.toString()}`;
 }
 
 function formatProductionStepValue(step, entry) {
@@ -2762,7 +2815,7 @@ function formatProductionStepValue(step, entry) {
   switch (step.type) {
     case 'base': {
       const baseValue = entry && entry.base != null
-        ? toLayeredValue(entry.base, 0)
+        ? normalizeProductionUnit(entry.base)
         : LayeredNumber.zero();
       return baseValue.toString();
     }
@@ -2776,7 +2829,7 @@ function formatProductionStepValue(step, entry) {
     }
     case 'total': {
       const totalValue = entry && entry.total != null
-        ? toLayeredValue(entry.total, 0)
+        ? normalizeProductionUnit(entry.total)
         : LayeredNumber.zero();
       return totalValue.toString();
     }
@@ -3268,8 +3321,8 @@ function formatShopCost(cost) {
 }
 
 function recalcProduction() {
-  const clickBase = BASE_PER_CLICK.clone();
-  const autoBase = BASE_PER_SECOND.clone();
+  const clickBase = normalizeProductionUnit(BASE_PER_CLICK);
+  const autoBase = normalizeProductionUnit(BASE_PER_SECOND);
 
   const clickDetails = createEmptyProductionEntry();
   const autoDetails = createEmptyProductionEntry();
@@ -3313,18 +3366,18 @@ function recalcProduction() {
     const effects = def.effect(level, gameState.upgrades);
 
     if (effects.clickAdd != null) {
-      const value = new LayeredNumber(effects.clickAdd);
+      const value = normalizeProductionUnit(effects.clickAdd);
       if (!value.isZero()) {
         clickShopAddition = clickShopAddition.add(value);
-        clickDetails.additions.push({ id: def.id, label: def.name, level, value, source: 'shop' });
+        clickDetails.additions.push({ id: def.id, label: def.name, level, value: value.clone(), source: 'shop' });
       }
     }
 
     if (effects.autoAdd != null) {
-      const value = new LayeredNumber(effects.autoAdd);
+      const value = normalizeProductionUnit(effects.autoAdd);
       if (!value.isZero()) {
         autoShopAddition = autoShopAddition.add(value);
-        autoDetails.additions.push({ id: def.id, label: def.name, level, value, source: 'shop' });
+        autoDetails.additions.push({ id: def.id, label: def.name, level, value: value.clone(), source: 'shop' });
       }
     }
 
@@ -3386,8 +3439,8 @@ function recalcProduction() {
   const clickTotalAddition = clickShopAddition.add(clickElementAddition);
   const autoTotalAddition = autoShopAddition.add(autoElementAddition);
 
-  clickDetails.totalAddition = clickTotalAddition;
-  autoDetails.totalAddition = autoTotalAddition;
+  clickDetails.totalAddition = clickTotalAddition.clone();
+  autoDetails.totalAddition = autoTotalAddition.clone();
 
   const clickTotalMultiplier = LayeredNumber.one()
     .multiply(clickShopBonus1)
@@ -3424,8 +3477,11 @@ function recalcProduction() {
   perSecond = perSecond.multiply(autoRarityProduct);
   perSecond = perSecond.multiply(autoTrophyMultiplier);
 
-  clickDetails.total = perClick;
-  autoDetails.total = perSecond;
+  perClick = normalizeProductionUnit(perClick);
+  perSecond = normalizeProductionUnit(perSecond);
+
+  clickDetails.total = perClick.clone();
+  autoDetails.total = perSecond.clone();
   gameState.basePerClick = perClick.clone();
   gameState.basePerSecond = perSecond.clone();
   gameState.productionBase = { perClick: clickDetails, perSecond: autoDetails };
