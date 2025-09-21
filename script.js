@@ -562,6 +562,8 @@ const elements = {
   resetButton: document.getElementById('resetButton')
 };
 
+const shopRows = new Map();
+
 let toastElement = null;
 
 const CLICK_WINDOW_MS = 1000;
@@ -710,11 +712,20 @@ if (elements.atomButton) {
     event.stopPropagation();
     handleManualAtomClick();
   });
+  elements.atomButton.addEventListener('dragstart', event => {
+    event.preventDefault();
+  });
 }
 
 document.addEventListener('click', event => {
   if (!shouldTriggerGlobalClick(event)) return;
   handleManualAtomClick();
+});
+
+document.addEventListener('selectstart', event => {
+  if (isGamePageActive()) {
+    event.preventDefault();
+  }
 });
 
 function gainAtoms(amount, fromClick = false) {
@@ -757,40 +768,78 @@ LayeredNumber.prototype.addNumber = function (num) {
   return this.add(new LayeredNumber(num));
 };
 
-function renderShop() {
-  elements.shopList.innerHTML = '';
+function buildShopItem(def) {
+  const item = document.createElement('article');
+  item.className = 'shop-item';
+  item.dataset.upgradeId = def.id;
+  item.setAttribute('role', 'listitem');
+
+  const header = document.createElement('header');
+  header.className = 'shop-item__header';
+
+  const title = document.createElement('h3');
+  title.textContent = def.name;
+
+  const level = document.createElement('span');
+  level.className = 'shop-item__level';
+
+  header.append(title, level);
+
+  const desc = document.createElement('p');
+  desc.className = 'shop-item__description';
+  desc.textContent = def.description;
+
+  const cost = document.createElement('div');
+  cost.className = 'shop-item__cost';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'shop-item__action';
+  button.addEventListener('click', () => {
+    attemptPurchase(def);
+  });
+
+  item.append(header, desc, cost, button);
+
+  return { root: item, level, cost, button };
+}
+
+function updateShopAffordability() {
+  if (!shopRows.size) return;
   UPGRADE_DEFS.forEach(def => {
+    const row = shopRows.get(def.id);
+    if (!row) return;
     const level = gameState.upgrades[def.id] || 0;
     const cost = computeUpgradeCost(def);
     const affordable = gameState.atoms.compare(cost) >= 0;
+    const actionLabel = level > 0 ? 'Améliorer' : 'Acheter';
 
-    const item = document.createElement('article');
-    item.className = 'shop-item';
-
-    const header = document.createElement('header');
-    const title = document.createElement('h3');
-    title.textContent = def.name;
-    const lvl = document.createElement('span');
-    lvl.textContent = `Niveau ${level}`;
-    header.append(title, lvl);
-
-    const desc = document.createElement('p');
-    desc.textContent = def.description;
-
-    const costEl = document.createElement('div');
-    costEl.className = 'cost';
-    costEl.textContent = `Coût : ${cost.toString()}`;
-
-    const button = document.createElement('button');
-    button.textContent = affordable ? 'Acheter' : 'Insuffisant';
-    button.disabled = !affordable;
-    button.addEventListener('click', () => {
-      attemptPurchase(def);
-    });
-
-    item.append(header, desc, costEl, button);
-    elements.shopList.appendChild(item);
+    row.level.textContent = `Niveau ${level}`;
+    row.cost.textContent = `Coût : ${cost.toString()}`;
+    row.button.textContent = actionLabel;
+    row.button.disabled = !affordable;
+    row.button.classList.toggle('is-ready', affordable);
+    row.root.classList.toggle('shop-item--ready', affordable);
+    const ariaLabel = affordable
+      ? `${actionLabel} ${def.name}`
+      : `${actionLabel} ${def.name} (atomes insuffisants)`;
+    row.button.setAttribute('aria-label', ariaLabel);
+    row.button.title = ariaLabel;
   });
+}
+
+function renderShop() {
+  if (!elements.shopList) return;
+  shopRows.clear();
+  elements.shopList.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  UPGRADE_DEFS.forEach(def => {
+    const row = buildShopItem(def);
+    fragment.appendChild(row.root);
+    shopRows.set(def.id, row);
+  });
+  elements.shopList.appendChild(fragment);
+  updateShopAffordability();
 }
 
 function attemptPurchase(def) {
@@ -802,7 +851,6 @@ function attemptPurchase(def) {
   gameState.atoms = gameState.atoms.subtract(cost);
   gameState.upgrades[def.id] = (gameState.upgrades[def.id] || 0) + 1;
   recalcProduction();
-  renderShop();
   updateUI();
   showToast(`Amélioration "${def.name}" achetée !`);
 }
@@ -828,6 +876,7 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
+  updateShopAffordability();
   updateMilestone();
 }
 
