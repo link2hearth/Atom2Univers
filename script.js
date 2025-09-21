@@ -550,11 +550,11 @@ const milestoneList = [
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
   pages: document.querySelectorAll('.page'),
-  atomsLifetime: document.getElementById('atomsLifetime'),
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
+  starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
@@ -584,9 +584,10 @@ function updateClickHistory(now = performance.now()) {
 }
 
 const glowStops = [
-  { stop: 0, color: [252, 234, 170] },
-  { stop: 0.5, color: [255, 184, 96] },
-  { stop: 1, color: [255, 78, 32] }
+  { stop: 0, color: [248, 226, 158] },
+  { stop: 0.35, color: [255, 202, 112] },
+  { stop: 0.65, color: [255, 130, 54] },
+  { stop: 1, color: [255, 46, 18] }
 ];
 
 function interpolateGlowColor(strength) {
@@ -610,12 +611,14 @@ function interpolateGlowColor(strength) {
 function applyClickStrength(strength) {
   if (!elements.atomButton) return;
   const clamped = Math.max(0, Math.min(1, strength));
+  const heat = Math.pow(clamped, 0.35);
+  const tremor = Math.pow(clamped, 0.45);
   const button = elements.atomButton;
-  button.style.setProperty('--glow-strength', clamped.toFixed(3));
-  button.style.setProperty('--shake-distance', `${(clamped * 8).toFixed(3)}px`);
-  button.style.setProperty('--shake-rotation', `${(clamped * 0.9).toFixed(3)}deg`);
-  button.style.setProperty('--glow-color', interpolateGlowColor(clamped));
-  if (clamped > 0.02) {
+  button.style.setProperty('--glow-strength', heat.toFixed(3));
+  button.style.setProperty('--shake-distance', `${(tremor * 24).toFixed(3)}px`);
+  button.style.setProperty('--shake-rotation', `${(tremor * 4.6).toFixed(3)}deg`);
+  button.style.setProperty('--glow-color', interpolateGlowColor(heat));
+  if (clamped > 0.01) {
     button.classList.add('is-active');
   } else {
     button.classList.remove('is-active');
@@ -644,6 +647,26 @@ function animateAtomPress() {
   animateAtomPress.timeout = setTimeout(() => {
     elements.atomButton.classList.remove('is-pressed');
   }, 110);
+}
+
+const STAR_COUNT = 60;
+
+function initStarfield() {
+  if (!elements.starfield) return;
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < STAR_COUNT; i += 1) {
+    const star = document.createElement('span');
+    star.className = 'starfield__star';
+    star.style.left = `${Math.random() * 100}%`;
+    star.style.top = `${Math.random() * 100}%`;
+    star.style.setProperty('--star-scale', (0.6 + Math.random() * 1.7).toFixed(2));
+    const duration = 4 + Math.random() * 6;
+    star.style.animationDuration = `${duration.toFixed(2)}s`;
+    star.style.animationDelay = `-${(Math.random() * duration).toFixed(2)}s`;
+    star.style.setProperty('--star-opacity', (0.26 + Math.random() * 0.54).toFixed(2));
+    fragment.appendChild(star);
+  }
+  elements.starfield.appendChild(fragment);
 }
 
 function handleManualAtomClick() {
@@ -775,6 +798,7 @@ function attemptPurchase(def) {
 }
 
 function updateMilestone() {
+  if (!elements.nextMilestone) return;
   for (const milestone of milestoneList) {
     if (gameState.lifetime.compare(milestone.amount) < 0) {
       elements.nextMilestone.textContent = milestone.text;
@@ -785,9 +809,6 @@ function updateMilestone() {
 }
 
 function updateUI() {
-  if (elements.atomsLifetime) {
-    elements.atomsLifetime.textContent = gameState.lifetime.toString();
-  }
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
@@ -953,4 +974,5 @@ loadGame();
 recalcProduction();
 renderShop();
 updateUI();
+initStarfield();
 requestAnimationFrame(loop);

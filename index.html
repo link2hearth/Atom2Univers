@@ -37,22 +37,14 @@
   </header>
 
   <main id="pageContainer">
-    <section id="game" class="page active" aria-labelledby="game-title">
-      <header class="game-header">
-        <h2 id="game-title">Atomes</h2>
-        <p class="game-sub">Total accumulé : <span id="atomsLifetime">0</span></p>
-      </header>
+    <section id="game" class="page active page--void" aria-label="Chambre de création atomique">
+      <div class="starfield" aria-hidden="true"></div>
 
       <button class="atom-button" id="atomButton" aria-label="Créer des atomes" type="button">
         <span class="atom-visual">
           <img src="Assets/Image/Atom.png" alt="Illustration d'un atome vibrant" class="atom-image" />
         </span>
       </button>
-
-      <section class="milestones" aria-live="polite">
-        <h3>Prochain objectif</h3>
-        <p id="nextMilestone">Collectez 100 atomes pour débloquer la fusion auto.</p>
-      </section>
     </section>
 
     <section id="shop" class="page" aria-labelledby="shop-title">
