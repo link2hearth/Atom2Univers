@@ -249,12 +249,12 @@ main {
 }
 
 .periodic-table {
-  --cell-width: clamp(3rem, 4.2vw, 4.75rem);
-  --cell-height: clamp(3.6rem, calc((100vh - 22rem) / 9), 5.1rem);
+  --cell-width: clamp(2.1rem, 2.94vw, 3.325rem);
+  --cell-height: clamp(2.52rem, calc(((100vh - 22rem) / 9) * 0.7), 3.57rem);
   display: grid;
   grid-template-columns: repeat(18, minmax(var(--cell-width), 1fr));
   grid-auto-rows: var(--cell-height);
-  gap: clamp(0.2rem, 0.6vw, 0.4rem);
+  gap: clamp(0.14rem, 0.42vw, 0.28rem);
   width: min(100%, 1400px);
 }
 
@@ -267,8 +267,8 @@ main {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: clamp(0.15rem, 0.6vw, 0.35rem);
-  padding: clamp(0.45rem, 1vw, 0.65rem);
+  gap: clamp(0.105rem, 0.42vw, 0.245rem);
+  padding: clamp(0.315rem, 0.7vw, 0.455rem);
   border-radius: 12px;
   background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
   border: 1px solid var(--category-border);
@@ -301,24 +301,24 @@ main {
 
 .periodic-element__symbol {
   font-family: 'Orbitron', sans-serif;
-  font-size: clamp(1.2rem, 3vw, 2rem);
+  font-size: clamp(0.48rem, 1.2vw, 0.8rem);
   letter-spacing: 0.08em;
   line-height: 1;
 }
 
 .periodic-element__number {
-  font-size: clamp(0.52rem, 0.8vw, 0.68rem);
+  font-size: clamp(0.208rem, 0.32vw, 0.272rem);
   opacity: 0.75;
   line-height: 1;
 }
 .periodic-element__name {
-  font-size: clamp(0.62rem, 1vw, 0.82rem);
+  font-size: clamp(0.248rem, 0.4vw, 0.328rem);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .periodic-element__mass {
-  font-size: clamp(0.58rem, 0.9vw, 0.78rem);
+  font-size: clamp(0.232rem, 0.36vw, 0.312rem);
   opacity: 0.72;
 }
 
