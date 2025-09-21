@@ -707,7 +707,8 @@ function defineProductionStep(id, type, label, extra = {}) {
 defineProductionStep('baseFlat', 'base', 'Base flat', { source: 'baseFlat' });
 defineProductionStep('shopFlat', 'flat', 'Bonus flat magasin', { source: 'shopFlat' });
 defineProductionStep('elementFlat', 'flat', 'Bonus flat éléments', { source: 'elementFlat' });
-defineProductionStep('shopMultiplier', 'multiplier', 'Multiplicateur magasin', { source: 'shopMultiplier' });
+defineProductionStep('shopBonus1', 'multiplier', 'Bonus shop 1', { source: 'shopBonus1' });
+defineProductionStep('shopBonus2', 'multiplier', 'Bonus shop 2', { source: 'shopBonus2' });
 defineProductionStep(
   'trophyMultiplier',
   'multiplier',
@@ -730,7 +731,8 @@ const DEFAULT_PRODUCTION_STEP_IDS = [
   'baseFlat',
   'shopFlat',
   'elementFlat',
-  'shopMultiplier',
+  'shopBonus1',
+  'shopBonus2',
   ...RARITY_IDS.map(id => `rarityMultiplier:${id}`),
   'trophyMultiplier',
   'total'
@@ -741,15 +743,22 @@ function resolveProductionStepOrder(configOrder) {
   const resolved = [];
 
   const pushStep = (id, labelOverride = null) => {
-    if (!id || seen.has(id)) return;
-    const base = PRODUCTION_STEP_DEFINITIONS.get(id);
+    if (!id) return;
+    let normalizedId = id;
+    if (id === 'shopMultiplier') {
+      normalizedId = 'shopBonus1';
+    } else if (id === 'shopMultiplier2' || id === 'shopMultiplierSecondary') {
+      normalizedId = 'shopBonus2';
+    }
+    if (seen.has(normalizedId)) return;
+    const base = PRODUCTION_STEP_DEFINITIONS.get(normalizedId);
     if (!base) return;
     const entry = { ...base };
     if (labelOverride && typeof labelOverride === 'string') {
       entry.label = labelOverride;
     }
     resolved.push(entry);
-    seen.add(id);
+    seen.add(normalizedId);
   };
 
   if (Array.isArray(configOrder)) {
@@ -900,7 +909,7 @@ function createEmptyProductionEntry() {
   return {
     base: LayeredNumber.zero(),
     totalAddition: LayeredNumber.zero(),
-    totalMultiplier: 1,
+    totalMultiplier: LayeredNumber.one(),
     additions: [],
     multipliers: [],
     total: LayeredNumber.zero(),
@@ -911,8 +920,9 @@ function createEmptyProductionEntry() {
         elementFlat: LayeredNumber.zero()
       },
       multipliers: {
-        shopMultiplier: 1,
-        trophyMultiplier: 1,
+        shopBonus1: LayeredNumber.one(),
+        shopBonus2: LayeredNumber.one(),
+        trophyMultiplier: LayeredNumber.one(),
         rarityMultipliers
       }
     }
@@ -1039,16 +1049,36 @@ function formatAtomicMass(value) {
 }
 
 function formatMultiplier(value) {
+  if (value instanceof LayeredNumber) {
+    if (value.sign <= 0) {
+      return '×—';
+    }
+    if (value.layer === 0 && Math.abs(value.exponent) < 6) {
+      const numeric = value.toNumber();
+      const options = { maximumFractionDigits: 2 };
+      if (Math.abs(numeric) < 10) {
+        options.minimumFractionDigits = 2;
+      }
+      return `×${numeric.toLocaleString('fr-FR', options)}`;
+    }
+    return `×${value.toString()}`;
+  }
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
     return '×—';
   }
-  const abs = Math.abs(numeric);
-  const options = { maximumFractionDigits: 2 };
-  if (abs < 10) {
-    options.minimumFractionDigits = 2;
+  if (Math.abs(numeric) < 1e6) {
+    const options = { maximumFractionDigits: 2 };
+    if (Math.abs(numeric) < 10) {
+      options.minimumFractionDigits = 2;
+    }
+    return `×${numeric.toLocaleString('fr-FR', options)}`;
   }
-  return `×${numeric.toLocaleString('fr-FR', options)}`;
+  const layered = new LayeredNumber(numeric);
+  if (layered.sign <= 0) {
+    return '×—';
+  }
+  return `×${layered.toString()}`;
 }
 
 function formatDuration(ms) {
@@ -1544,6 +1574,28 @@ function toLayeredValue(value, fallback = 0) {
   return new LayeredNumber(value);
 }
 
+function toMultiplierLayered(value) {
+  if (value instanceof LayeredNumber) {
+    return value.clone();
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return LayeredNumber.one();
+  }
+  return new LayeredNumber(numeric);
+}
+
+function isLayeredOne(value) {
+  if (value instanceof LayeredNumber) {
+    return value.compare(LayeredNumber.one()) === 0;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return false;
+  }
+  return Math.abs(numeric - 1) <= LayeredNumber.EPSILON;
+}
+
 function getFlatSourceValue(entry, key) {
   if (!entry || !entry.sources || !entry.sources.flats) {
     return LayeredNumber.zero();
@@ -1560,27 +1612,36 @@ function getFlatSourceValue(entry, key) {
 
 function getMultiplierSourceValue(entry, step) {
   if (!entry || !entry.sources || !entry.sources.multipliers) {
-    return 1;
+    return LayeredNumber.one();
   }
   const multipliers = entry.sources.multipliers;
   if (step.source === 'rarityMultiplier') {
     const store = multipliers.rarityMultipliers;
-    if (!store) return 1;
+    if (!store) return LayeredNumber.one();
     if (store instanceof Map) {
       const raw = store.get(step.rarityId);
       const numeric = Number(raw);
-      return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+      return Number.isFinite(numeric) && numeric > 0
+        ? new LayeredNumber(numeric)
+        : LayeredNumber.one();
     }
     if (typeof store === 'object' && store !== null) {
       const raw = store[step.rarityId];
       const numeric = Number(raw);
-      return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+      return Number.isFinite(numeric) && numeric > 0
+        ? new LayeredNumber(numeric)
+        : LayeredNumber.one();
     }
-    return 1;
+    return LayeredNumber.one();
   }
   const raw = multipliers[step.source];
-  const numeric = Number(raw);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+  if (raw instanceof LayeredNumber) {
+    return raw;
+  }
+  if (raw == null) {
+    return LayeredNumber.one();
+  }
+  return toMultiplierLayered(raw);
 }
 
 function formatFlatValue(value) {
@@ -1638,13 +1699,13 @@ function renderProductionBreakdown(container, entry) {
 }
 
 function computeRarityMultiplierProduct(store) {
-  if (!store) return 1;
+  if (!store) return LayeredNumber.one();
   if (store instanceof Map) {
-    let product = 1;
+    let product = LayeredNumber.one();
     store.forEach(raw => {
       const numeric = Number(raw);
       if (Number.isFinite(numeric) && numeric > 0) {
-        product *= numeric;
+        product = product.multiplyNumber(numeric);
       }
     });
     return product;
@@ -1653,12 +1714,12 @@ function computeRarityMultiplierProduct(store) {
     return Object.values(store).reduce((product, raw) => {
       const numeric = Number(raw);
       if (Number.isFinite(numeric) && numeric > 0) {
-        return product * numeric;
+        return product.multiplyNumber(numeric);
       }
       return product;
-    }, 1);
+    }, LayeredNumber.one());
   }
-  return 1;
+  return LayeredNumber.one();
 }
 
 function updateSessionStats() {
@@ -1919,14 +1980,14 @@ function recalcProduction() {
   let clickElementAddition = LayeredNumber.zero();
   let autoElementAddition = LayeredNumber.zero();
 
-  let clickShopMultiplier = 1;
-  let autoShopMultiplier = 1;
+  let clickShopMultiplier = LayeredNumber.one();
+  let autoShopMultiplier = LayeredNumber.one();
 
   const clickRarityMultipliers = clickDetails.sources.multipliers.rarityMultipliers;
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
 
-  const clickTrophyMultiplier = 1;
-  const autoTrophyMultiplier = 1;
+  const clickTrophyMultiplier = LayeredNumber.one();
+  const autoTrophyMultiplier = LayeredNumber.one();
 
   UPGRADE_DEFS.forEach(def => {
     const level = gameState.upgrades[def.id] || 0;
@@ -1950,20 +2011,30 @@ function recalcProduction() {
     }
 
     if (effects.clickMult != null) {
-      const raw = Number(effects.clickMult);
-      const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
-      clickShopMultiplier *= multiplier;
-      if (multiplier !== 1) {
-        clickDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier, source: 'shop' });
+      const multiplierValue = toMultiplierLayered(effects.clickMult);
+      clickShopMultiplier = clickShopMultiplier.multiply(multiplierValue);
+      if (!isLayeredOne(multiplierValue)) {
+        clickDetails.multipliers.push({
+          id: def.id,
+          label: def.name,
+          level,
+          value: multiplierValue.clone(),
+          source: 'shop'
+        });
       }
     }
 
     if (effects.autoMult != null) {
-      const raw = Number(effects.autoMult);
-      const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
-      autoShopMultiplier *= multiplier;
-      if (multiplier !== 1) {
-        autoDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier, source: 'shop' });
+      const multiplierValue = toMultiplierLayered(effects.autoMult);
+      autoShopMultiplier = autoShopMultiplier.multiply(multiplierValue);
+      if (!isLayeredOne(multiplierValue)) {
+        autoDetails.multipliers.push({
+          id: def.id,
+          label: def.name,
+          level,
+          value: multiplierValue.clone(),
+          source: 'shop'
+        });
       }
     }
   });
@@ -1973,10 +2044,17 @@ function recalcProduction() {
   clickDetails.sources.flats.elementFlat = clickElementAddition.clone();
   autoDetails.sources.flats.elementFlat = autoElementAddition.clone();
 
-  clickDetails.sources.multipliers.shopMultiplier = clickShopMultiplier;
-  autoDetails.sources.multipliers.shopMultiplier = autoShopMultiplier;
-  clickDetails.sources.multipliers.trophyMultiplier = clickTrophyMultiplier;
-  autoDetails.sources.multipliers.trophyMultiplier = autoTrophyMultiplier;
+  clickDetails.sources.multipliers.shopBonus1 = clickShopMultiplier.clone();
+  clickDetails.sources.multipliers.shopBonus2 = LayeredNumber.one();
+  autoDetails.sources.multipliers.shopBonus1 = LayeredNumber.one();
+  autoDetails.sources.multipliers.shopBonus2 = autoShopMultiplier.clone();
+  clickDetails.sources.multipliers.trophyMultiplier = clickTrophyMultiplier.clone();
+  autoDetails.sources.multipliers.trophyMultiplier = autoTrophyMultiplier.clone();
+
+  const clickShopBonus1 = clickDetails.sources.multipliers.shopBonus1;
+  const clickShopBonus2 = clickDetails.sources.multipliers.shopBonus2;
+  const autoShopBonus1 = autoDetails.sources.multipliers.shopBonus1;
+  const autoShopBonus2 = autoDetails.sources.multipliers.shopBonus2;
 
   const clickRarityProduct = computeRarityMultiplierProduct(clickRarityMultipliers);
   const autoRarityProduct = computeRarityMultiplierProduct(autoRarityMultipliers);
@@ -1987,11 +2065,19 @@ function recalcProduction() {
   clickDetails.totalAddition = clickTotalAddition;
   autoDetails.totalAddition = autoTotalAddition;
 
-  const clickTotalMultiplier = clickShopMultiplier * clickTrophyMultiplier * clickRarityProduct;
-  const autoTotalMultiplier = autoShopMultiplier * autoTrophyMultiplier * autoRarityProduct;
+  const clickTotalMultiplier = LayeredNumber.one()
+    .multiply(clickShopBonus1)
+    .multiply(clickShopBonus2)
+    .multiply(clickRarityProduct)
+    .multiply(clickTrophyMultiplier);
+  const autoTotalMultiplier = LayeredNumber.one()
+    .multiply(autoShopBonus1)
+    .multiply(autoShopBonus2)
+    .multiply(autoRarityProduct)
+    .multiply(autoTrophyMultiplier);
 
-  clickDetails.totalMultiplier = clickTotalMultiplier;
-  autoDetails.totalMultiplier = autoTotalMultiplier;
+  clickDetails.totalMultiplier = clickTotalMultiplier.clone();
+  autoDetails.totalMultiplier = autoTotalMultiplier.clone();
 
   const clickFlatBase = clickDetails.sources.flats.baseFlat
     .add(clickDetails.sources.flats.shopFlat)
@@ -2000,11 +2086,19 @@ function recalcProduction() {
     .add(autoDetails.sources.flats.shopFlat)
     .add(autoDetails.sources.flats.elementFlat);
 
-  let perClick = clickFlatBase.multiplyNumber(clickTotalMultiplier);
+  let perClick = clickFlatBase.clone();
+  perClick = perClick.multiply(clickShopBonus1);
+  perClick = perClick.multiply(clickShopBonus2);
+  perClick = perClick.multiply(clickRarityProduct);
+  perClick = perClick.multiply(clickTrophyMultiplier);
   if (perClick.compare(LayeredNumber.zero()) < 0) {
     perClick = LayeredNumber.zero();
   }
-  let perSecond = autoFlatBase.multiplyNumber(autoTotalMultiplier);
+  let perSecond = autoFlatBase.clone();
+  perSecond = perSecond.multiply(autoShopBonus1);
+  perSecond = perSecond.multiply(autoShopBonus2);
+  perSecond = perSecond.multiply(autoRarityProduct);
+  perSecond = perSecond.multiply(autoTrophyMultiplier);
 
   clickDetails.total = perClick;
   autoDetails.total = perSecond;
