@@ -324,23 +324,20 @@ main {
   --category-strong: rgba(255, 255, 255, 0.08);
   --category-weak: rgba(255, 255, 255, 0.02);
   --category-border: rgba(255, 255, 255, 0.1);
-  width: min(100%, 360px);
+  grid-column: 3 / 13;
+  grid-row: 1 / 4;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 1.5vw, 1.15rem);
   padding: clamp(1.1rem, 2.2vw, 1.6rem);
   border-radius: 16px;
   background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
   border: 1px solid var(--category-border);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
-  position: sticky;
-  top: clamp(1rem, 3vw, 2rem);
   color: inherit;
-  flex-shrink: 0;
-}
-
-@media (max-width: 1100px) {
-  .element-info-panel {
-    position: static;
-    width: min(100%, 420px);
-  }
+  min-width: 0;
+  min-height: 0;
 }
 
 .element-info-panel__placeholder {

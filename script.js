@@ -780,8 +780,17 @@ function selectPeriodicElement(id, { focus = false } = {}) {
 
 function renderPeriodicTable() {
   if (!elements.periodicTable) return;
+  const infoPanel = elements.elementInfoPanel;
+  if (infoPanel) {
+    infoPanel.remove();
+  }
+
   elements.periodicTable.innerHTML = '';
   periodicCells.clear();
+
+  if (infoPanel) {
+    elements.periodicTable.appendChild(infoPanel);
+  }
 
   if (!periodicElements.length) {
     const placeholder = document.createElement('p');
