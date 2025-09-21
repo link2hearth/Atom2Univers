@@ -15,9 +15,9 @@
   --card-neon: rgba(90,110,255,0.08);
   --max-width: min(1100px, 92vw);
   --transition: 0.2s ease;
-  --header-padding-y: clamp(0.7rem, 1.12vw, 0.98rem);
+  --header-padding-y: clamp(0.56rem, 0.896vw, 0.784rem);
   --header-padding-x: clamp(1.2rem, 2vw, 2.4rem);
-  --status-padding-y: clamp(1.05rem, 1.7vw, 1.5rem);
+  --status-padding-y: clamp(0.63rem, 1.02vw, 0.9rem);
 }
 
 * {
@@ -151,7 +151,7 @@ body.theme-neon .status-bar {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.55rem 1.2rem;
+  padding: 0.44rem 1.2rem;
   border-radius: 999px;
   cursor: pointer;
   transition: transform var(--transition), box-shadow var(--transition), background var(--transition), color var(--transition);
@@ -307,7 +307,7 @@ main {
 }
 
 .periodic-element__number {
-  font-size: clamp(0.208rem, 0.32vw, 0.272rem);
+  font-size: clamp(0.416rem, 0.64vw, 0.544rem);
   opacity: 0.75;
   line-height: 1;
 }
@@ -331,7 +331,7 @@ main {
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: clamp(0.8rem, 1.5vw, 1.15rem);
+  gap: clamp(0.4rem, 0.75vw, 0.575rem);
   padding: clamp(1.1rem, 2.2vw, 1.6rem);
   border-radius: 16px;
   background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
@@ -345,32 +345,32 @@ main {
 
 .element-info-panel__placeholder {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.475rem;
   opacity: 0.75;
-  line-height: 1.5;
+  line-height: 1.25;
 }
 
 .element-info-panel__content {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.8rem, 1.6vw, 1.2rem);
+  gap: clamp(0.4rem, 0.8vw, 0.6rem);
 }
 
 .element-info-panel__header {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: start;
-  gap: clamp(0.75rem, 1.5vw, 1rem);
+  gap: clamp(0.375rem, 0.75vw, 0.5rem);
 }
 
 .element-info-panel__identity {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.075rem;
 }
 
 .element-info-panel__number {
-  font-size: clamp(0.75rem, 1vw, 0.9rem);
+  font-size: clamp(0.375rem, 0.5vw, 0.45rem);
   font-weight: 600;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -380,13 +380,13 @@ main {
 
 .element-info-panel__symbol {
   font-family: 'Orbitron', sans-serif;
-  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  font-size: clamp(1.1rem, 2.25vw, 1.6rem);
   letter-spacing: 0.1em;
   line-height: 1;
 }
 
 .element-info-panel__name {
-  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  font-size: clamp(0.5rem, 1.2vw, 0.7rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   opacity: 0.85;
@@ -394,26 +394,29 @@ main {
 
 .element-info-panel__details {
   display: grid;
-  gap: clamp(0.45rem, 1vw, 0.7rem);
+  gap: clamp(0.225rem, 0.5vw, 0.35rem);
   margin: 0;
 }
 
 .element-info-panel__row {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
-  font-size: clamp(0.85rem, 1.5vw, 1rem);
+  gap: 0.375rem;
+  font-size: clamp(0.425rem, 0.75vw, 0.5rem);
+  line-height: 1.2;
 }
 
 .element-info-panel__row dt {
   font-weight: 600;
   opacity: 0.75;
+  line-height: 1.2;
 }
 
 .element-info-panel__row dd {
   margin: 0;
   text-align: right;
   font-weight: 500;
+  line-height: 1.2;
 }
 
 .periodic-placeholder {
