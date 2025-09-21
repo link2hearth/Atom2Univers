@@ -3,6 +3,345 @@
  * Toutes les valeurs ajustables (équilibrage, affichage, grands nombres, etc.)
  * sont rassemblées ici pour faciliter les modifications futures.
  */
+const BUILDING_DOUBLE_THRESHOLDS = [10, 25, 50, 100, 150, 200];
+const BUILDING_QUAD_THRESHOLDS = [300, 400, 500];
+
+function computeBuildingTierMultiplier(level = 0) {
+  let multiplier = 1;
+  BUILDING_DOUBLE_THRESHOLDS.forEach(threshold => {
+    if (level >= threshold) {
+      multiplier *= 2;
+    }
+  });
+  BUILDING_QUAD_THRESHOLDS.forEach(threshold => {
+    if (level >= threshold) {
+      multiplier *= 4;
+    }
+  });
+  return multiplier;
+}
+
+function getBuildingLevel(context, id) {
+  if (!context || typeof context !== 'object') {
+    return 0;
+  }
+  const value = Number(context[id] ?? 0);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function getTotalBuildings(context) {
+  if (!context || typeof context !== 'object') {
+    return 0;
+  }
+  return Object.values(context).reduce((acc, value) => {
+    const numeric = Number(value);
+    return acc + (Number.isFinite(numeric) && numeric > 0 ? numeric : 0);
+  }, 0);
+}
+
+function createShopBuildingDefinitions() {
+  return [
+    {
+      id: 'freeElectrons',
+      name: 'Électrons libres',
+      description: 'Libérez des électrons pour une production de base stable.',
+      category: 'auto',
+      baseCost: 15,
+      costScale: 1.15,
+      effect: (level = 0) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 0.1 * level * tierMultiplier;
+        const clickAdd = level >= 100 ? 0.01 * level : 0;
+        const result = { autoAdd };
+        if (clickAdd > 0) {
+          result.clickAdd = clickAdd;
+        }
+        return result;
+      }
+    },
+    {
+      id: 'physicsLab',
+      name: 'Laboratoire de Physique',
+      description: 'Des équipes de chercheurs boostent votre production atomique.',
+      category: 'auto',
+      baseCost: 100,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const acceleratorLevel = getBuildingLevel(context, 'particleAccelerator');
+        let productionMultiplier = tierMultiplier;
+        if (acceleratorLevel >= 200) {
+          productionMultiplier *= 1.2;
+        }
+        const autoAdd = level * 1 * productionMultiplier;
+        const clickBonus = Math.pow(1.05, Math.floor(level / 10));
+        return {
+          autoAdd,
+          clickMult: clickBonus
+        };
+      }
+    },
+    {
+      id: 'nuclearReactor',
+      name: 'Réacteur nucléaire',
+      description: 'Des réacteurs contrôlés libèrent une énergie colossale.',
+      category: 'auto',
+      baseCost: 1000,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const electronLevel = getBuildingLevel(context, 'freeElectrons');
+        const labLevel = getBuildingLevel(context, 'physicsLab');
+        let productionMultiplier = tierMultiplier;
+        if (electronLevel > 0) {
+          productionMultiplier *= 1 + 0.01 * Math.floor(electronLevel / 50);
+        }
+        if (labLevel >= 200) {
+          productionMultiplier *= 1.2;
+        }
+        const autoAdd = 10 * level * productionMultiplier;
+        const clickMult = level >= 150 ? 2 : 1;
+        return clickMult > 1
+          ? { autoAdd, clickMult }
+          : { autoAdd };
+      }
+    },
+    {
+      id: 'particleAccelerator',
+      name: 'Accélérateur de particules',
+      description: 'Boostez vos particules pour décupler l’APC.',
+      category: 'hybrid',
+      baseCost: 12_000,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const supercomputerLevel = getBuildingLevel(context, 'supercomputer');
+        let productionMultiplier = tierMultiplier;
+        if (supercomputerLevel >= 100) {
+          productionMultiplier *= 1.5;
+        }
+        const autoAdd = 50 * level * productionMultiplier;
+        const clickMult = Math.pow(1.02, level);
+        return { autoAdd, clickMult };
+      }
+    },
+    {
+      id: 'supercomputer',
+      name: 'Supercalculateurs',
+      description: 'Des centres de calcul quantique optimisent vos gains.',
+      category: 'auto',
+      baseCost: 200_000,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const stationLevel = getBuildingLevel(context, 'spaceStation');
+        let productionMultiplier = tierMultiplier;
+        if (stationLevel >= 300) {
+          productionMultiplier *= 2;
+        }
+        const autoAdd = 500 * level * productionMultiplier;
+        const autoMult = Math.pow(1.01, Math.floor(level / 25));
+        return autoMult > 1
+          ? { autoAdd, autoMult }
+          : { autoAdd };
+      }
+    },
+    {
+      id: 'interstellarProbe',
+      name: 'Sonde interstellaire',
+      description: 'Explorez la galaxie pour récolter toujours plus.',
+      category: 'hybrid',
+      baseCost: 5e6,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const reactorLevel = getBuildingLevel(context, 'nuclearReactor');
+        let productionMultiplier = tierMultiplier;
+        if (reactorLevel > 0) {
+          productionMultiplier *= 1 + 0.001 * reactorLevel;
+        }
+        const autoAdd = 5000 * level * productionMultiplier;
+        const clickAdd = level >= 150 ? level : 0;
+        const result = { autoAdd };
+        if (clickAdd > 0) {
+          result.clickAdd = clickAdd;
+        }
+        return result;
+      }
+    },
+    {
+      id: 'spaceStation',
+      name: 'Station spatiale',
+      description: 'Des bases orbitales coordonnent votre expansion.',
+      category: 'hybrid',
+      baseCost: 1e8,
+      costScale: 1.15,
+      effect: (level = 0) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 50_000 * level * tierMultiplier;
+        const clickMult = Math.pow(1.05, level);
+        return { autoAdd, clickMult };
+      }
+    },
+    {
+      id: 'starForge',
+      name: 'Forgeron d’étoiles',
+      description: 'Façonnez des étoiles et dopez votre APC.',
+      category: 'hybrid',
+      baseCost: 5e10,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const stationLevel = getBuildingLevel(context, 'spaceStation');
+        let productionMultiplier = tierMultiplier;
+        if (stationLevel > 0) {
+          productionMultiplier *= 1 + 0.02 * stationLevel;
+        }
+        const autoAdd = 500_000 * level * productionMultiplier;
+        const clickMult = level >= 150 ? 1.25 : 1;
+        return clickMult > 1
+          ? { autoAdd, clickMult }
+          : { autoAdd };
+      }
+    },
+    {
+      id: 'artificialGalaxy',
+      name: 'Galaxie artificielle',
+      description: 'Ingénierie galactique pour une expansion sans fin.',
+      category: 'auto',
+      baseCost: 1e13,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const libraryLevel = getBuildingLevel(context, 'omniverseLibrary');
+        let productionMultiplier = tierMultiplier;
+        if (libraryLevel >= 300) {
+          productionMultiplier *= 2;
+        }
+        const autoAdd = 5e6 * level * productionMultiplier;
+        const autoMult = Math.pow(1.1, level);
+        const clickMult = level >= 100 ? 1.5 : 1;
+        const result = { autoAdd };
+        if (autoMult > 1) {
+          result.autoMult = autoMult;
+        }
+        if (clickMult > 1) {
+          result.clickMult = clickMult;
+        }
+        return result;
+      }
+    },
+    {
+      id: 'multiverseSimulator',
+      name: 'Simulateur de Multivers',
+      description: 'Simulez l’infini pour optimiser chaque seconde.',
+      category: 'auto',
+      baseCost: 1e16,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 5e8 * level * tierMultiplier;
+        const totalBuildings = getTotalBuildings(context);
+        const autoMult = totalBuildings > 0 ? Math.pow(1.005, totalBuildings) : 1;
+        return autoMult > 1
+          ? { autoAdd, autoMult }
+          : { autoAdd };
+      }
+    },
+    {
+      id: 'realityWeaver',
+      name: 'Tisseur de Réalité',
+      description: 'Tissez les lois physiques à votre avantage.',
+      category: 'hybrid',
+      baseCost: 1e20,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const totalBuildings = getTotalBuildings(context);
+        const autoAdd = 1e10 * level * tierMultiplier;
+        const clickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
+        const globalMult = level >= 300 ? 2 : 1;
+        const result = { autoAdd };
+        if (clickAdd > 0) {
+          result.clickAdd = clickAdd;
+        }
+        if (globalMult > 1) {
+          result.autoMult = globalMult;
+          result.clickMult = globalMult;
+        }
+        return result;
+      }
+    },
+    {
+      id: 'cosmicArchitect',
+      name: 'Architecte Cosmique',
+      description: 'Réécrivez les plans du cosmos pour réduire les coûts.',
+      category: 'hybrid',
+      baseCost: 1e25,
+      costScale: 1.15,
+      effect: (level = 0) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 1e12 * level * tierMultiplier;
+        const clickMult = level >= 150 ? 1.2 : 1;
+        return clickMult > 1
+          ? { autoAdd, clickMult }
+          : { autoAdd };
+      }
+    },
+    {
+      id: 'parallelUniverse',
+      name: 'Univers parallèle',
+      description: 'Expérimentez des réalités alternatives à haut rendement.',
+      category: 'auto',
+      baseCost: 1e30,
+      costScale: 1.15,
+      effect: (level = 0) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 1e14 * level * tierMultiplier;
+        return { autoAdd };
+      }
+    },
+    {
+      id: 'omniverseLibrary',
+      name: 'Bibliothèque de l’Omnivers',
+      description: 'Compilez le savoir infini pour booster toute production.',
+      category: 'hybrid',
+      baseCost: 1e36,
+      costScale: 1.15,
+      effect: (level = 0, context = {}) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 1e16 * level * tierMultiplier;
+        const parallelLevel = getBuildingLevel(context, 'parallelUniverse');
+        const globalBoost = parallelLevel > 0 ? Math.pow(1.02, parallelLevel) : 1;
+        if (globalBoost > 1) {
+          return {
+            autoAdd,
+            autoMult: globalBoost,
+            clickMult: globalBoost
+          };
+        }
+        return { autoAdd };
+      }
+    },
+    {
+      id: 'quantumOverseer',
+      name: 'Grand Ordonnateur Quantique',
+      description: 'Ordonnez le multivers et atteignez la singularité.',
+      category: 'hybrid',
+      baseCost: 1e42,
+      costScale: 1.15,
+      effect: (level = 0) => {
+        const tierMultiplier = computeBuildingTierMultiplier(level);
+        const autoAdd = 1e18 * level * tierMultiplier;
+        const globalMult = level >= 100 ? 2 : 1;
+        return globalMult > 1
+          ? { autoAdd, autoMult: globalMult, clickMult: globalMult }
+          : { autoAdd };
+      }
+    }
+  ];
+}
+
 const GAME_CONFIG = {
   /**
    * Paramètres du système de grands nombres et des layers.
@@ -97,56 +436,7 @@ const GAME_CONFIG = {
    * - costScale : multiplicateur appliqué à chaque niveau.
    * - effect : fonction retournant les bonus conférés pour un niveau donné.
    */
-  upgrades: [
-    {
-      id: 'clickCore',
-      name: 'Stabilisateur de noyau',
-      description: '+1 atome par clic.',
-      category: 'click',
-      baseCost: 10,
-      costScale: 1.65,
-      effect: level => ({ clickAdd: level })
-    },
-    {
-      id: 'quantumGloves',
-      name: 'Gants quantiques',
-      description: 'Augmente les atomes par clic de 75% par niveau.',
-      category: 'click',
-      baseCost: 120,
-      costScale: 1.9,
-      effect: level => ({ clickMult: Math.pow(1.75, level) })
-    },
-    {
-      id: 'autoSynth',
-      name: 'Synthèse automatique',
-      description: 'Produit 0,5 atome par seconde et par niveau.',
-      category: 'auto',
-      baseCost: 100,
-      costScale: 1.8,
-      effect: level => ({ autoAdd: 0.5 * level })
-    },
-    {
-      id: 'reactorArray',
-      name: 'Réseau de réacteurs',
-      description: 'Multiplicateur d’APS de +35% par niveau.',
-      category: 'auto',
-      baseCost: 600,
-      costScale: 2.1,
-      effect: level => ({ autoMult: Math.pow(1.35, level) })
-    },
-    {
-      id: 'overclock',
-      name: 'Surcadence du collecteur',
-      description: 'Augmente APC et APS de 25% par niveau.',
-      category: 'hybrid',
-      baseCost: 1500,
-      costScale: 2.35,
-      effect: level => ({
-        clickMult: Math.pow(1.25, level),
-        autoMult: Math.pow(1.25, level)
-      })
-    }
-  ],
+  upgrades: createShopBuildingDefinitions(),
 
   /**
    * Liste des jalons de progression.
