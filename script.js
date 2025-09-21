@@ -571,8 +571,7 @@ let targetClickStrength = 0;
 let displayedClickStrength = 0;
 
 function isGamePageActive() {
-  const active = document.querySelector('.page.active');
-  return active && active.id === 'game';
+  return document.body.dataset.activePage === 'game';
 }
 
 function updateClickHistory(now = performance.now()) {
@@ -684,11 +683,22 @@ function shouldTriggerGlobalClick(event) {
 
 function showPage(pageId) {
   elements.pages.forEach(page => {
-    page.classList.toggle('active', page.id === pageId);
+    const isActive = page.id === pageId;
+    page.classList.toggle('active', isActive);
+    page.toggleAttribute('hidden', !isActive);
   });
   elements.navButtons.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.target === pageId);
   });
+  document.body.dataset.activePage = pageId;
+  document.body.classList.toggle('view-game', pageId === 'game');
+}
+
+const initiallyActivePage = document.querySelector('.page.active') || elements.pages[0];
+if (initiallyActivePage) {
+  showPage(initiallyActivePage.id);
+} else {
+  document.body.classList.remove('view-game');
 }
 
 elements.navButtons.forEach(btn => {

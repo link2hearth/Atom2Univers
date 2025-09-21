@@ -188,6 +188,7 @@ main {
   flex: 1;
   display: flex;
   justify-content: center;
+  align-items: stretch;
 }
 
 .page {
@@ -205,13 +206,15 @@ main {
   position: relative;
   max-width: none;
   padding: clamp(2.4rem, 7vw, 5rem);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: clamp(420px, 85vh, 1200px);
+  min-height: max(100%, clamp(420px, 85vh, 1200px));
   background: radial-gradient(circle at 50% 20%, rgba(255, 200, 120, 0.08) 0%, rgba(12, 12, 16, 0.92) 45%, #020207 100%);
   overflow: hidden;
   isolation: isolate;
+}
+
+.page--void.active {
+  display: grid;
+  place-items: center;
 }
 
 body.theme-light .page--void,
@@ -511,13 +514,6 @@ body.theme-light select {
   margin: 0;
   opacity: 0.7;
   font-size: 0.9rem;
-}
-
-.app-footer {
-  text-align: center;
-  padding: 1.2rem 1rem 1.6rem;
-  font-size: 0.85rem;
-  opacity: 0.64;
 }
 
 .toast {
