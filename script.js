@@ -939,13 +939,17 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'freeElectrons',
       name: 'Électrons libres',
       description: 'Libérez des électrons pour une production de base stable.',
+      effectSummary:
+        'Production passive : minimum +1 APS par niveau (paliers ×2/×4). À 100 exemplaires : chaque électron ajoute +1 APC (valeur arrondie).',
       category: 'auto',
       baseCost: 15,
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeMultiplier(level);
-        const autoAdd = 0.1 * level * tierMultiplier;
-        const clickAdd = level >= 100 ? 0.01 * level : 0;
+        const baseAutoAdd = 0.1 * level * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(1, Math.round(baseAutoAdd)) : 0;
+        const rawClickAdd = level >= 100 ? 0.01 * level : 0;
+        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
           result.clickAdd = clickAdd;
@@ -957,6 +961,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'physicsLab',
       name: 'Laboratoire de Physique',
       description: 'Des équipes de chercheurs boostent votre production atomique.',
+      effectSummary:
+        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Palier 200 : Réacteurs +20 %.',
       category: 'auto',
       baseCost: 100,
       costScale: 1.15,
@@ -979,6 +985,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'nuclearReactor',
       name: 'Réacteur nucléaire',
       description: 'Des réacteurs contrôlés libèrent une énergie colossale.',
+      effectSummary:
+        'Production passive : +10 APS par niveau (bonifiée par Électrons et Labos). Palier 150 : APC global ×2. Synergie : +1 % APS des Réacteurs par 50 Électrons.',
       category: 'auto',
       baseCost: 1000,
       costScale: 1.15,
@@ -1004,6 +1012,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'particleAccelerator',
       name: 'Accélérateur de particules',
       description: 'Boostez vos particules pour décupler l’APC.',
+      effectSummary:
+        'Production passive : +50 APS par niveau (bonus si ≥100 Supercalculateurs). Chaque niveau octroie +2 % d’APC. Palier 200 : +20 % production des Labos.',
       category: 'hybrid',
       baseCost: 12_000,
       costScale: 1.15,
@@ -1023,6 +1033,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'supercomputer',
       name: 'Supercalculateurs',
       description: 'Des centres de calcul quantique optimisent vos gains.',
+      effectSummary:
+        'Production passive : +500 APS par niveau (doublée par Stations ≥300). Chaque 25 unités offrent +1 % APS global.',
       category: 'auto',
       baseCost: 200_000,
       costScale: 1.15,
@@ -1044,6 +1056,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'interstellarProbe',
       name: 'Sonde interstellaire',
       description: 'Explorez la galaxie pour récolter toujours plus.',
+      effectSummary:
+        'Production passive : +5 000 APS par niveau (boostée par Réacteurs). À 150 exemplaires : chaque sonde ajoute +1 APC.',
       category: 'hybrid',
       baseCost: 5e6,
       costScale: 1.15,
@@ -1067,6 +1081,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'spaceStation',
       name: 'Station spatiale',
       description: 'Des bases orbitales coordonnent votre expansion.',
+      effectSummary:
+        'Production passive : +50 000 APS par niveau (paliers ×2/×4). Chaque Station accorde +5 % d’APC. Palier 300 : Supercalculateurs +100 %.',
       category: 'hybrid',
       baseCost: 1e8,
       costScale: 1.15,
@@ -1081,6 +1097,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'starForge',
       name: 'Forgeron d’étoiles',
       description: 'Façonnez des étoiles et dopez votre APC.',
+      effectSummary:
+        'Production passive : +500 000 APS par niveau (boostée par Stations). Palier 150 : +25 % APC global.',
       category: 'hybrid',
       baseCost: 5e10,
       costScale: 1.15,
@@ -1102,6 +1120,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'artificialGalaxy',
       name: 'Galaxie artificielle',
       description: 'Ingénierie galactique pour une expansion sans fin.',
+      effectSummary:
+        'Production passive : +5 000 000 APS par niveau (doublée par Bibliothèque ≥300). Chaque niveau augmente l’APS de 10 %. Palier 100 : +50 % APC global.',
       category: 'auto',
       baseCost: 1e13,
       costScale: 1.15,
@@ -1129,6 +1149,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'multiverseSimulator',
       name: 'Simulateur de Multivers',
       description: 'Simulez l’infini pour optimiser chaque seconde.',
+      effectSummary:
+        'Production passive : +500 000 000 APS par niveau (paliers ×2/×4). Synergie : +0,5 % APS global par bâtiment possédé. Palier 200 : coûts des bâtiments −5 %.',
       category: 'auto',
       baseCost: 1e16,
       costScale: 1.15,
@@ -1146,6 +1168,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'realityWeaver',
       name: 'Tisseur de Réalité',
       description: 'Tissez les lois physiques à votre avantage.',
+      effectSummary:
+        'Production passive : +10 000 000 000 APS par niveau (paliers ×2/×4). Bonus clic arrondi : +0,1 × bâtiments × niveau. Palier 300 : production totale ×2.',
       category: 'hybrid',
       baseCost: 1e20,
       costScale: 1.15,
@@ -1153,7 +1177,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
         const tierMultiplier = computeMultiplier(level);
         const totalBuildings = getTotal(context);
         const autoAdd = 1e10 * level * tierMultiplier;
-        const clickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
+        const rawClickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
+        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const globalMult = level >= 300 ? 2 : 1;
         const result = { autoAdd };
         if (clickAdd > 0) {
@@ -1170,6 +1195,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'cosmicArchitect',
       name: 'Architecte Cosmique',
       description: 'Réécrivez les plans du cosmos pour réduire les coûts.',
+      effectSummary:
+        'Production passive : +1 000 000 000 000 APS par niveau (paliers ×2/×4). Réduction de 1 % du coût futur par Architecte. Palier 150 : +20 % APC global.',
       category: 'hybrid',
       baseCost: 1e25,
       costScale: 1.15,
@@ -1186,6 +1213,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'parallelUniverse',
       name: 'Univers parallèle',
       description: 'Expérimentez des réalités alternatives à haut rendement.',
+      effectSummary:
+        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4). Synergie : +50 % APS/APC à chaque renaissance.',
       category: 'auto',
       baseCost: 1e30,
       costScale: 1.15,
@@ -1199,6 +1228,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'omniverseLibrary',
       name: 'Bibliothèque de l’Omnivers',
       description: 'Compilez le savoir infini pour booster toute production.',
+      effectSummary:
+        'Production passive : +10 000 000 000 000 000 APS par niveau (paliers ×2/×4). +2 % boost global par Univers parallèle. Palier 300 : Galaxies artificielles ×2.',
       category: 'hybrid',
       baseCost: 1e36,
       costScale: 1.15,
@@ -1221,6 +1252,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       id: 'quantumOverseer',
       name: 'Grand Ordonnateur Quantique',
       description: 'Ordonnez le multivers et atteignez la singularité.',
+      effectSummary:
+        'Production passive : +1 000 000 000 000 000 000 APS par niveau (paliers ×2/×4). Palier 100 : double définitivement tous les gains.',
       category: 'hybrid',
       baseCost: 1e42,
       costScale: 1.15,
@@ -2104,6 +2137,7 @@ const elements = {
   infoGlobalDuration: document.getElementById('infoGlobalDuration')
 };
 
+const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
 const periodicCells = new Map();
 let selectedElementId = null;
@@ -3209,11 +3243,28 @@ function computeGlobalCostModifier(defId) {
   return Math.max(0.05, modifier);
 }
 
-function computeUpgradeCost(def) {
+function computeUpgradeCost(def, quantity = 1) {
   const level = getUpgradeLevel(gameState.upgrades, def.id);
   const baseScale = def.costScale ?? 1;
-  const costValue = def.baseCost * Math.pow(baseScale, level) * computeGlobalCostModifier(def.id);
-  return new LayeredNumber(costValue);
+  const modifier = computeGlobalCostModifier(def.id);
+  const baseCost = def.baseCost;
+  const buyAmount = Math.max(1, Math.floor(Number(quantity) || 0));
+
+  if (buyAmount === 1 || !Number.isFinite(baseScale) || baseScale === 1) {
+    const singleCost = baseCost * Math.pow(baseScale, level) * modifier;
+    return new LayeredNumber(singleCost * buyAmount);
+  }
+
+  const startScale = Math.pow(baseScale, level);
+  const scalePow = Math.pow(baseScale, buyAmount);
+  const sumFactor = (scalePow - 1) / (baseScale - 1);
+  const totalCost = baseCost * startScale * sumFactor * modifier;
+  return new LayeredNumber(totalCost);
+}
+
+function formatShopCost(cost) {
+  const value = cost instanceof LayeredNumber ? cost : new LayeredNumber(cost);
+  return `${value.toString()} atomes`;
 }
 
 function recalcProduction() {
@@ -3405,21 +3456,37 @@ function buildShopItem(def) {
 
   const desc = document.createElement('p');
   desc.className = 'shop-item__description';
-  desc.textContent = def.description;
+  desc.textContent = def.effectSummary || def.description || '';
 
-  const cost = document.createElement('div');
-  cost.className = 'shop-item__cost';
+  const actions = document.createElement('div');
+  actions.className = 'shop-item__actions';
+  const buttonMap = new Map();
 
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'shop-item__action';
-  button.addEventListener('click', () => {
-    attemptPurchase(def);
+  SHOP_PURCHASE_AMOUNTS.forEach(quantity => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'shop-item__action';
+
+    const quantityLabel = document.createElement('span');
+    quantityLabel.className = 'shop-item__action-quantity';
+    quantityLabel.textContent = `x${quantity}`;
+
+    const priceLabel = document.createElement('span');
+    priceLabel.className = 'shop-item__action-price';
+    priceLabel.textContent = '—';
+
+    button.append(quantityLabel, priceLabel);
+    button.addEventListener('click', () => {
+      attemptPurchase(def, quantity);
+    });
+
+    actions.appendChild(button);
+    buttonMap.set(quantity, { button, price: priceLabel });
   });
 
-  item.append(header, desc, cost, button);
+  item.append(header, desc, actions);
 
-  return { root: item, level, cost, button };
+  return { root: item, level, description: desc, buttons: buttonMap };
 }
 
 function updateShopAffordability() {
@@ -3428,21 +3495,29 @@ function updateShopAffordability() {
     const row = shopRows.get(def.id);
     if (!row) return;
     const level = getUpgradeLevel(gameState.upgrades, def.id);
-    const cost = computeUpgradeCost(def);
-    const affordable = gameState.atoms.compare(cost) >= 0;
+    row.level.textContent = `Niveau ${level}`;
+    let anyAffordable = false;
     const actionLabel = level > 0 ? 'Améliorer' : 'Acheter';
 
-    row.level.textContent = `Niveau ${level}`;
-    row.cost.textContent = `Coût : ${cost.toString()}`;
-    row.button.textContent = actionLabel;
-    row.button.disabled = !affordable;
-    row.button.classList.toggle('is-ready', affordable);
-    row.root.classList.toggle('shop-item--ready', affordable);
-    const ariaLabel = affordable
-      ? `${actionLabel} ${def.name}`
-      : `${actionLabel} ${def.name} (atomes insuffisants)`;
-    row.button.setAttribute('aria-label', ariaLabel);
-    row.button.title = ariaLabel;
+    SHOP_PURCHASE_AMOUNTS.forEach(quantity => {
+      const entry = row.buttons.get(quantity);
+      if (!entry) return;
+      const cost = computeUpgradeCost(def, quantity);
+      const affordable = gameState.atoms.compare(cost) >= 0;
+      entry.price.textContent = formatShopCost(cost);
+      entry.button.disabled = !affordable;
+      entry.button.classList.toggle('is-ready', affordable);
+      if (affordable) {
+        anyAffordable = true;
+      }
+      const ariaLabel = affordable
+        ? `${actionLabel} ${def.name} ×${quantity} (coût ${cost.toString()} atomes)`
+        : `${actionLabel} ${def.name} ×${quantity} (atomes insuffisants)`;
+      entry.button.setAttribute('aria-label', ariaLabel);
+      entry.button.title = ariaLabel;
+    });
+
+    row.root.classList.toggle('shop-item--ready', anyAffordable);
   });
 }
 
@@ -3535,17 +3610,18 @@ function renderGoals() {
   updateGoalsUI();
 }
 
-function attemptPurchase(def) {
-  const cost = computeUpgradeCost(def);
+function attemptPurchase(def, quantity = 1) {
+  const buyAmount = Math.max(1, Math.floor(Number(quantity) || 0));
+  const cost = computeUpgradeCost(def, buyAmount);
   if (gameState.atoms.compare(cost) < 0) {
     showToast('Pas assez d’atomes.');
     return;
   }
   gameState.atoms = gameState.atoms.subtract(cost);
-  gameState.upgrades[def.id] = (gameState.upgrades[def.id] || 0) + 1;
+  gameState.upgrades[def.id] = (gameState.upgrades[def.id] || 0) + buyAmount;
   recalcProduction();
   updateUI();
-  showToast(`Amélioration "${def.name}" achetée !`);
+  showToast(`Amélioration "${def.name}" x${buyAmount} achetée !`);
 }
 
 function updateMilestone() {

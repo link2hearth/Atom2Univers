@@ -45,13 +45,17 @@ function createShopBuildingDefinitions() {
       id: 'freeElectrons',
       name: 'Électrons libres',
       description: 'Libérez des électrons pour une production de base stable.',
+      effectSummary:
+        'Production passive : minimum +1 APS par niveau (paliers ×2/×4). À 100 exemplaires : chaque électron ajoute +1 APC (valeur arrondie).',
       category: 'auto',
       baseCost: 15,
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 0.1 * level * tierMultiplier;
-        const clickAdd = level >= 100 ? 0.01 * level : 0;
+        const baseAutoAdd = 0.1 * level * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(1, Math.round(baseAutoAdd)) : 0;
+        const rawClickAdd = level >= 100 ? 0.01 * level : 0;
+        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
           result.clickAdd = clickAdd;
@@ -63,6 +67,8 @@ function createShopBuildingDefinitions() {
       id: 'physicsLab',
       name: 'Laboratoire de Physique',
       description: 'Des équipes de chercheurs boostent votre production atomique.',
+      effectSummary:
+        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Palier 200 : Réacteurs +20 %.',
       category: 'auto',
       baseCost: 100,
       costScale: 1.15,
@@ -85,6 +91,8 @@ function createShopBuildingDefinitions() {
       id: 'nuclearReactor',
       name: 'Réacteur nucléaire',
       description: 'Des réacteurs contrôlés libèrent une énergie colossale.',
+      effectSummary:
+        'Production passive : +10 APS par niveau (bonifiée par Électrons et Labos). Palier 150 : APC global ×2. Synergie : +1 % APS des Réacteurs par 50 Électrons.',
       category: 'auto',
       baseCost: 1000,
       costScale: 1.15,
@@ -110,6 +118,8 @@ function createShopBuildingDefinitions() {
       id: 'particleAccelerator',
       name: 'Accélérateur de particules',
       description: 'Boostez vos particules pour décupler l’APC.',
+      effectSummary:
+        'Production passive : +50 APS par niveau (bonus si ≥100 Supercalculateurs). Chaque niveau octroie +2 % d’APC. Palier 200 : +20 % production des Labos.',
       category: 'hybrid',
       baseCost: 12_000,
       costScale: 1.15,
@@ -129,6 +139,8 @@ function createShopBuildingDefinitions() {
       id: 'supercomputer',
       name: 'Supercalculateurs',
       description: 'Des centres de calcul quantique optimisent vos gains.',
+      effectSummary:
+        'Production passive : +500 APS par niveau (doublée par Stations ≥300). Chaque 25 unités offrent +1 % APS global.',
       category: 'auto',
       baseCost: 200_000,
       costScale: 1.15,
@@ -150,6 +162,8 @@ function createShopBuildingDefinitions() {
       id: 'interstellarProbe',
       name: 'Sonde interstellaire',
       description: 'Explorez la galaxie pour récolter toujours plus.',
+      effectSummary:
+        'Production passive : +5 000 APS par niveau (boostée par Réacteurs). À 150 exemplaires : chaque sonde ajoute +1 APC.',
       category: 'hybrid',
       baseCost: 5e6,
       costScale: 1.15,
@@ -173,6 +187,8 @@ function createShopBuildingDefinitions() {
       id: 'spaceStation',
       name: 'Station spatiale',
       description: 'Des bases orbitales coordonnent votre expansion.',
+      effectSummary:
+        'Production passive : +50 000 APS par niveau (paliers ×2/×4). Chaque Station accorde +5 % d’APC. Palier 300 : Supercalculateurs +100 %.',
       category: 'hybrid',
       baseCost: 1e8,
       costScale: 1.15,
@@ -187,6 +203,8 @@ function createShopBuildingDefinitions() {
       id: 'starForge',
       name: 'Forgeron d’étoiles',
       description: 'Façonnez des étoiles et dopez votre APC.',
+      effectSummary:
+        'Production passive : +500 000 APS par niveau (boostée par Stations). Palier 150 : +25 % APC global.',
       category: 'hybrid',
       baseCost: 5e10,
       costScale: 1.15,
@@ -208,6 +226,8 @@ function createShopBuildingDefinitions() {
       id: 'artificialGalaxy',
       name: 'Galaxie artificielle',
       description: 'Ingénierie galactique pour une expansion sans fin.',
+      effectSummary:
+        'Production passive : +5 000 000 APS par niveau (doublée par Bibliothèque ≥300). Chaque niveau augmente l’APS de 10 %. Palier 100 : +50 % APC global.',
       category: 'auto',
       baseCost: 1e13,
       costScale: 1.15,
@@ -235,6 +255,8 @@ function createShopBuildingDefinitions() {
       id: 'multiverseSimulator',
       name: 'Simulateur de Multivers',
       description: 'Simulez l’infini pour optimiser chaque seconde.',
+      effectSummary:
+        'Production passive : +500 000 000 APS par niveau (paliers ×2/×4). Synergie : +0,5 % APS global par bâtiment possédé. Palier 200 : coûts des bâtiments −5 %.',
       category: 'auto',
       baseCost: 1e16,
       costScale: 1.15,
@@ -252,6 +274,8 @@ function createShopBuildingDefinitions() {
       id: 'realityWeaver',
       name: 'Tisseur de Réalité',
       description: 'Tissez les lois physiques à votre avantage.',
+      effectSummary:
+        'Production passive : +10 000 000 000 APS par niveau (paliers ×2/×4). Bonus clic arrondi : +0,1 × bâtiments × niveau. Palier 300 : production totale ×2.',
       category: 'hybrid',
       baseCost: 1e20,
       costScale: 1.15,
@@ -259,7 +283,8 @@ function createShopBuildingDefinitions() {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const totalBuildings = getTotalBuildings(context);
         const autoAdd = 1e10 * level * tierMultiplier;
-        const clickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
+        const rawClickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
+        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const globalMult = level >= 300 ? 2 : 1;
         const result = { autoAdd };
         if (clickAdd > 0) {
@@ -276,6 +301,8 @@ function createShopBuildingDefinitions() {
       id: 'cosmicArchitect',
       name: 'Architecte Cosmique',
       description: 'Réécrivez les plans du cosmos pour réduire les coûts.',
+      effectSummary:
+        'Production passive : +1 000 000 000 000 APS par niveau (paliers ×2/×4). Réduction de 1 % du coût futur par Architecte. Palier 150 : +20 % APC global.',
       category: 'hybrid',
       baseCost: 1e25,
       costScale: 1.15,
@@ -292,6 +319,8 @@ function createShopBuildingDefinitions() {
       id: 'parallelUniverse',
       name: 'Univers parallèle',
       description: 'Expérimentez des réalités alternatives à haut rendement.',
+      effectSummary:
+        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4). Synergie : +50 % APS/APC à chaque renaissance.',
       category: 'auto',
       baseCost: 1e30,
       costScale: 1.15,
@@ -305,6 +334,8 @@ function createShopBuildingDefinitions() {
       id: 'omniverseLibrary',
       name: 'Bibliothèque de l’Omnivers',
       description: 'Compilez le savoir infini pour booster toute production.',
+      effectSummary:
+        'Production passive : +10 000 000 000 000 000 APS par niveau (paliers ×2/×4). +2 % boost global par Univers parallèle. Palier 300 : Galaxies artificielles ×2.',
       category: 'hybrid',
       baseCost: 1e36,
       costScale: 1.15,
@@ -327,6 +358,8 @@ function createShopBuildingDefinitions() {
       id: 'quantumOverseer',
       name: 'Grand Ordonnateur Quantique',
       description: 'Ordonnez le multivers et atteignez la singularité.',
+      effectSummary:
+        'Production passive : +1 000 000 000 000 000 000 APS par niveau (paliers ×2/×4). Palier 100 : double définitivement tous les gains.',
       category: 'hybrid',
       baseCost: 1e42,
       costScale: 1.15,
