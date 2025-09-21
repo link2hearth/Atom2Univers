@@ -467,32 +467,46 @@ class LayeredNumber {
   }
 }
 
-LayeredNumber.LAYER1_THRESHOLD = 1e6;
-LayeredNumber.LAYER1_DOWN = 5;
-LayeredNumber.LOG_DIFF_LIMIT = 15;
-LayeredNumber.EPSILON = 1e-12;
+const CONFIG = typeof window !== 'undefined' && window.GAME_CONFIG ? window.GAME_CONFIG : {};
 
-// Game state management
-const DEFAULT_STATE = {
-  atoms: LayeredNumber.zero(),
-  lifetime: LayeredNumber.zero(),
-  perClick: LayeredNumber.one(),
-  perSecond: LayeredNumber.zero(),
-  upgrades: {},
-  lastSave: Date.now(),
-  theme: 'dark'
-};
+function toLayeredNumber(value, fallback = 0) {
+  if (value instanceof LayeredNumber) return value.clone();
+  if (value == null) return new LayeredNumber(fallback);
+  if (typeof value === 'number') return new LayeredNumber(value);
+  if (typeof value === 'object') {
+    if (value.type === 'number') return new LayeredNumber(value.value ?? fallback);
+    if (value.type === 'layer0') {
+      const mantissa = value.mantissa ?? value.value ?? fallback;
+      const exponent = value.exponent ?? 0;
+      const sign = value.sign ?? 1;
+      return LayeredNumber.fromLayer0(mantissa, exponent, sign);
+    }
+    if (value.type === 'layer1') {
+      const val = value.value ?? fallback;
+      const sign = value.sign ?? 1;
+      return LayeredNumber.fromLayer1(val, sign);
+    }
+    if (value.type === 'json' && value.value) {
+      return LayeredNumber.fromJSON(value.value);
+    }
+    if ('layer' in value || 'mantissa' in value || 'exponent' in value || 'value' in value || 'sign' in value) {
+      return LayeredNumber.fromJSON(value);
+    }
+  }
+  return new LayeredNumber(fallback);
+}
 
-const gameState = {
-  atoms: LayeredNumber.zero(),
-  lifetime: LayeredNumber.zero(),
-  perClick: LayeredNumber.one(),
-  perSecond: LayeredNumber.zero(),
-  upgrades: {},
-  theme: 'dark'
-};
+LayeredNumber.LAYER1_THRESHOLD = CONFIG.numbers?.layer1Threshold ?? 1e6;
+LayeredNumber.LAYER1_DOWN = CONFIG.numbers?.layer1Downshift ?? 5;
+LayeredNumber.LOG_DIFF_LIMIT = CONFIG.numbers?.logDifferenceLimit ?? 15;
+LayeredNumber.EPSILON = CONFIG.numbers?.epsilon ?? 1e-12;
 
-const UPGRADE_DEFS = [
+const BASE_PER_CLICK = toLayeredNumber(CONFIG.progression?.basePerClick, 1);
+const BASE_PER_SECOND = toLayeredNumber(CONFIG.progression?.basePerSecond, 0);
+const DEFAULT_THEME = CONFIG.progression?.defaultTheme ?? 'dark';
+const OFFLINE_GAIN_CAP = CONFIG.progression?.offlineCapSeconds ?? 60 * 60 * 12;
+
+const FALLBACK_UPGRADES = [
   {
     id: 'clickCore',
     name: 'Stabilisateur de noyau',
@@ -536,16 +550,48 @@ const UPGRADE_DEFS = [
     category: 'hybrid',
     baseCost: 1500,
     costScale: 2.35,
-    effect: level => ({ clickMult: Math.pow(1.25, level), autoMult: Math.pow(1.25, level) })
+    effect: level => ({
+      clickMult: Math.pow(1.25, level),
+      autoMult: Math.pow(1.25, level)
+    })
   }
 ];
 
-const milestoneList = [
-  { amount: new LayeredNumber(100), text: 'Collectez 100 atomes pour débloquer la synthèse automatique.' },
-  { amount: new LayeredNumber(1_000), text: 'Atteignez 1 000 atomes pour améliorer vos gants quantiques.' },
-  { amount: new LayeredNumber(1_000_000), text: 'Atteignez 1 million d’atomes pour accéder aux surcadences.' },
-  { amount: LayeredNumber.fromLayer1(8), text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
+const FALLBACK_MILESTONES = [
+  { amount: 100, text: 'Collectez 100 atomes pour débloquer la synthèse automatique.' },
+  { amount: 1_000, text: 'Atteignez 1 000 atomes pour améliorer vos gants quantiques.' },
+  { amount: 1_000_000, text: 'Atteignez 1 million d’atomes pour accéder aux surcadences.' },
+  { amount: { type: 'layer1', value: 8 }, text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
 ];
+
+// Game state management
+const DEFAULT_STATE = {
+  atoms: LayeredNumber.zero(),
+  lifetime: LayeredNumber.zero(),
+  perClick: BASE_PER_CLICK.clone(),
+  perSecond: BASE_PER_SECOND.clone(),
+  upgrades: {},
+  lastSave: Date.now(),
+  theme: DEFAULT_THEME
+};
+
+const gameState = {
+  atoms: LayeredNumber.zero(),
+  lifetime: LayeredNumber.zero(),
+  perClick: BASE_PER_CLICK.clone(),
+  perSecond: BASE_PER_SECOND.clone(),
+  upgrades: {},
+  theme: DEFAULT_THEME
+};
+
+const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
+
+const milestoneSource = Array.isArray(CONFIG.milestones) ? CONFIG.milestones : FALLBACK_MILESTONES;
+
+const milestoneList = milestoneSource.map(entry => ({
+  amount: toLayeredNumber(entry.amount, 0),
+  text: entry.text
+}));
 
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
@@ -566,8 +612,8 @@ const shopRows = new Map();
 
 let toastElement = null;
 
-const CLICK_WINDOW_MS = 1000;
-const MAX_CLICKS_PER_SECOND = 20;
+const CLICK_WINDOW_MS = CONFIG.presentation?.clicks?.windowMs ?? 1000;
+const MAX_CLICKS_PER_SECOND = CONFIG.presentation?.clicks?.maxClicksPerSecond ?? 20;
 const clickHistory = [];
 let targetClickStrength = 0;
 let displayedClickStrength = 0;
@@ -650,7 +696,7 @@ function animateAtomPress() {
   }, 110);
 }
 
-const STAR_COUNT = 60;
+const STAR_COUNT = CONFIG.presentation?.starfield?.starCount ?? 60;
 
 function initStarfield() {
   if (!elements.starfield) return;
@@ -740,8 +786,8 @@ function computeUpgradeCost(def) {
 }
 
 function recalcProduction() {
-  let clickBase = LayeredNumber.one();
-  let autoBase = LayeredNumber.zero();
+  const clickBase = BASE_PER_CLICK.clone();
+  const autoBase = BASE_PER_SECOND.clone();
   let clickAdd = 0;
   let autoAdd = 0;
   let clickMult = 1;
@@ -953,12 +999,12 @@ function resetGame() {
   Object.assign(gameState, {
     atoms: LayeredNumber.zero(),
     lifetime: LayeredNumber.zero(),
-    perClick: LayeredNumber.one(),
-    perSecond: LayeredNumber.zero(),
+    perClick: BASE_PER_CLICK.clone(),
+    perSecond: BASE_PER_SECOND.clone(),
     upgrades: {},
-    theme: 'dark'
+    theme: DEFAULT_THEME
   });
-  applyTheme('dark');
+  applyTheme(DEFAULT_THEME);
   renderShop();
   updateUI();
   saveGame();
@@ -968,6 +1014,8 @@ function loadGame() {
   try {
     const raw = localStorage.getItem('atom2univers');
     if (!raw) {
+      gameState.theme = DEFAULT_THEME;
+      applyTheme(DEFAULT_THEME);
       recalcProduction();
       renderShop();
       updateUI();
@@ -979,14 +1027,14 @@ function loadGame() {
     gameState.perClick = LayeredNumber.fromJSON(data.perClick);
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     gameState.upgrades = data.upgrades || {};
-    gameState.theme = data.theme || 'dark';
+    gameState.theme = data.theme || DEFAULT_THEME;
     applyTheme(gameState.theme);
     recalcProduction();
     renderShop();
     updateUI();
     if (data.lastSave) {
       const diff = (Date.now() - data.lastSave) / 1000;
-      const capped = Math.min(diff, 60 * 60 * 12);
+      const capped = Math.min(diff, OFFLINE_GAIN_CAP);
       if (capped > 0) {
         const offlineGain = gameState.perSecond.multiplyNumber(capped);
         gainAtoms(offlineGain);
