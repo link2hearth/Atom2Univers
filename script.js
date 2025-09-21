@@ -482,6 +482,42 @@ const periodicElementIndex = new Map(
   periodicElements.map(def => [def.id, def])
 );
 
+const configElements = Array.isArray(CONFIG.elements) ? CONFIG.elements : [];
+
+const elementConfigByAtomicNumber = new Map();
+configElements.forEach(entry => {
+  if (!entry || typeof entry !== 'object') return;
+  const atomicNumber = Number(entry.numero ?? entry.number ?? entry.atomicNumber);
+  if (!Number.isFinite(atomicNumber)) return;
+  elementConfigByAtomicNumber.set(atomicNumber, entry);
+});
+
+function resolveElementRarity(definition) {
+  if (!definition) return null;
+  const atomicNumber = Number(definition.atomicNumber);
+  const configEntry = Number.isFinite(atomicNumber)
+    ? elementConfigByAtomicNumber.get(atomicNumber)
+    : null;
+  if (configEntry) {
+    if (configEntry.rarete) return configEntry.rarete;
+    if (configEntry.rarity) return configEntry.rarity;
+  }
+  if (definition.tags && definition.tags.rarity) {
+    return definition.tags.rarity;
+  }
+  return null;
+}
+
+const elementRarityIndex = new Map();
+periodicElements.forEach(def => {
+  const rarity = resolveElementRarity(def);
+  if (rarity) {
+    elementRarityIndex.set(def.id, rarity);
+  }
+});
+
+const configuredRarityIds = new Set(elementRarityIndex.values());
+
 const CATEGORY_LABELS = {
   'alkali-metal': 'métal alcalin',
   'alkaline-earth-metal': 'métal alcalino-terreux',
@@ -499,13 +535,32 @@ function createInitialElementCollection() {
   const collection = {};
   periodicElements.forEach(def => {
     const gachaId = def.gachaId ?? def.id;
+    const atomicNumber = Number(def.atomicNumber);
+    const configEntry = Number.isFinite(atomicNumber)
+      ? elementConfigByAtomicNumber.get(atomicNumber)
+      : null;
+    const rarity = elementRarityIndex.get(def.id) || null;
+    const effects = Array.isArray(configEntry?.effects)
+      ? [...configEntry.effects]
+      : [];
+    const bonuses = [];
+    const bonusValue = configEntry?.bonus;
+    if (Array.isArray(bonusValue)) {
+      bonusValue.forEach(item => {
+        if (typeof item === 'string' && item.trim()) {
+          bonuses.push(item.trim());
+        }
+      });
+    } else if (typeof bonusValue === 'string' && bonusValue.trim()) {
+      bonuses.push(bonusValue.trim());
+    }
     collection[def.id] = {
       id: def.id,
       gachaId,
       owned: false,
-      rarity: null,
-      effects: [],
-      bonuses: []
+      rarity,
+      effects,
+      bonuses
     };
   });
   return collection;
@@ -537,6 +592,126 @@ function toLayeredNumber(value, fallback = 0) {
   }
   return new LayeredNumber(fallback);
 }
+
+const DEFAULT_GACHA_COST = 100;
+
+const DEFAULT_GACHA_RARITIES = [
+  {
+    id: 'commun',
+    label: 'Commun cosmique',
+    description: 'Les briques fondamentales présentes dans la majorité des nébuleuses.',
+    weight: 55,
+    color: '#6bb8ff'
+  },
+  {
+    id: 'essentiel',
+    label: 'Essentiel planétaire',
+    description: 'Éléments abondants dans les mondes rocheux et les atmosphères habitables.',
+    weight: 20,
+    color: '#74f5c6'
+  },
+  {
+    id: 'stellaire',
+    label: 'Forge stellaire',
+    description: 'Alliages façonnés au coeur des étoiles et disséminés par les supernovæ.',
+    weight: 12,
+    color: '#c1f06a'
+  },
+  {
+    id: 'singulier',
+    label: 'Singularité minérale',
+    description: 'Cristaux recherchés, rarement concentrés au même endroit.',
+    weight: 7,
+    color: '#ffb45a'
+  },
+  {
+    id: 'mythique',
+    label: 'Mythe quantique',
+    description: 'Éléments légendaires aux propriétés extrêmes et insaisissables.',
+    weight: 4,
+    color: '#ff6cb1'
+  },
+  {
+    id: 'irreel',
+    label: 'Irréel',
+    description: 'Synthèses artificielles nées uniquement dans des accélérateurs.',
+    weight: 2,
+    color: '#a579ff'
+  }
+];
+
+function sanitizeGachaRarities(rawRarities) {
+  const base = Array.isArray(rawRarities) && rawRarities.length
+    ? rawRarities
+    : DEFAULT_GACHA_RARITIES;
+  const seen = new Set();
+  const sanitized = [];
+  base.forEach(entry => {
+    if (!entry || typeof entry !== 'object') return;
+    const rawId = entry.id ?? entry.rarity ?? entry.key;
+    if (!rawId) return;
+    const id = String(rawId).trim();
+    if (!id || seen.has(id)) return;
+    const weightValue = Number(entry.weight ?? entry.rate ?? entry.dropRate ?? entry.chance ?? 0);
+    sanitized.push({
+      id,
+      label: entry.label ? String(entry.label) : id,
+      description: entry.description ? String(entry.description) : '',
+      weight: Number.isFinite(weightValue) ? weightValue : 0,
+      color: entry.color ? String(entry.color) : null
+    });
+    seen.add(id);
+  });
+  if (!sanitized.length) {
+    return DEFAULT_GACHA_RARITIES.map(entry => ({ ...entry }));
+  }
+  return sanitized;
+}
+
+const rawGachaConfig = CONFIG.gacha && typeof CONFIG.gacha === 'object'
+  ? CONFIG.gacha
+  : {};
+
+const GACHA_COST = toLayeredNumber(rawGachaConfig.cost ?? DEFAULT_GACHA_COST, DEFAULT_GACHA_COST);
+
+const GACHA_RARITIES = sanitizeGachaRarities(rawGachaConfig.rarities).map(entry => ({
+  ...entry,
+  weight: Math.max(0, Number(entry.weight) || 0)
+}));
+
+const GACHA_RARITY_MAP = new Map();
+GACHA_RARITIES.forEach(entry => {
+  GACHA_RARITY_MAP.set(entry.id, entry);
+  configuredRarityIds.delete(entry.id);
+});
+
+configuredRarityIds.forEach(id => {
+  const fallback = { id, label: id, description: '', weight: 0, color: null };
+  GACHA_RARITIES.push(fallback);
+  GACHA_RARITY_MAP.set(id, fallback);
+});
+
+const GACHA_TOTAL_WEIGHT = GACHA_RARITIES.reduce((total, entry) => total + (entry.weight || 0), 0);
+
+const gachaPools = new Map();
+const gachaRarityRows = new Map();
+
+function rebuildGachaPools() {
+  gachaPools.clear();
+  GACHA_RARITIES.forEach(entry => {
+    gachaPools.set(entry.id, []);
+  });
+  periodicElements.forEach(def => {
+    const rarity = elementRarityIndex.get(def.id);
+    if (!rarity) return;
+    if (!gachaPools.has(rarity)) {
+      gachaPools.set(rarity, []);
+    }
+    gachaPools.get(rarity).push(def.id);
+  });
+}
+
+rebuildGachaPools();
 
 LayeredNumber.LAYER1_THRESHOLD = CONFIG.numbers?.layer1Threshold ?? 1e6;
 LayeredNumber.LAYER1_DOWN = CONFIG.numbers?.layer1Downshift ?? 5;
@@ -717,6 +892,12 @@ const elements = {
   elementInfoCollection: document.getElementById('elementInfoCollection'),
   collectionProgress: document.getElementById('elementCollectionProgress'),
   nextMilestone: document.getElementById('nextMilestone'),
+  gachaRollButton: document.getElementById('gachaRollButton'),
+  gachaResult: document.getElementById('gachaResult'),
+  gachaCostValue: document.getElementById('gachaCostValue'),
+  gachaWallet: document.getElementById('gachaWallet'),
+  gachaRarityList: document.getElementById('gachaRarityList'),
+  gachaOwnedSummary: document.getElementById('gachaOwnedSummary'),
   themeSelect: document.getElementById('themeSelect'),
   resetButton: document.getElementById('resetButton'),
   infoApsTotal: document.getElementById('infoApsTotal'),
@@ -857,7 +1038,12 @@ function updateElementInfoPanel(definition) {
   }
   if (elements.elementInfoCollection) {
     const entry = gameState.elements?.[definition.id];
-    elements.elementInfoCollection.textContent = entry?.owned ? 'Possédé' : 'Non possédé';
+    const rarityId = entry?.rarity || elementRarityIndex.get(definition.id);
+    const rarityDef = rarityId ? GACHA_RARITY_MAP.get(rarityId) : null;
+    const status = entry?.owned ? 'Possédé' : 'Non possédé';
+    elements.elementInfoCollection.textContent = rarityDef
+      ? `${rarityDef.label || rarityDef.id} · ${status}`
+      : status;
   }
 }
 
@@ -935,6 +1121,10 @@ function renderPeriodicTable() {
     if (def.gachaId) {
       cell.dataset.gachaId = def.gachaId;
     }
+    const rarityId = elementRarityIndex.get(def.id);
+    if (rarityId) {
+      cell.dataset.rarity = rarityId;
+    }
     const { row, column } = def.position || {};
     if (column) {
       cell.style.gridColumn = String(column);
@@ -985,14 +1175,29 @@ function renderPeriodicTable() {
 }
 
 function updateCollectionDisplay() {
+  const elementEntries = Object.values(gameState.elements || {});
+  const ownedCount = elementEntries.reduce((total, entry) => total + (entry.owned ? 1 : 0), 0);
+  const total = TOTAL_ELEMENT_COUNT || elementEntries.length;
+
   if (elements.collectionProgress) {
-    const elementEntries = Object.values(gameState.elements || {});
-    const ownedCount = elementEntries.reduce((total, entry) => total + (entry.owned ? 1 : 0), 0);
-    const total = TOTAL_ELEMENT_COUNT || elementEntries.length;
     if (total > 0) {
       elements.collectionProgress.textContent = `Collection\u00a0: ${ownedCount} / ${total} éléments`;
     } else {
       elements.collectionProgress.textContent = 'Collection en préparation';
+    }
+  }
+
+  if (elements.gachaOwnedSummary) {
+    if (total > 0) {
+      const ratio = (ownedCount / total) * 100;
+      const formatted = ratio >= 99.95
+        ? '100'
+        : ratio >= 10
+          ? ratio.toFixed(1).replace('.', ',')
+          : ratio.toFixed(2).replace('.', ',');
+      elements.gachaOwnedSummary.textContent = `Collection\u00a0: ${ownedCount} / ${total} éléments (${formatted}\u00a0%)`;
+    } else {
+      elements.gachaOwnedSummary.textContent = 'Collection en préparation';
     }
   }
 
@@ -1004,6 +1209,230 @@ function updateCollectionDisplay() {
   if (selectedElementId && periodicElementIndex.has(selectedElementId)) {
     updateElementInfoPanel(periodicElementIndex.get(selectedElementId));
   }
+
+  updateGachaRarityProgress();
+}
+
+function renderGachaRarityList() {
+  if (!elements.gachaRarityList) return;
+  elements.gachaRarityList.innerHTML = '';
+  gachaRarityRows.clear();
+  const totalWeight = GACHA_TOTAL_WEIGHT;
+  GACHA_RARITIES.forEach(def => {
+    const item = document.createElement('li');
+    item.className = 'gacha-rarity';
+    item.dataset.rarityId = def.id;
+    if (def.color) {
+      item.style.setProperty('--rarity-color', def.color);
+    }
+
+    const header = document.createElement('div');
+    header.className = 'gacha-rarity__header';
+
+    const label = document.createElement('span');
+    label.className = 'gacha-rarity__label';
+    label.textContent = def.label || def.id;
+
+    const chance = document.createElement('span');
+    chance.className = 'gacha-rarity__chance';
+    if (def.weight > 0 && totalWeight > 0) {
+      const ratio = (def.weight / totalWeight) * 100;
+      const digits = ratio >= 10 ? 1 : 2;
+      chance.textContent = `${ratio.toFixed(digits).replace('.', ',')}\u00a0%`;
+    } else {
+      chance.textContent = '—';
+    }
+
+    header.append(label, chance);
+    item.appendChild(header);
+
+    if (def.description) {
+      const description = document.createElement('p');
+      description.className = 'gacha-rarity__description';
+      description.textContent = def.description;
+      item.appendChild(description);
+    }
+
+    const progress = document.createElement('div');
+    progress.className = 'gacha-rarity__progress';
+    progress.setAttribute('role', 'progressbar');
+    progress.setAttribute('aria-valuemin', '0');
+    progress.setAttribute('aria-valuemax', '0');
+    progress.setAttribute('aria-valuenow', '0');
+
+    const bar = document.createElement('div');
+    bar.className = 'gacha-rarity__bar';
+    progress.appendChild(bar);
+
+    const summary = document.createElement('p');
+    summary.className = 'gacha-rarity__summary';
+    summary.textContent = 'Aucun élément';
+
+    item.append(progress, summary);
+    elements.gachaRarityList.appendChild(item);
+    gachaRarityRows.set(def.id, { item, progress, bar, summary });
+  });
+
+  updateGachaRarityProgress();
+}
+
+function updateGachaRarityProgress() {
+  if (!gachaRarityRows.size) return;
+  const totals = new Map();
+  gachaPools.forEach((ids, rarity) => {
+    totals.set(rarity, { total: ids.length, owned: 0 });
+  });
+
+  const entries = Object.values(gameState.elements || {});
+  entries.forEach(entry => {
+    if (!entry) return;
+    const rarityId = entry.rarity || elementRarityIndex.get(entry.id);
+    if (!rarityId || !totals.has(rarityId)) return;
+    const bucket = totals.get(rarityId);
+    if (entry.owned) {
+      bucket.owned += 1;
+    }
+  });
+
+  gachaRarityRows.forEach((row, rarityId) => {
+    const data = totals.get(rarityId) || { total: 0, owned: 0 };
+    const total = data.total;
+    const owned = data.owned;
+    row.progress.setAttribute('aria-valuemax', String(total));
+    row.progress.setAttribute('aria-valuenow', String(owned));
+    const percent = total > 0 ? (owned / total) * 100 : 0;
+    row.bar.style.width = `${percent}%`;
+    row.summary.textContent = total > 0
+      ? `${owned} / ${total} éléments`
+      : 'Aucun élément';
+  });
+}
+
+function pickGachaRarity() {
+  const available = GACHA_RARITIES.filter(def => {
+    const pool = gachaPools.get(def.id);
+    return Array.isArray(pool) && pool.length > 0;
+  });
+  if (!available.length) {
+    return null;
+  }
+  const totalWeight = available.reduce((sum, def) => sum + (def.weight || 0), 0);
+  if (totalWeight <= 0) {
+    const index = Math.floor(Math.random() * available.length);
+    return available[index];
+  }
+  let roll = Math.random() * totalWeight;
+  for (const def of available) {
+    const weight = Math.max(0, def.weight || 0);
+    if (weight <= 0) {
+      continue;
+    }
+    if (roll < weight) {
+      return def;
+    }
+    roll -= weight;
+  }
+  return available[available.length - 1];
+}
+
+function pickRandomElementFromRarity(rarityId) {
+  const pool = gachaPools.get(rarityId);
+  if (!pool || !pool.length) {
+    return null;
+  }
+  const index = Math.floor(Math.random() * pool.length);
+  const elementId = pool[index];
+  return periodicElementIndex.get(elementId) || null;
+}
+
+function setGachaResult(rarityDef, elementDef, isNew) {
+  if (!elements.gachaResult) return;
+  if (!rarityDef || !elementDef) {
+    elements.gachaResult.textContent = 'Synthèse indisponible pour le moment.';
+    elements.gachaResult.style.removeProperty('--rarity-color');
+    return;
+  }
+  const rarityLabel = rarityDef.label || rarityDef.id;
+  const statusText = isNew ? 'NOUVEAU !' : 'Déjà possédé';
+  const parts = [
+    `<span class="gacha-result__rarity">${rarityLabel}</span>`,
+    `<span class="gacha-result__name">${elementDef.name} (${elementDef.symbol})</span>`,
+    `<span class="gacha-result__status">${statusText}</span>`
+  ];
+  elements.gachaResult.innerHTML = parts.join(' ');
+  if (rarityDef.color) {
+    elements.gachaResult.style.setProperty('--rarity-color', rarityDef.color);
+  } else {
+    elements.gachaResult.style.removeProperty('--rarity-color');
+  }
+}
+
+function updateGachaUI() {
+  if (elements.gachaCostValue) {
+    elements.gachaCostValue.textContent = GACHA_COST.toString();
+  }
+  if (elements.gachaWallet) {
+    elements.gachaWallet.textContent = `Réserve actuelle : ${gameState.atoms.toString()} atomes`;
+  }
+  if (elements.gachaRollButton) {
+    const affordable = gameState.atoms.compare(GACHA_COST) >= 0;
+    elements.gachaRollButton.disabled = !affordable;
+    const label = affordable ? 'Lancer une synthèse' : 'Atomes insuffisants';
+    elements.gachaRollButton.setAttribute('aria-label', `${label} (${GACHA_COST.toString()} atomes)`);
+    elements.gachaRollButton.title = `${label} (${GACHA_COST.toString()} atomes)`;
+    elements.gachaRollButton.setAttribute('aria-disabled', affordable ? 'false' : 'true');
+  }
+}
+
+function handleGachaRoll() {
+  if (gameState.atoms.compare(GACHA_COST) < 0) {
+    showToast('Pas assez d’atomes pour lancer la synthèse.');
+    return;
+  }
+
+  const rarity = pickGachaRarity();
+  if (!rarity) {
+    showToast('Aucun élément disponible dans les chambres de synthèse.');
+    return;
+  }
+
+  const elementDef = pickRandomElementFromRarity(rarity.id);
+  if (!elementDef) {
+    showToast('Flux instable, impossible de matérialiser un élément.');
+    return;
+  }
+
+  gameState.atoms = gameState.atoms.subtract(GACHA_COST);
+
+  let entry = gameState.elements[elementDef.id];
+  let isNew = false;
+  if (!entry) {
+    entry = {
+      id: elementDef.id,
+      gachaId: elementDef.gachaId ?? elementDef.id,
+      owned: true,
+      rarity: rarity.id,
+      effects: [],
+      bonuses: []
+    };
+    gameState.elements[elementDef.id] = entry;
+    isNew = true;
+  } else {
+    if (!entry.rarity) {
+      entry.rarity = rarity.id;
+    }
+    if (!entry.owned) {
+      entry.owned = true;
+      isNew = true;
+    }
+  }
+
+  updateUI();
+  setGachaResult(rarity, elementDef, isNew);
+  showToast(isNew
+    ? `Nouvel élément obtenu : ${elementDef.name} !`
+    : `${elementDef.name} rejoint à nouveau votre collection.`);
+  saveGame();
 }
 
 function renderBonusList(container, entries, type) {
@@ -1290,6 +1719,7 @@ elements.navButtons.forEach(btn => {
 });
 
 renderPeriodicTable();
+renderGachaRarityList();
 
 if (elements.atomButton) {
   elements.atomButton.addEventListener('click', event => {
@@ -1298,6 +1728,12 @@ if (elements.atomButton) {
   });
   elements.atomButton.addEventListener('dragstart', event => {
     event.preventDefault();
+  });
+}
+
+if (elements.gachaRollButton) {
+  elements.gachaRollButton.addEventListener('click', () => {
+    handleGachaRoll();
   });
 }
 
@@ -1527,6 +1963,7 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
+  updateGachaUI();
   updateCollectionDisplay();
   updateShopAffordability();
   updateMilestone();
@@ -1667,7 +2104,7 @@ function loadGame() {
           id,
           gachaId: reference.gachaId,
           owned: Boolean(saved?.owned),
-          rarity: saved?.rarity ?? reference.rarity,
+          rarity: reference.rarity ?? (typeof saved?.rarity === 'string' ? saved.rarity : null),
           effects: Array.isArray(saved?.effects) ? [...saved.effects] : [],
           bonuses: Array.isArray(saved?.bonuses) ? [...saved.bonuses] : []
         };

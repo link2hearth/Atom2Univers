@@ -16,6 +16,7 @@
       <nav class="nav-menu" aria-label="Navigation principale">
         <button class="nav-button active" data-target="game">Jeu</button>
         <button class="nav-button" data-target="shop">Boutique</button>
+        <button class="nav-button" data-target="gacha">Synthèse</button>
         <button class="nav-button" data-target="tableau">Tableau</button>
         <button class="nav-button" data-target="info">Infos</button>
         <button class="nav-button" data-target="options">Options</button>
@@ -52,6 +53,28 @@
       <h2 id="shop-title">Boutique quantique</h2>
       <p class="section-intro">Investissez vos atomes pour booster votre production.</p>
       <div class="shop-list" id="shopList" role="list"></div>
+    </section>
+
+    <section id="gacha" class="page page--gacha" aria-labelledby="gacha-title">
+      <div class="gacha-layout">
+        <article class="gacha-card gacha-card--primary" aria-labelledby="gacha-title">
+          <header class="gacha-card__header">
+            <h2 id="gacha-title">Chambre de synthèse élémentaire</h2>
+            <p class="gacha-card__intro">Investissez vos atomes pour cristalliser un élément issu des vents stellaires.</p>
+          </header>
+          <p class="gacha-wallet" id="gachaWallet">Réserve actuelle : 0 atomes</p>
+          <p class="gacha-cost">Coût d'une synthèse : <span id="gachaCostValue">100</span> atomes</p>
+          <button class="gacha-roll-button" id="gachaRollButton" type="button">Lancer une synthèse</button>
+          <p class="gacha-result" id="gachaResult" aria-live="polite">En attente de la prochaine transmutation.</p>
+        </article>
+
+        <aside class="gacha-card gacha-card--rarities" aria-labelledby="gacha-rarity-title">
+          <h3 id="gacha-rarity-title">Raretés et probabilités</h3>
+          <p class="gacha-card__intro">Les taux affichés proviennent du fichier de configuration et peuvent être ajustés.</p>
+          <ul class="gacha-rarity-list" id="gachaRarityList" aria-live="polite"></ul>
+        </aside>
+      </div>
+      <p class="gacha-collection" id="gachaOwnedSummary">Collection en préparation.</p>
     </section>
 
     <section id="tableau" class="page page--table" aria-label="Tableau périodique des éléments">
