@@ -1026,6 +1026,7 @@ const elements = {
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
+  atomVisual: document.querySelector('.atom-visual'),
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
@@ -1817,6 +1818,14 @@ const clickHistory = [];
 let targetClickStrength = 0;
 let displayedClickStrength = 0;
 
+const atomAnimationState = {
+  intensity: 0,
+  velocity: 0,
+  wobblePhase: 0,
+  wobbleSecondary: 0,
+  lastTime: null
+};
+
 function isGamePageActive() {
   return document.body.dataset.activePage === 'game';
 }
@@ -1825,8 +1834,30 @@ function updateClickHistory(now = performance.now()) {
   while (clickHistory.length && now - clickHistory[0] > CLICK_WINDOW_MS) {
     clickHistory.shift();
   }
-  const effective = Math.min(MAX_CLICKS_PER_SECOND, clickHistory.length);
-  targetClickStrength = effective / MAX_CLICKS_PER_SECOND;
+  const count = clickHistory.length;
+  if (count === 0) {
+    targetClickStrength = 0;
+    return;
+  }
+
+  let rawRate = 0;
+  if (count === 1) {
+    const timeSince = now - clickHistory[0];
+    const safeSpan = Math.max(780, Math.min(CLICK_WINDOW_MS, timeSince));
+    rawRate = 1000 / safeSpan;
+  } else {
+    const span = Math.max(140, Math.min(CLICK_WINDOW_MS, clickHistory[count - 1] - clickHistory[0]));
+    rawRate = (count - 1) / (span / 1000);
+    const windowAverage = count / (CLICK_WINDOW_MS / 1000);
+    if (windowAverage > rawRate) {
+      rawRate = windowAverage;
+    }
+  }
+
+  rawRate = Math.min(rawRate, MAX_CLICKS_PER_SECOND * 1.6);
+  const normalized = Math.max(0, Math.min(1, rawRate / MAX_CLICKS_PER_SECOND));
+  const curved = 1 - Math.exp(-normalized * 3.8);
+  targetClickStrength = Math.min(1, curved * 1.08);
 }
 
 const glowStops = [
@@ -1858,11 +1889,8 @@ function applyClickStrength(strength) {
   if (!elements.atomButton) return;
   const clamped = Math.max(0, Math.min(1, strength));
   const heat = Math.pow(clamped, 0.35);
-  const tremor = Math.pow(clamped, 0.45);
   const button = elements.atomButton;
   button.style.setProperty('--glow-strength', heat.toFixed(3));
-  button.style.setProperty('--shake-distance', `${(tremor * 24).toFixed(3)}px`);
-  button.style.setProperty('--shake-rotation', `${(tremor * 4.6).toFixed(3)}deg`);
   button.style.setProperty('--glow-color', interpolateGlowColor(heat));
   if (clamped > 0.01) {
     button.classList.add('is-active');
@@ -1871,13 +1899,92 @@ function applyClickStrength(strength) {
   }
 }
 
+function easeOutCubic(value) {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  const inv = 1 - value;
+  return 1 - inv * inv * inv;
+}
+
+function updateAtomSpring(now = performance.now(), drive = 0) {
+  if (!elements.atomVisual) return;
+  const state = atomAnimationState;
+  if (state.lastTime == null) {
+    state.lastTime = now;
+  }
+
+  let delta = (now - state.lastTime) / 1000;
+  if (!Number.isFinite(delta) || delta < 0) {
+    delta = 0;
+  }
+  delta = Math.min(delta, 0.05);
+  state.lastTime = now;
+
+  const clampedDrive = Math.max(0, Math.min(1, drive));
+  const driveInfluence = easeOutCubic(clampedDrive);
+  const normalizedDrive = Math.min(1.2, (driveInfluence * 0.38 + clampedDrive * 0.62) * 1.05);
+  const stiffness = 26;
+  const damping = 10.8;
+  const displacement = state.intensity - normalizedDrive;
+  const acceleration = (-stiffness * displacement) - (damping * state.velocity);
+
+  state.velocity += acceleration * delta;
+  state.intensity += state.velocity * delta;
+
+  if (state.intensity < 0) {
+    state.intensity = 0;
+    if (state.velocity < 0) {
+      state.velocity = 0;
+    }
+  } else if (state.intensity > 1.6) {
+    state.intensity = 1.6;
+  }
+
+  const velocityEnergy = Math.min(0.9, Math.abs(state.velocity) * 0.16);
+  const energy = Math.min(1.35, Math.max(normalizedDrive, state.intensity + velocityEnergy));
+  const baseFrequency = 4.8;
+  const frequencyBoost = 12.5;
+  const primaryFrequency = baseFrequency + frequencyBoost * Math.pow(energy, 0.85);
+  const secondaryFrequency = (baseFrequency * 0.8) + (frequencyBoost * 0.58 * Math.pow(energy, 0.92));
+
+  state.wobblePhase += primaryFrequency * delta * Math.PI * 2;
+  state.wobbleSecondary += secondaryFrequency * delta * Math.PI * 2;
+
+  if (!Number.isFinite(state.wobblePhase)) state.wobblePhase = 0;
+  if (!Number.isFinite(state.wobbleSecondary)) state.wobbleSecondary = 0;
+  if (state.wobblePhase > Math.PI * 1000) state.wobblePhase %= Math.PI * 2;
+  if (state.wobbleSecondary > Math.PI * 1000) state.wobbleSecondary %= Math.PI * 2;
+
+  const travel = Math.pow(energy, 1.35) * 34;
+  const offsetX = Math.sin(state.wobblePhase) * travel;
+  const offsetY = Math.cos(state.wobblePhase * 1.12) * travel * (0.6 + 0.3 * energy);
+  const rotationRange = Math.pow(energy, 0.9) * 28;
+  const rotation = Math.sin(state.wobbleSecondary) * rotationRange;
+
+  const velocityStretch = Math.max(-0.6, Math.min(0.6, state.velocity * 1.18));
+  const wobbleStretch = Math.sin(state.wobblePhase * 1.7) * Math.pow(energy, 1.4) * 0.18;
+  let scaleY = 1 + velocityStretch * 0.58 + wobbleStretch;
+  let scaleX = 1 - velocityStretch * 0.45 - wobbleStretch * 0.85;
+
+  scaleX = Math.min(1.45, Math.max(0.62, scaleX));
+  scaleY = Math.min(1.45, Math.max(0.62, scaleY));
+
+  const visual = elements.atomVisual;
+  visual.style.setProperty('--shake-x', `${offsetX.toFixed(3)}px`);
+  visual.style.setProperty('--shake-y', `${offsetY.toFixed(3)}px`);
+  visual.style.setProperty('--shake-rot', `${rotation.toFixed(3)}deg`);
+  visual.style.setProperty('--shake-scale-x', scaleX.toFixed(4));
+  visual.style.setProperty('--shake-scale-y', scaleY.toFixed(4));
+}
+
 function updateClickVisuals(now = performance.now()) {
   updateClickHistory(now);
-  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.18;
-  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0005) {
+  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.28;
+  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0003) {
     displayedClickStrength = targetClickStrength;
   }
   applyClickStrength(displayedClickStrength);
+  updateAtomSpring(now, displayedClickStrength);
 }
 
 function registerManualClick() {
