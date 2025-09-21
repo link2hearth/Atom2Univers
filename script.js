@@ -550,14 +550,11 @@ const milestoneList = [
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
   pages: document.querySelectorAll('.page'),
-  atomsTotal: document.getElementById('atomsTotal'),
-  atomsLifetime: document.getElementById('atomsLifetime'),
-  atomsPerClick: document.getElementById('atomsPerClick'),
-  atomsPerSecond: document.getElementById('atomsPerSecond'),
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
+  starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
@@ -566,6 +563,124 @@ const elements = {
 };
 
 let toastElement = null;
+
+const CLICK_WINDOW_MS = 1000;
+const MAX_CLICKS_PER_SECOND = 20;
+const clickHistory = [];
+let targetClickStrength = 0;
+let displayedClickStrength = 0;
+
+function isGamePageActive() {
+  const active = document.querySelector('.page.active');
+  return active && active.id === 'game';
+}
+
+function updateClickHistory(now = performance.now()) {
+  while (clickHistory.length && now - clickHistory[0] > CLICK_WINDOW_MS) {
+    clickHistory.shift();
+  }
+  const effective = Math.min(MAX_CLICKS_PER_SECOND, clickHistory.length);
+  targetClickStrength = effective / MAX_CLICKS_PER_SECOND;
+}
+
+const glowStops = [
+  { stop: 0, color: [248, 226, 158] },
+  { stop: 0.35, color: [255, 202, 112] },
+  { stop: 0.65, color: [255, 130, 54] },
+  { stop: 1, color: [255, 46, 18] }
+];
+
+function interpolateGlowColor(strength) {
+  const clamped = Math.max(0, Math.min(1, strength));
+  for (let i = 0; i < glowStops.length - 1; i += 1) {
+    const current = glowStops[i];
+    const next = glowStops[i + 1];
+    if (clamped <= next.stop) {
+      const range = next.stop - current.stop;
+      const t = range === 0 ? 0 : (clamped - current.stop) / range;
+      const r = Math.round(current.color[0] + (next.color[0] - current.color[0]) * t);
+      const g = Math.round(current.color[1] + (next.color[1] - current.color[1]) * t);
+      const b = Math.round(current.color[2] + (next.color[2] - current.color[2]) * t);
+      return `${r}, ${g}, ${b}`;
+    }
+  }
+  const last = glowStops[glowStops.length - 1];
+  return `${last.color[0]}, ${last.color[1]}, ${last.color[2]}`;
+}
+
+function applyClickStrength(strength) {
+  if (!elements.atomButton) return;
+  const clamped = Math.max(0, Math.min(1, strength));
+  const heat = Math.pow(clamped, 0.35);
+  const tremor = Math.pow(clamped, 0.45);
+  const button = elements.atomButton;
+  button.style.setProperty('--glow-strength', heat.toFixed(3));
+  button.style.setProperty('--shake-distance', `${(tremor * 24).toFixed(3)}px`);
+  button.style.setProperty('--shake-rotation', `${(tremor * 4.6).toFixed(3)}deg`);
+  button.style.setProperty('--glow-color', interpolateGlowColor(heat));
+  if (clamped > 0.01) {
+    button.classList.add('is-active');
+  } else {
+    button.classList.remove('is-active');
+  }
+}
+
+function updateClickVisuals(now = performance.now()) {
+  updateClickHistory(now);
+  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.18;
+  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0005) {
+    displayedClickStrength = targetClickStrength;
+  }
+  applyClickStrength(displayedClickStrength);
+}
+
+function registerManualClick() {
+  const now = performance.now();
+  clickHistory.push(now);
+  updateClickVisuals(now);
+}
+
+function animateAtomPress() {
+  if (!elements.atomButton) return;
+  elements.atomButton.classList.add('is-pressed');
+  clearTimeout(animateAtomPress.timeout);
+  animateAtomPress.timeout = setTimeout(() => {
+    elements.atomButton.classList.remove('is-pressed');
+  }, 110);
+}
+
+const STAR_COUNT = 60;
+
+function initStarfield() {
+  if (!elements.starfield) return;
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < STAR_COUNT; i += 1) {
+    const star = document.createElement('span');
+    star.className = 'starfield__star';
+    star.style.left = `${Math.random() * 100}%`;
+    star.style.top = `${Math.random() * 100}%`;
+    star.style.setProperty('--star-scale', (0.6 + Math.random() * 1.7).toFixed(2));
+    const duration = 4 + Math.random() * 6;
+    star.style.animationDuration = `${duration.toFixed(2)}s`;
+    star.style.animationDelay = `-${(Math.random() * duration).toFixed(2)}s`;
+    star.style.setProperty('--star-opacity', (0.26 + Math.random() * 0.54).toFixed(2));
+    fragment.appendChild(star);
+  }
+  elements.starfield.appendChild(fragment);
+}
+
+function handleManualAtomClick() {
+  gainAtoms(gameState.perClick, true);
+  registerManualClick();
+  animateAtomPress();
+}
+
+function shouldTriggerGlobalClick(event) {
+  if (!isGamePageActive()) return false;
+  if (event.target.closest('.app-header')) return false;
+  if (event.target.closest('.status-bar')) return false;
+  return true;
+}
 
 function showPage(pageId) {
   elements.pages.forEach(page => {
@@ -580,18 +695,21 @@ elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.target));
 });
 
-elements.atomButton.addEventListener('click', () => {
-  gainAtoms(gameState.perClick, true);
+if (elements.atomButton) {
+  elements.atomButton.addEventListener('click', event => {
+    event.stopPropagation();
+    handleManualAtomClick();
+  });
+}
+
+document.addEventListener('click', event => {
+  if (!shouldTriggerGlobalClick(event)) return;
+  handleManualAtomClick();
 });
 
 function gainAtoms(amount, fromClick = false) {
   gameState.atoms = gameState.atoms.add(amount);
   gameState.lifetime = gameState.lifetime.add(amount);
-  if (fromClick) {
-    // slight animation
-    elements.atomButton.classList.add('pulse');
-    setTimeout(() => elements.atomButton.classList.remove('pulse'), 120);
-  }
 }
 
 function computeUpgradeCost(def) {
@@ -680,6 +798,7 @@ function attemptPurchase(def) {
 }
 
 function updateMilestone() {
+  if (!elements.nextMilestone) return;
   for (const milestone of milestoneList) {
     if (gameState.lifetime.compare(milestone.amount) < 0) {
       elements.nextMilestone.textContent = milestone.text;
@@ -690,10 +809,6 @@ function updateMilestone() {
 }
 
 function updateUI() {
-  elements.atomsTotal.textContent = gameState.atoms.toString();
-  elements.atomsLifetime.textContent = gameState.lifetime.toString();
-  elements.atomsPerClick.textContent = `${gameState.perClick.toString()} APC`;
-  elements.atomsPerSecond.textContent = `${gameState.perSecond.toString()} APS`;
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
@@ -838,6 +953,8 @@ function loop(now) {
     gainAtoms(gain);
   }
 
+  updateClickVisuals(now);
+
   if (now - lastUIUpdate > 250) {
     updateUI();
     lastUIUpdate = now;
@@ -857,4 +974,5 @@ loadGame();
 recalcProduction();
 renderShop();
 updateUI();
+initStarfield();
 requestAnimationFrame(loop);
