@@ -1026,6 +1026,7 @@ const elements = {
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
+  atomVisual: document.querySelector('.atom-visual'),
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
@@ -1817,6 +1818,14 @@ const clickHistory = [];
 let targetClickStrength = 0;
 let displayedClickStrength = 0;
 
+const atomAnimationState = {
+  intensity: 0,
+  velocity: 0,
+  wobblePhase: 0,
+  wobbleSecondary: 0,
+  lastTime: null
+};
+
 function isGamePageActive() {
   return document.body.dataset.activePage === 'game';
 }
@@ -1858,17 +1867,82 @@ function applyClickStrength(strength) {
   if (!elements.atomButton) return;
   const clamped = Math.max(0, Math.min(1, strength));
   const heat = Math.pow(clamped, 0.35);
-  const tremor = Math.pow(clamped, 0.45);
   const button = elements.atomButton;
   button.style.setProperty('--glow-strength', heat.toFixed(3));
-  button.style.setProperty('--shake-distance', `${(tremor * 24).toFixed(3)}px`);
-  button.style.setProperty('--shake-rotation', `${(tremor * 4.6).toFixed(3)}deg`);
   button.style.setProperty('--glow-color', interpolateGlowColor(heat));
   if (clamped > 0.01) {
     button.classList.add('is-active');
   } else {
     button.classList.remove('is-active');
   }
+}
+
+function updateAtomSpring(now = performance.now(), drive = 0) {
+  if (!elements.atomVisual) return;
+  const state = atomAnimationState;
+  if (state.lastTime == null) {
+    state.lastTime = now;
+  }
+
+  let delta = (now - state.lastTime) / 1000;
+  if (!Number.isFinite(delta) || delta < 0) {
+    delta = 0;
+  }
+  delta = Math.min(delta, 0.05);
+  state.lastTime = now;
+
+  const normalizedDrive = Math.pow(Math.max(0, Math.min(1, drive)), 0.85);
+  const stiffness = 22;
+  const damping = 9.5;
+  const displacement = state.intensity - normalizedDrive;
+  const acceleration = (-stiffness * displacement) - (damping * state.velocity);
+
+  state.velocity += acceleration * delta;
+  state.intensity += state.velocity * delta;
+
+  if (state.intensity < 0) {
+    state.intensity = 0;
+    if (state.velocity < 0) {
+      state.velocity = 0;
+    }
+  } else if (state.intensity > 1.4) {
+    state.intensity = 1.4;
+  }
+
+  const energy = Math.max(normalizedDrive, state.intensity);
+  const baseFrequency = 4.6;
+  const frequencyBoost = 9.2;
+  const primaryFrequency = baseFrequency + frequencyBoost * Math.pow(energy, 0.82);
+  const secondaryFrequency = (baseFrequency * 0.7) + (frequencyBoost * 0.54 * Math.pow(energy, 0.9));
+
+  state.wobblePhase += primaryFrequency * delta * Math.PI * 2;
+  state.wobbleSecondary += secondaryFrequency * delta * Math.PI * 2;
+
+  if (!Number.isFinite(state.wobblePhase)) state.wobblePhase = 0;
+  if (!Number.isFinite(state.wobbleSecondary)) state.wobbleSecondary = 0;
+  if (state.wobblePhase > Math.PI * 1000) state.wobblePhase %= Math.PI * 2;
+  if (state.wobbleSecondary > Math.PI * 1000) state.wobbleSecondary %= Math.PI * 2;
+
+  const travel = 1.5 + 18 * Math.pow(energy, 1.1);
+  const offsetX = Math.sin(state.wobblePhase) * travel;
+  const offsetY = Math.cos(state.wobblePhase * 0.9) * travel * 0.72;
+  const rotationRange = 2 + 14 * Math.pow(energy, 1.05);
+  const rotation = Math.sin(state.wobbleSecondary) * rotationRange;
+
+  const velocityStretch = Math.max(-0.35, Math.min(0.35, state.velocity * 0.9));
+  const wobbleStretch = Math.sin(state.wobblePhase * 1.35) * Math.pow(energy, 1.2) * 0.06;
+  let scaleY = 1 + velocityStretch + wobbleStretch;
+  let scaleX = 1 - velocityStretch * 0.6 - wobbleStretch * 0.8;
+
+  scaleX = Math.min(1.35, Math.max(0.7, scaleX));
+  scaleY = Math.min(1.35, Math.max(0.7, scaleY));
+
+  const visual = elements.atomVisual;
+  visual.style.setProperty('--shake-x', `${offsetX.toFixed(3)}px`);
+  visual.style.setProperty('--shake-y', `${offsetY.toFixed(3)}px`);
+  visual.style.setProperty('--shake-rot', `${rotation.toFixed(3)}deg`);
+  visual.style.setProperty('--shake-scale-x', scaleX.toFixed(4));
+  visual.style.setProperty('--shake-scale-y', scaleY.toFixed(4));
 }
 
 function updateClickVisuals(now = performance.now()) {
@@ -1878,6 +1952,7 @@ function updateClickVisuals(now = performance.now()) {
     displayedClickStrength = targetClickStrength;
   }
   applyClickStrength(displayedClickStrength);
+  updateAtomSpring(now, displayedClickStrength);
 }
 
 function registerManualClick() {
