@@ -1007,3 +1007,7 @@ const GAME_CONFIG = {
     }
   ]
 };
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.GAME_CONFIG = GAME_CONFIG;
+}
