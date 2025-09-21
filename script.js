@@ -709,6 +709,7 @@ defineProductionStep('shopFlat', 'flat', 'Bonus flat magasin', { source: 'shopFl
 defineProductionStep('elementFlat', 'flat', 'Bonus flat éléments', { source: 'elementFlat' });
 defineProductionStep('shopBonus1', 'multiplier', 'Bonus shop 1', { source: 'shopBonus1' });
 defineProductionStep('shopBonus2', 'multiplier', 'Bonus shop 2', { source: 'shopBonus2' });
+defineProductionStep('frenzy', 'multiplier', 'Frénésie', { source: 'frenzy' });
 defineProductionStep(
   'trophyMultiplier',
   'multiplier',
@@ -733,6 +734,7 @@ const DEFAULT_PRODUCTION_STEP_IDS = [
   'elementFlat',
   'shopBonus1',
   'shopBonus2',
+  'frenzy',
   ...RARITY_IDS.map(id => `rarityMultiplier:${id}`),
   'trophyMultiplier',
   'total'
@@ -827,6 +829,67 @@ const BASE_PER_CLICK = toLayeredNumber(CONFIG.progression?.basePerClick, 1);
 const BASE_PER_SECOND = toLayeredNumber(CONFIG.progression?.basePerSecond, 0);
 const DEFAULT_THEME = CONFIG.progression?.defaultTheme ?? 'dark';
 const OFFLINE_GAIN_CAP = CONFIG.progression?.offlineCapSeconds ?? 60 * 60 * 12;
+
+const FRENZY_DEFAULTS = {
+  displayDurationMs: 5000,
+  effectDurationMs: 30000,
+  multiplier: 2,
+  spawnChancePerSecond: {
+    perClick: 0.01,
+    perSecond: 0.01
+  }
+};
+
+function normalizeFrenzySpawnChance(raw) {
+  const clamp = value => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return 0;
+    }
+    if (numeric > 1) {
+      return 1;
+    }
+    return numeric;
+  };
+  const defaults = FRENZY_DEFAULTS.spawnChancePerSecond;
+  if (typeof raw === 'number') {
+    const value = clamp(raw);
+    return { perClick: value, perSecond: value };
+  }
+  if (raw && typeof raw === 'object') {
+    const perClickRaw = raw.perClick ?? raw.click ?? raw.apc;
+    const perSecondRaw = raw.perSecond ?? raw.auto ?? raw.aps;
+    return {
+      perClick: perClickRaw != null ? clamp(perClickRaw) : defaults.perClick,
+      perSecond: perSecondRaw != null ? clamp(perSecondRaw) : defaults.perSecond
+    };
+  }
+  return { ...defaults };
+}
+
+const FRENZY_CONFIG = {
+  displayDurationMs: Math.max(0, Number(CONFIG.frenzies?.displayDurationMs ?? FRENZY_DEFAULTS.displayDurationMs) || 0),
+  effectDurationMs: Math.max(0, Number(CONFIG.frenzies?.effectDurationMs ?? FRENZY_DEFAULTS.effectDurationMs) || 0),
+  multiplier: Math.max(1, Number(CONFIG.frenzies?.multiplier ?? FRENZY_DEFAULTS.multiplier) || FRENZY_DEFAULTS.multiplier),
+  spawnChancePerSecond: normalizeFrenzySpawnChance(CONFIG.frenzies?.spawnChancePerSecond)
+};
+
+const FRENZY_TYPE_INFO = {
+  perClick: {
+    id: 'perClick',
+    label: 'Frénésie APC',
+    shortLabel: 'APC',
+    asset: 'Assets/Image/frenesieAPC.png'
+  },
+  perSecond: {
+    id: 'perSecond',
+    label: 'Frénésie APS',
+    shortLabel: 'APS',
+    asset: 'Assets/Image/frenesieAPS.png'
+  }
+};
+
+const FRENZY_TYPES = ['perClick', 'perSecond'];
 
 const FALLBACK_UPGRADES = [
   {
@@ -923,6 +986,7 @@ function createEmptyProductionEntry() {
         shopBonus1: LayeredNumber.one(),
         shopBonus2: LayeredNumber.one(),
         trophyMultiplier: LayeredNumber.one(),
+        frenzy: LayeredNumber.one(),
         rarityMultipliers
       }
     }
@@ -934,6 +998,334 @@ function createEmptyProductionBreakdown() {
     perClick: createEmptyProductionEntry(),
     perSecond: createEmptyProductionEntry()
   };
+}
+
+function cloneRarityMultipliers(store) {
+  if (store instanceof Map) {
+    return new Map(store);
+  }
+  if (store && typeof store === 'object') {
+    return { ...store };
+  }
+  return new Map();
+}
+
+function cloneProductionEntry(entry) {
+  if (!entry) {
+    return createEmptyProductionEntry();
+  }
+  const clone = {
+    base: entry.base instanceof LayeredNumber ? entry.base.clone() : toLayeredValue(entry.base, 0),
+    totalAddition: entry.totalAddition instanceof LayeredNumber
+      ? entry.totalAddition.clone()
+      : toLayeredValue(entry.totalAddition, 0),
+    totalMultiplier: entry.totalMultiplier instanceof LayeredNumber
+      ? entry.totalMultiplier.clone()
+      : toMultiplierLayered(entry.totalMultiplier),
+    additions: Array.isArray(entry.additions)
+      ? entry.additions.map(add => ({
+        ...add,
+        value: add.value instanceof LayeredNumber ? add.value.clone() : toLayeredValue(add.value, 0)
+      }))
+      : [],
+    multipliers: Array.isArray(entry.multipliers)
+      ? entry.multipliers.map(mult => ({
+        ...mult,
+        value: mult.value instanceof LayeredNumber ? mult.value.clone() : toMultiplierLayered(mult.value)
+      }))
+      : [],
+    total: entry.total instanceof LayeredNumber ? entry.total.clone() : toLayeredValue(entry.total, 0),
+    sources: {
+      flats: {
+        baseFlat: entry.sources?.flats?.baseFlat instanceof LayeredNumber
+          ? entry.sources.flats.baseFlat.clone()
+          : toLayeredValue(entry.sources?.flats?.baseFlat, 0),
+        shopFlat: entry.sources?.flats?.shopFlat instanceof LayeredNumber
+          ? entry.sources.flats.shopFlat.clone()
+          : toLayeredValue(entry.sources?.flats?.shopFlat, 0),
+        elementFlat: entry.sources?.flats?.elementFlat instanceof LayeredNumber
+          ? entry.sources.flats.elementFlat.clone()
+          : toLayeredValue(entry.sources?.flats?.elementFlat, 0)
+      },
+      multipliers: {
+        shopBonus1: entry.sources?.multipliers?.shopBonus1 instanceof LayeredNumber
+          ? entry.sources.multipliers.shopBonus1.clone()
+          : toMultiplierLayered(entry.sources?.multipliers?.shopBonus1 ?? 1),
+        shopBonus2: entry.sources?.multipliers?.shopBonus2 instanceof LayeredNumber
+          ? entry.sources.multipliers.shopBonus2.clone()
+          : toMultiplierLayered(entry.sources?.multipliers?.shopBonus2 ?? 1),
+        trophyMultiplier: entry.sources?.multipliers?.trophyMultiplier instanceof LayeredNumber
+          ? entry.sources.multipliers.trophyMultiplier.clone()
+          : toMultiplierLayered(entry.sources?.multipliers?.trophyMultiplier ?? 1),
+        frenzy: entry.sources?.multipliers?.frenzy instanceof LayeredNumber
+          ? entry.sources.multipliers.frenzy.clone()
+          : LayeredNumber.one(),
+        rarityMultipliers: cloneRarityMultipliers(entry.sources?.multipliers?.rarityMultipliers)
+      }
+    }
+  };
+  return clone;
+}
+
+const frenzyState = {
+  perClick: {
+    token: null,
+    tokenExpire: 0,
+    effectUntil: 0,
+    currentMultiplier: 1
+  },
+  perSecond: {
+    token: null,
+    tokenExpire: 0,
+    effectUntil: 0,
+    currentMultiplier: 1
+  },
+  spawnAccumulator: 0
+};
+
+function getFrenzyMultiplier(type, now = performance.now()) {
+  if (!FRENZY_TYPES.includes(type)) {
+    return 1;
+  }
+  const entry = frenzyState[type];
+  if (!entry) {
+    return 1;
+  }
+  return entry.effectUntil > now ? FRENZY_CONFIG.multiplier : 1;
+}
+
+function applyFrenzyEffects(now = performance.now()) {
+  const basePerClick = gameState.basePerClick instanceof LayeredNumber
+    ? gameState.basePerClick.clone()
+    : BASE_PER_CLICK.clone();
+  const basePerSecond = gameState.basePerSecond instanceof LayeredNumber
+    ? gameState.basePerSecond.clone()
+    : BASE_PER_SECOND.clone();
+
+  const clickMultiplier = getFrenzyMultiplier('perClick', now);
+  const autoMultiplier = getFrenzyMultiplier('perSecond', now);
+
+  gameState.perClick = basePerClick.multiplyNumber(clickMultiplier);
+  gameState.perSecond = basePerSecond.multiplyNumber(autoMultiplier);
+
+  const baseProduction = gameState.productionBase || createEmptyProductionBreakdown();
+  const clickEntry = cloneProductionEntry(baseProduction.perClick);
+  const autoEntry = cloneProductionEntry(baseProduction.perSecond);
+
+  const clickMultiplierLayered = toMultiplierLayered(clickMultiplier);
+  const autoMultiplierLayered = toMultiplierLayered(autoMultiplier);
+
+  if (clickEntry) {
+    clickEntry.sources.multipliers.frenzy = clickMultiplierLayered.clone();
+    if (!isLayeredOne(clickMultiplierLayered)) {
+      clickEntry.multipliers.push({
+        id: 'frenzy',
+        label: 'Frénésie',
+        value: clickMultiplierLayered.clone(),
+        source: 'frenzy'
+      });
+    }
+    clickEntry.totalMultiplier = clickEntry.totalMultiplier.multiply(clickMultiplierLayered);
+    clickEntry.total = clickEntry.total.multiply(clickMultiplierLayered);
+  }
+
+  if (autoEntry) {
+    autoEntry.sources.multipliers.frenzy = autoMultiplierLayered.clone();
+    if (!isLayeredOne(autoMultiplierLayered)) {
+      autoEntry.multipliers.push({
+        id: 'frenzy',
+        label: 'Frénésie',
+        value: autoMultiplierLayered.clone(),
+        source: 'frenzy'
+      });
+    }
+    autoEntry.totalMultiplier = autoEntry.totalMultiplier.multiply(autoMultiplierLayered);
+    autoEntry.total = autoEntry.total.multiply(autoMultiplierLayered);
+  }
+
+  gameState.production = {
+    perClick: clickEntry,
+    perSecond: autoEntry
+  };
+
+  frenzyState.perClick.currentMultiplier = clickMultiplier;
+  frenzyState.perSecond.currentMultiplier = autoMultiplier;
+}
+
+function clearFrenzyToken(type, immediate = false) {
+  if (!FRENZY_TYPES.includes(type)) return;
+  const entry = frenzyState[type];
+  if (!entry || !entry.token) return;
+  const token = entry.token;
+  entry.token = null;
+  entry.tokenExpire = 0;
+  token.disabled = true;
+  token.style.pointerEvents = 'none';
+  token.classList.add('is-expiring');
+  const remove = () => {
+    if (token && token.isConnected) {
+      token.remove();
+    }
+  };
+  if (immediate) {
+    remove();
+  } else {
+    setTimeout(remove, 180);
+  }
+}
+
+function positionFrenzyToken(type, token) {
+  if (!elements.frenzyLayer || !elements.atomButton) return false;
+  const containerRect = elements.frenzyLayer.getBoundingClientRect();
+  const atomRect = elements.atomButton.getBoundingClientRect();
+  if (!containerRect.width || !containerRect.height || !atomRect.width || !atomRect.height) {
+    return false;
+  }
+
+  const centerX = atomRect.left + atomRect.width / 2;
+  const centerY = atomRect.top + atomRect.height / 2;
+  const baseSize = Math.max(atomRect.width, atomRect.height);
+  const minRadius = baseSize * 0.45;
+  const maxRadius = baseSize * 1.25;
+  const radiusRange = Math.max(maxRadius - minRadius, minRadius);
+  const radius = minRadius + Math.random() * radiusRange;
+  const angle = Math.random() * Math.PI * 2;
+
+  let targetX = centerX + Math.cos(angle) * radius;
+  let targetY = centerY + Math.sin(angle) * radius;
+
+  const margin = Math.max(40, baseSize * 0.25);
+  targetX = Math.min(containerRect.right - margin, Math.max(containerRect.left + margin, targetX));
+  targetY = Math.min(containerRect.bottom - margin, Math.max(containerRect.top + margin, targetY));
+
+  token.style.left = `${targetX - containerRect.left}px`;
+  token.style.top = `${targetY - containerRect.top}px`;
+  return true;
+}
+
+function spawnFrenzyToken(type, now = performance.now()) {
+  const info = FRENZY_TYPE_INFO[type];
+  if (!info) return;
+  if (!elements.frenzyLayer || !elements.atomButton) return;
+  if (FRENZY_CONFIG.displayDurationMs <= 0) return;
+
+  const token = document.createElement('button');
+  token.type = 'button';
+  token.className = `frenzy-token frenzy-token--${type}`;
+  token.dataset.frenzyType = type;
+  const multiplierText = `×${FRENZY_CONFIG.multiplier}`;
+  token.setAttribute('aria-label', `Activer la ${info.label} (${multiplierText})`);
+  token.title = `Activer la ${info.label} (${multiplierText})`;
+
+  const img = document.createElement('img');
+  img.src = info.asset;
+  img.alt = '';
+  img.setAttribute('aria-hidden', 'true');
+  token.appendChild(img);
+
+  token.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    collectFrenzy(type);
+  });
+
+  if (!positionFrenzyToken(type, token)) {
+    return;
+  }
+
+  elements.frenzyLayer.appendChild(token);
+  frenzyState[type].token = token;
+  frenzyState[type].tokenExpire = now + FRENZY_CONFIG.displayDurationMs;
+}
+
+function attemptFrenzySpawn(type, now = performance.now()) {
+  if (!FRENZY_TYPES.includes(type)) return;
+  if (!isGamePageActive()) return;
+  if (typeof document !== 'undefined' && document.hidden) return;
+  if (!elements.frenzyLayer || !elements.atomButton) return;
+  const entry = frenzyState[type];
+  if (entry.token) return;
+  const chance = FRENZY_CONFIG.spawnChancePerSecond[type] ?? 0;
+  if (chance <= 0) return;
+  if (Math.random() >= chance) return;
+  spawnFrenzyToken(type, now);
+}
+
+function collectFrenzy(type, now = performance.now()) {
+  const info = FRENZY_TYPE_INFO[type];
+  if (!info) return;
+  if (!FRENZY_TYPES.includes(type)) return;
+  const entry = frenzyState[type];
+  if (!entry) return;
+
+  clearFrenzyToken(type);
+  entry.effectUntil = now + FRENZY_CONFIG.effectDurationMs;
+
+  applyFrenzyEffects(now);
+  updateUI();
+
+  const rawSeconds = FRENZY_CONFIG.effectDurationMs / 1000;
+  let durationText;
+  if (rawSeconds >= 1) {
+    if (Number.isInteger(rawSeconds)) {
+      durationText = `${rawSeconds.toFixed(0)}s`;
+    } else {
+      const precision = rawSeconds < 10 ? 1 : 0;
+      durationText = `${rawSeconds.toFixed(precision)}s`;
+    }
+  } else {
+    durationText = `${rawSeconds.toFixed(1)}s`;
+  }
+  showToast(`${info.label} ${`×${FRENZY_CONFIG.multiplier}`} pendant ${durationText} !`);
+}
+
+function updateFrenzies(delta, now = performance.now()) {
+  if (!Number.isFinite(delta) || delta < 0) {
+    delta = 0;
+  }
+
+  frenzyState.spawnAccumulator += delta;
+  const attempts = Math.floor(frenzyState.spawnAccumulator);
+  if (attempts > 0) {
+    for (let i = 0; i < attempts; i += 1) {
+      FRENZY_TYPES.forEach(type => attemptFrenzySpawn(type, now));
+    }
+    frenzyState.spawnAccumulator -= attempts;
+  }
+
+  let needsUpdate = false;
+  FRENZY_TYPES.forEach(type => {
+    const entry = frenzyState[type];
+    if (!entry) return;
+    if (entry.token && now >= entry.tokenExpire) {
+      clearFrenzyToken(type);
+    }
+    if (entry.effectUntil > 0 && now >= entry.effectUntil) {
+      entry.effectUntil = 0;
+      needsUpdate = true;
+    }
+  });
+
+  if (needsUpdate) {
+    applyFrenzyEffects(now);
+    updateUI();
+  }
+}
+
+function resetFrenzyState(options = {}) {
+  const { skipApply = false } = options;
+  FRENZY_TYPES.forEach(type => {
+    clearFrenzyToken(type, true);
+    const entry = frenzyState[type];
+    if (!entry) return;
+    entry.effectUntil = 0;
+    entry.currentMultiplier = 1;
+  });
+  frenzyState.spawnAccumulator = 0;
+  if (!skipApply) {
+    applyFrenzyEffects();
+    updateUI();
+  }
 }
 
 function parseStats(saved) {
@@ -962,12 +1354,15 @@ const DEFAULT_STATE = {
   lifetime: LayeredNumber.zero(),
   perClick: BASE_PER_CLICK.clone(),
   perSecond: BASE_PER_SECOND.clone(),
+  basePerClick: BASE_PER_CLICK.clone(),
+  basePerSecond: BASE_PER_SECOND.clone(),
   upgrades: {},
   elements: createInitialElementCollection(),
   lastSave: Date.now(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
-  production: createEmptyProductionBreakdown()
+  production: createEmptyProductionBreakdown(),
+  productionBase: createEmptyProductionBreakdown()
 };
 
 const gameState = {
@@ -975,11 +1370,14 @@ const gameState = {
   lifetime: LayeredNumber.zero(),
   perClick: BASE_PER_CLICK.clone(),
   perSecond: BASE_PER_SECOND.clone(),
+  basePerClick: BASE_PER_CLICK.clone(),
+  basePerSecond: BASE_PER_SECOND.clone(),
   upgrades: {},
   elements: createInitialElementCollection(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
-  production: createEmptyProductionBreakdown()
+  production: createEmptyProductionBreakdown(),
+  productionBase: createEmptyProductionBreakdown()
 };
 
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
@@ -1027,6 +1425,7 @@ const elements = {
   statusAps: document.getElementById('statusAps'),
   atomButton: document.getElementById('atomButton'),
   atomVisual: document.querySelector('.atom-visual'),
+  frenzyLayer: document.getElementById('frenzyLayer'),
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
@@ -2282,10 +2681,11 @@ function recalcProduction() {
 
   clickDetails.total = perClick;
   autoDetails.total = perSecond;
+  gameState.basePerClick = perClick.clone();
+  gameState.basePerSecond = perSecond.clone();
+  gameState.productionBase = { perClick: clickDetails, perSecond: autoDetails };
 
-  gameState.perClick = perClick;
-  gameState.perSecond = perSecond;
-  gameState.production = { perClick: clickDetails, perSecond: autoDetails };
+  applyFrenzyEffects();
 }
 
 LayeredNumber.prototype.addNumber = function (num) {
@@ -2500,12 +2900,16 @@ function resetGame() {
     lifetime: LayeredNumber.zero(),
     perClick: BASE_PER_CLICK.clone(),
     perSecond: BASE_PER_SECOND.clone(),
+    basePerClick: BASE_PER_CLICK.clone(),
+    basePerSecond: BASE_PER_SECOND.clone(),
     upgrades: {},
     elements: createInitialElementCollection(),
     theme: DEFAULT_THEME,
     stats: createInitialStats(),
-    production: createEmptyProductionBreakdown()
+    production: createEmptyProductionBreakdown(),
+    productionBase: createEmptyProductionBreakdown()
   });
+  resetFrenzyState({ skipApply: true });
   applyTheme(DEFAULT_THEME);
   recalcProduction();
   renderShop();
@@ -2515,6 +2919,7 @@ function resetGame() {
 
 function loadGame() {
   try {
+    resetFrenzyState({ skipApply: true });
     const raw = localStorage.getItem('atom2univers');
     if (!raw) {
       gameState.theme = DEFAULT_THEME;
@@ -2596,6 +3001,7 @@ function loop(now) {
 
   updateClickVisuals(now);
   updatePlaytime(delta);
+  updateFrenzies(delta, now);
 
   if (now - lastUIUpdate > 250) {
     updateUI();
