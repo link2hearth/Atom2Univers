@@ -49,6 +49,28 @@ const GAME_CONFIG = {
   },
 
   /**
+   * Ordre d'affichage des étapes de calcul des productions dans l'onglet Infos.
+   * Chaque entrée correspond à un identifiant d'étape connu du jeu. La liste
+   * peut être réorganisée ou complétée pour s'adapter à de futurs bonus.
+   */
+  infoPanels: {
+    productionOrder: [
+      'baseFlat',
+      'shopFlat',
+      'elementFlat',
+      'shopMultiplier',
+      'rarityMultiplier:commun',
+      'rarityMultiplier:essentiel',
+      'rarityMultiplier:stellaire',
+      'rarityMultiplier:singulier',
+      'rarityMultiplier:mythique',
+      'rarityMultiplier:irreel',
+      'trophyMultiplier',
+      'total'
+    ]
+  },
+
+  /**
    * Définitions complètes des améliorations de la boutique.
    * Chaque entrée décrit :
    * - baseCost : coût initial de l'amélioration.

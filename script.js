@@ -692,6 +692,101 @@ configuredRarityIds.forEach(id => {
   GACHA_RARITY_MAP.set(id, fallback);
 });
 
+const RARITY_IDS = GACHA_RARITIES.map(entry => entry.id);
+const RARITY_LABEL_MAP = new Map(GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
+
+const PRODUCTION_STEP_DEFINITIONS = new Map();
+
+function defineProductionStep(id, type, label, extra = {}) {
+  if (!id || PRODUCTION_STEP_DEFINITIONS.has(id)) {
+    return;
+  }
+  PRODUCTION_STEP_DEFINITIONS.set(id, { id, type, label, ...extra });
+}
+
+defineProductionStep('baseFlat', 'base', 'Base flat', { source: 'baseFlat' });
+defineProductionStep('shopFlat', 'flat', 'Bonus flat magasin', { source: 'shopFlat' });
+defineProductionStep('elementFlat', 'flat', 'Bonus flat éléments', { source: 'elementFlat' });
+defineProductionStep('shopMultiplier', 'multiplier', 'Multiplicateur magasin', { source: 'shopMultiplier' });
+defineProductionStep(
+  'trophyMultiplier',
+  'multiplier',
+  'Bonus multiplicateur lié aux trophées (à venir)',
+  { source: 'trophyMultiplier' }
+);
+defineProductionStep('total', 'total', '= Total');
+
+RARITY_IDS.forEach(rarityId => {
+  const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || rarityId;
+  defineProductionStep(
+    `rarityMultiplier:${rarityId}`,
+    'multiplier',
+    `Multiplicateur éléments ${rarityLabel}`,
+    { source: 'rarityMultiplier', rarityId }
+  );
+});
+
+const DEFAULT_PRODUCTION_STEP_IDS = [
+  'baseFlat',
+  'shopFlat',
+  'elementFlat',
+  'shopMultiplier',
+  ...RARITY_IDS.map(id => `rarityMultiplier:${id}`),
+  'trophyMultiplier',
+  'total'
+];
+
+function resolveProductionStepOrder(configOrder) {
+  const seen = new Set();
+  const resolved = [];
+
+  const pushStep = (id, labelOverride = null) => {
+    if (!id || seen.has(id)) return;
+    const base = PRODUCTION_STEP_DEFINITIONS.get(id);
+    if (!base) return;
+    const entry = { ...base };
+    if (labelOverride && typeof labelOverride === 'string') {
+      entry.label = labelOverride;
+    }
+    resolved.push(entry);
+    seen.add(id);
+  };
+
+  if (Array.isArray(configOrder)) {
+    configOrder.forEach(item => {
+      if (!item) return;
+      if (typeof item === 'string') {
+        pushStep(item.trim());
+        return;
+      }
+      if (typeof item === 'object') {
+        const type = item.type ?? item.kind;
+        if ((type === 'rarity' || type === 'rarityMultiplier') && item.rarity) {
+          const rarityId = String(item.rarity).trim();
+          const label = typeof item.label === 'string' ? item.label.trim() : null;
+          pushStep(`rarityMultiplier:${rarityId}`, label);
+          return;
+        }
+        const rawId = item.id ?? item.key ?? item.step;
+        if (!rawId) return;
+        const id = String(rawId).trim();
+        const label = typeof item.label === 'string' ? item.label.trim() : null;
+        pushStep(id, label);
+      }
+    });
+  }
+
+  DEFAULT_PRODUCTION_STEP_IDS.forEach(id => {
+    if (!seen.has(id)) {
+      pushStep(id);
+    }
+  });
+
+  return resolved;
+}
+
+const PRODUCTION_STEP_ORDER = resolveProductionStepOrder(CONFIG.infoPanels?.productionOrder);
+
 const GACHA_TOTAL_WEIGHT = GACHA_RARITIES.reduce((total, entry) => total + (entry.weight || 0), 0);
 
 const gachaPools = new Map();
@@ -798,13 +893,29 @@ function createInitialStats() {
 }
 
 function createEmptyProductionEntry() {
+  const rarityMultipliers = new Map();
+  RARITY_IDS.forEach(id => {
+    rarityMultipliers.set(id, 1);
+  });
   return {
     base: LayeredNumber.zero(),
     totalAddition: LayeredNumber.zero(),
     totalMultiplier: 1,
     additions: [],
     multipliers: [],
-    total: LayeredNumber.zero()
+    total: LayeredNumber.zero(),
+    sources: {
+      flats: {
+        baseFlat: LayeredNumber.zero(),
+        shopFlat: LayeredNumber.zero(),
+        elementFlat: LayeredNumber.zero()
+      },
+      multipliers: {
+        shopMultiplier: 1,
+        trophyMultiplier: 1,
+        rarityMultipliers
+      }
+    }
   };
 }
 
@@ -899,18 +1010,8 @@ const elements = {
   gachaOwnedSummary: document.getElementById('gachaOwnedSummary'),
   themeSelect: document.getElementById('themeSelect'),
   resetButton: document.getElementById('resetButton'),
-  infoApsTotal: document.getElementById('infoApsTotal'),
-  infoApsBase: document.getElementById('infoApsBase'),
-  infoApsAdditionTotal: document.getElementById('infoApsAdditionTotal'),
-  infoApsMultiplierTotal: document.getElementById('infoApsMultiplierTotal'),
-  infoApsAdditions: document.getElementById('infoApsAdditions'),
-  infoApsMultipliers: document.getElementById('infoApsMultipliers'),
-  infoApcTotal: document.getElementById('infoApcTotal'),
-  infoApcBase: document.getElementById('infoApcBase'),
-  infoApcAdditionTotal: document.getElementById('infoApcAdditionTotal'),
-  infoApcMultiplierTotal: document.getElementById('infoApcMultiplierTotal'),
-  infoApcAdditions: document.getElementById('infoApcAdditions'),
-  infoApcMultipliers: document.getElementById('infoApcMultipliers'),
+  infoApsBreakdown: document.getElementById('infoApsBreakdown'),
+  infoApcBreakdown: document.getElementById('infoApcBreakdown'),
   infoSessionAtoms: document.getElementById('infoSessionAtoms'),
   infoSessionClicks: document.getElementById('infoSessionClicks'),
   infoSessionDuration: document.getElementById('infoSessionDuration'),
@@ -1437,82 +1538,127 @@ function handleGachaRoll() {
   saveGame();
 }
 
-function renderBonusList(container, entries, type) {
+function toLayeredValue(value, fallback = 0) {
+  if (value instanceof LayeredNumber) return value;
+  if (value == null) return new LayeredNumber(fallback);
+  return new LayeredNumber(value);
+}
+
+function getFlatSourceValue(entry, key) {
+  if (!entry || !entry.sources || !entry.sources.flats) {
+    return LayeredNumber.zero();
+  }
+  const raw = entry.sources.flats[key];
+  if (raw instanceof LayeredNumber) {
+    return raw;
+  }
+  if (raw == null) {
+    return LayeredNumber.zero();
+  }
+  return new LayeredNumber(raw);
+}
+
+function getMultiplierSourceValue(entry, step) {
+  if (!entry || !entry.sources || !entry.sources.multipliers) {
+    return 1;
+  }
+  const multipliers = entry.sources.multipliers;
+  if (step.source === 'rarityMultiplier') {
+    const store = multipliers.rarityMultipliers;
+    if (!store) return 1;
+    if (store instanceof Map) {
+      const raw = store.get(step.rarityId);
+      const numeric = Number(raw);
+      return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+    }
+    if (typeof store === 'object' && store !== null) {
+      const raw = store[step.rarityId];
+      const numeric = Number(raw);
+      return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+    }
+    return 1;
+  }
+  const raw = multipliers[step.source];
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+}
+
+function formatFlatValue(value) {
+  const layered = value instanceof LayeredNumber ? value : toLayeredValue(value, 0);
+  return layered.isZero() ? '+0' : `+${layered.toString()}`;
+}
+
+function formatProductionStepValue(step, entry) {
+  if (!step) return '—';
+  switch (step.type) {
+    case 'base': {
+      const baseValue = entry && entry.base != null
+        ? toLayeredValue(entry.base, 0)
+        : LayeredNumber.zero();
+      return baseValue.toString();
+    }
+    case 'flat': {
+      const flatValue = getFlatSourceValue(entry, step.source);
+      return formatFlatValue(flatValue);
+    }
+    case 'multiplier': {
+      const multiplier = getMultiplierSourceValue(entry, step);
+      return formatMultiplier(multiplier);
+    }
+    case 'total': {
+      const totalValue = entry && entry.total != null
+        ? toLayeredValue(entry.total, 0)
+        : LayeredNumber.zero();
+      return totalValue.toString();
+    }
+    default:
+      return '—';
+  }
+}
+
+function renderProductionBreakdown(container, entry) {
   if (!container) return;
   container.innerHTML = '';
-  if (!entries || !entries.length) {
-    const empty = document.createElement('li');
-    empty.className = 'info-bonus__empty';
-    empty.textContent = 'Aucun bonus actif';
-    container.appendChild(empty);
-    return;
-  }
-
-  entries.forEach(entry => {
-    const item = document.createElement('li');
-    item.className = 'info-bonus__entry';
+  PRODUCTION_STEP_ORDER.forEach(step => {
+    const row = document.createElement('li');
+    row.className = `production-breakdown__row production-breakdown__row--${step.type}`;
+    row.dataset.step = step.id;
 
     const label = document.createElement('span');
-    label.className = 'info-bonus__label';
-    const labelParts = [entry.label];
-    if (entry.level != null) {
-      labelParts.push(`(Niveau ${entry.level})`);
-    }
-    label.textContent = labelParts.join(' ');
+    label.className = 'production-breakdown__label';
+    label.textContent = step.label;
 
     const value = document.createElement('span');
-    value.className = 'info-bonus__value';
-    if (type === 'multiplier') {
-      value.textContent = formatMultiplier(entry.value);
-    } else {
-      const additionValue = entry.value instanceof LayeredNumber
-        ? entry.value
-        : new LayeredNumber(entry.value ?? 0);
-      value.textContent = additionValue.isZero()
-        ? '+0'
-        : `+${additionValue.toString()}`;
-    }
+    value.className = 'production-breakdown__value';
+    value.textContent = formatProductionStepValue(step, entry);
 
-    item.append(label, value);
-    container.appendChild(item);
+    row.append(label, value);
+    container.appendChild(row);
   });
 }
 
-function updateProductionInfo(breakdown, targets) {
-  if (!breakdown || !targets) return;
-
-  if (targets.total) {
-    const totalValue = breakdown.total instanceof LayeredNumber
-      ? breakdown.total
-      : new LayeredNumber(breakdown.total ?? 0);
-    targets.total.textContent = totalValue.toString();
+function computeRarityMultiplierProduct(store) {
+  if (!store) return 1;
+  if (store instanceof Map) {
+    let product = 1;
+    store.forEach(raw => {
+      const numeric = Number(raw);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        product *= numeric;
+      }
+    });
+    return product;
   }
-  if (targets.base) {
-    const baseValue = breakdown.base instanceof LayeredNumber
-      ? breakdown.base
-      : new LayeredNumber(breakdown.base ?? 0);
-    targets.base.textContent = baseValue.toString();
+  if (typeof store === 'object' && store !== null) {
+    return Object.values(store).reduce((product, raw) => {
+      const numeric = Number(raw);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return product * numeric;
+      }
+      return product;
+    }, 1);
   }
-  if (targets.additionTotal) {
-    const addition = breakdown.totalAddition instanceof LayeredNumber
-      ? breakdown.totalAddition
-      : new LayeredNumber(breakdown.totalAddition ?? 0);
-    targets.additionTotal.textContent = addition.isZero()
-      ? '+0'
-      : `+${addition.toString()}`;
-  }
-  if (targets.multiplierTotal) {
-    const multiplier = Number.isFinite(breakdown.totalMultiplier)
-      ? breakdown.totalMultiplier
-      : 1;
-    targets.multiplierTotal.textContent = formatMultiplier(multiplier);
-  }
-  if (targets.additionsList) {
-    renderBonusList(targets.additionsList, breakdown.additions, 'addition');
-  }
-  if (targets.multipliersList) {
-    renderBonusList(targets.multipliersList, breakdown.multipliers, 'multiplier');
-  }
+  return 1;
 }
 
 function updateSessionStats() {
@@ -1551,22 +1697,11 @@ function updateGlobalStats() {
 function updateInfoPanels() {
   const production = gameState.production;
   if (production) {
-    updateProductionInfo(production.perSecond, {
-      total: elements.infoApsTotal,
-      base: elements.infoApsBase,
-      additionTotal: elements.infoApsAdditionTotal,
-      multiplierTotal: elements.infoApsMultiplierTotal,
-      additionsList: elements.infoApsAdditions,
-      multipliersList: elements.infoApsMultipliers
-    });
-    updateProductionInfo(production.perClick, {
-      total: elements.infoApcTotal,
-      base: elements.infoApcBase,
-      additionTotal: elements.infoApcAdditionTotal,
-      multiplierTotal: elements.infoApcMultiplierTotal,
-      additionsList: elements.infoApcAdditions,
-      multipliersList: elements.infoApcMultipliers
-    });
+    renderProductionBreakdown(elements.infoApsBreakdown, production.perSecond);
+    renderProductionBreakdown(elements.infoApcBreakdown, production.perClick);
+  } else {
+    renderProductionBreakdown(elements.infoApsBreakdown, null);
+    renderProductionBreakdown(elements.infoApcBreakdown, null);
   }
 
   updateSessionStats();
@@ -1771,28 +1906,27 @@ function recalcProduction() {
   const clickBase = BASE_PER_CLICK.clone();
   const autoBase = BASE_PER_SECOND.clone();
 
-  let clickAddition = LayeredNumber.zero();
-  let autoAddition = LayeredNumber.zero();
-  let clickMultiplier = 1;
-  let autoMultiplier = 1;
+  const clickDetails = createEmptyProductionEntry();
+  const autoDetails = createEmptyProductionEntry();
 
-  const clickDetails = {
-    base: clickBase.clone(),
-    totalAddition: LayeredNumber.zero(),
-    totalMultiplier: 1,
-    additions: [],
-    multipliers: [],
-    total: LayeredNumber.zero()
-  };
+  clickDetails.base = clickBase.clone();
+  autoDetails.base = autoBase.clone();
+  clickDetails.sources.flats.baseFlat = clickBase.clone();
+  autoDetails.sources.flats.baseFlat = autoBase.clone();
 
-  const autoDetails = {
-    base: autoBase.clone(),
-    totalAddition: LayeredNumber.zero(),
-    totalMultiplier: 1,
-    additions: [],
-    multipliers: [],
-    total: LayeredNumber.zero()
-  };
+  let clickShopAddition = LayeredNumber.zero();
+  let autoShopAddition = LayeredNumber.zero();
+  let clickElementAddition = LayeredNumber.zero();
+  let autoElementAddition = LayeredNumber.zero();
+
+  let clickShopMultiplier = 1;
+  let autoShopMultiplier = 1;
+
+  const clickRarityMultipliers = clickDetails.sources.multipliers.rarityMultipliers;
+  const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
+
+  const clickTrophyMultiplier = 1;
+  const autoTrophyMultiplier = 1;
 
   UPGRADE_DEFS.forEach(def => {
     const level = gameState.upgrades[def.id] || 0;
@@ -1802,48 +1936,75 @@ function recalcProduction() {
     if (effects.clickAdd != null) {
       const value = new LayeredNumber(effects.clickAdd);
       if (!value.isZero()) {
-        clickAddition = clickAddition.add(value);
-        clickDetails.additions.push({ id: def.id, label: def.name, level, value });
+        clickShopAddition = clickShopAddition.add(value);
+        clickDetails.additions.push({ id: def.id, label: def.name, level, value, source: 'shop' });
       }
     }
 
     if (effects.autoAdd != null) {
       const value = new LayeredNumber(effects.autoAdd);
       if (!value.isZero()) {
-        autoAddition = autoAddition.add(value);
-        autoDetails.additions.push({ id: def.id, label: def.name, level, value });
+        autoShopAddition = autoShopAddition.add(value);
+        autoDetails.additions.push({ id: def.id, label: def.name, level, value, source: 'shop' });
       }
     }
 
     if (effects.clickMult != null) {
       const raw = Number(effects.clickMult);
       const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
-      clickMultiplier *= multiplier;
+      clickShopMultiplier *= multiplier;
       if (multiplier !== 1) {
-        clickDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier });
+        clickDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier, source: 'shop' });
       }
     }
 
     if (effects.autoMult != null) {
       const raw = Number(effects.autoMult);
       const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
-      autoMultiplier *= multiplier;
+      autoShopMultiplier *= multiplier;
       if (multiplier !== 1) {
-        autoDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier });
+        autoDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier, source: 'shop' });
       }
     }
   });
 
-  clickDetails.totalAddition = clickAddition;
-  autoDetails.totalAddition = autoAddition;
-  clickDetails.totalMultiplier = clickMultiplier;
-  autoDetails.totalMultiplier = autoMultiplier;
+  clickDetails.sources.flats.shopFlat = clickShopAddition.clone();
+  autoDetails.sources.flats.shopFlat = autoShopAddition.clone();
+  clickDetails.sources.flats.elementFlat = clickElementAddition.clone();
+  autoDetails.sources.flats.elementFlat = autoElementAddition.clone();
 
-  let perClick = clickBase.add(clickAddition).multiplyNumber(clickMultiplier);
+  clickDetails.sources.multipliers.shopMultiplier = clickShopMultiplier;
+  autoDetails.sources.multipliers.shopMultiplier = autoShopMultiplier;
+  clickDetails.sources.multipliers.trophyMultiplier = clickTrophyMultiplier;
+  autoDetails.sources.multipliers.trophyMultiplier = autoTrophyMultiplier;
+
+  const clickRarityProduct = computeRarityMultiplierProduct(clickRarityMultipliers);
+  const autoRarityProduct = computeRarityMultiplierProduct(autoRarityMultipliers);
+
+  const clickTotalAddition = clickShopAddition.add(clickElementAddition);
+  const autoTotalAddition = autoShopAddition.add(autoElementAddition);
+
+  clickDetails.totalAddition = clickTotalAddition;
+  autoDetails.totalAddition = autoTotalAddition;
+
+  const clickTotalMultiplier = clickShopMultiplier * clickTrophyMultiplier * clickRarityProduct;
+  const autoTotalMultiplier = autoShopMultiplier * autoTrophyMultiplier * autoRarityProduct;
+
+  clickDetails.totalMultiplier = clickTotalMultiplier;
+  autoDetails.totalMultiplier = autoTotalMultiplier;
+
+  const clickFlatBase = clickDetails.sources.flats.baseFlat
+    .add(clickDetails.sources.flats.shopFlat)
+    .add(clickDetails.sources.flats.elementFlat);
+  const autoFlatBase = autoDetails.sources.flats.baseFlat
+    .add(autoDetails.sources.flats.shopFlat)
+    .add(autoDetails.sources.flats.elementFlat);
+
+  let perClick = clickFlatBase.multiplyNumber(clickTotalMultiplier);
   if (perClick.compare(LayeredNumber.zero()) < 0) {
     perClick = LayeredNumber.zero();
   }
-  let perSecond = autoBase.add(autoAddition).multiplyNumber(autoMultiplier);
+  let perSecond = autoFlatBase.multiplyNumber(autoTotalMultiplier);
 
   clickDetails.total = perClick;
   autoDetails.total = perSecond;
