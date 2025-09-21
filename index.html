@@ -99,22 +99,116 @@
     </section>
 
     <section id="info" class="page" aria-labelledby="info-title">
-      <article class="info-card">
-        <h2 id="info-title">Bienvenue dans Atom → Univers</h2>
-        <p>Ce clicker vous fait gravir les échelles de la matière, d’un simple atome jusqu’aux structures les plus vastes de l’univers. Cliquez pour créer des atomes, automatisez la production et gérez judicieusement vos améliorations pour atteindre des grandeurs inouïes.</p>
-        <h3>Concepts clés</h3>
-        <ul>
-          <li><strong>APC</strong> – Atomes par clic. Chaque pression sur le noyau en produit cette quantité.</li>
-          <li><strong>APS</strong> – Atomes par seconde. Générés automatiquement grâce aux améliorations.</li>
-          <li><strong>Système de nombres à layers</strong> – Les valeurs dépassant l’entendement sont représentées avec des couches exponentielles. Vous verrez des notations comme <code>10^123</code> ou même des tours d’exponentielles.</li>
-        </ul>
-        <h3>Conseils</h3>
-        <ul>
-          <li>Montez vos clics pour amorcer la progression.</li>
-          <li>Investissez tôt dans la production automatique pour profiter du temps réel.</li>
-          <li>Revenez régulièrement : le jeu continue de produire lorsque vous êtes absent (si vous laissez l’onglet ouvert).</li>
-        </ul>
-      </article>
+      <h2 id="info-title" class="visually-hidden">Informations de progression</h2>
+      <div class="info-grid">
+        <article class="info-card info-card--production" aria-labelledby="info-aps-title">
+          <header class="info-card__header">
+            <h3 id="info-aps-title">Production automatique (APS)</h3>
+            <p class="info-card__subtitle">Synthèse par seconde</p>
+          </header>
+          <dl class="info-metrics">
+            <div class="info-metrics__row">
+              <dt>Total</dt>
+              <dd id="infoApsTotal">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Base</dt>
+              <dd id="infoApsBase">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Bonus additifs</dt>
+              <dd id="infoApsAdditionTotal">+0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Multiplicateur global</dt>
+              <dd id="infoApsMultiplierTotal">×1,00</dd>
+            </div>
+          </dl>
+          <div class="info-bonus">
+            <h4>Bonus additifs</h4>
+            <ul id="infoApsAdditions" class="info-bonus__list" aria-label="Bonus additifs APS"></ul>
+          </div>
+          <div class="info-bonus">
+            <h4>Bonus multiplicateurs</h4>
+            <ul id="infoApsMultipliers" class="info-bonus__list" aria-label="Bonus multiplicateurs APS"></ul>
+          </div>
+        </article>
+
+        <article class="info-card info-card--production" aria-labelledby="info-apc-title">
+          <header class="info-card__header">
+            <h3 id="info-apc-title">Production manuelle (APC)</h3>
+            <p class="info-card__subtitle">Atomes par clic</p>
+          </header>
+          <dl class="info-metrics">
+            <div class="info-metrics__row">
+              <dt>Total</dt>
+              <dd id="infoApcTotal">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Base</dt>
+              <dd id="infoApcBase">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Bonus additifs</dt>
+              <dd id="infoApcAdditionTotal">+0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Multiplicateur global</dt>
+              <dd id="infoApcMultiplierTotal">×1,00</dd>
+            </div>
+          </dl>
+          <div class="info-bonus">
+            <h4>Bonus additifs</h4>
+            <ul id="infoApcAdditions" class="info-bonus__list" aria-label="Bonus additifs APC"></ul>
+          </div>
+          <div class="info-bonus">
+            <h4>Bonus multiplicateurs</h4>
+            <ul id="infoApcMultipliers" class="info-bonus__list" aria-label="Bonus multiplicateurs APC"></ul>
+          </div>
+        </article>
+
+        <article class="info-card info-card--stats" aria-labelledby="info-session-title">
+          <header class="info-card__header">
+            <h3 id="info-session-title">Session en cours</h3>
+            <p class="info-card__subtitle">Données depuis le chargement</p>
+          </header>
+          <dl class="info-metrics">
+            <div class="info-metrics__row">
+              <dt>Atomes gagnés</dt>
+              <dd id="infoSessionAtoms">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Clics manuels</dt>
+              <dd id="infoSessionClicks">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Durée en ligne</dt>
+              <dd id="infoSessionDuration">0s</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="info-card info-card--stats" aria-labelledby="info-global-title">
+          <header class="info-card__header">
+            <h3 id="info-global-title">Progression globale</h3>
+            <p class="info-card__subtitle">Statistiques sauvegardées</p>
+          </header>
+          <dl class="info-metrics">
+            <div class="info-metrics__row">
+              <dt>Atomes gagnés</dt>
+              <dd id="infoGlobalAtoms">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Clics manuels</dt>
+              <dd id="infoGlobalClicks">0</dd>
+            </div>
+            <div class="info-metrics__row">
+              <dt>Durée de jeu</dt>
+              <dd id="infoGlobalDuration">0s</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
     </section>
 
     <section id="options" class="page" aria-labelledby="options-title">

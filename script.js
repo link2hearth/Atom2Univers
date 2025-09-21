@@ -606,6 +606,59 @@ const FALLBACK_MILESTONES = [
   { amount: { type: 'layer1', value: 8 }, text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
 ];
 
+function createInitialStats() {
+  return {
+    session: {
+      atomsGained: LayeredNumber.zero(),
+      manualClicks: 0,
+      onlineTimeMs: 0,
+      startedAt: Date.now()
+    },
+    global: {
+      manualClicks: 0,
+      playTimeMs: 0
+    }
+  };
+}
+
+function createEmptyProductionEntry() {
+  return {
+    base: LayeredNumber.zero(),
+    totalAddition: LayeredNumber.zero(),
+    totalMultiplier: 1,
+    additions: [],
+    multipliers: [],
+    total: LayeredNumber.zero()
+  };
+}
+
+function createEmptyProductionBreakdown() {
+  return {
+    perClick: createEmptyProductionEntry(),
+    perSecond: createEmptyProductionEntry()
+  };
+}
+
+function parseStats(saved) {
+  const stats = createInitialStats();
+  if (!saved || typeof saved !== 'object') {
+    return stats;
+  }
+  if (saved.session) {
+    stats.session.atomsGained = LayeredNumber.fromJSON(saved.session.atomsGained);
+    stats.session.manualClicks = Number(saved.session.manualClicks) || 0;
+    stats.session.onlineTimeMs = Number(saved.session.onlineTimeMs) || 0;
+    stats.session.startedAt = typeof saved.session.startedAt === 'number'
+      ? saved.session.startedAt
+      : Date.now();
+  }
+  if (saved.global) {
+    stats.global.manualClicks = Number(saved.global.manualClicks) || 0;
+    stats.global.playTimeMs = Number(saved.global.playTimeMs) || 0;
+  }
+  return stats;
+}
+
 // Game state management
 const DEFAULT_STATE = {
   atoms: LayeredNumber.zero(),
@@ -615,7 +668,9 @@ const DEFAULT_STATE = {
   upgrades: {},
   elements: createInitialElementCollection(),
   lastSave: Date.now(),
-  theme: DEFAULT_THEME
+  theme: DEFAULT_THEME,
+  stats: createInitialStats(),
+  production: createEmptyProductionBreakdown()
 };
 
 const gameState = {
@@ -625,7 +680,9 @@ const gameState = {
   perSecond: BASE_PER_SECOND.clone(),
   upgrades: {},
   elements: createInitialElementCollection(),
-  theme: DEFAULT_THEME
+  theme: DEFAULT_THEME,
+  stats: createInitialStats(),
+  production: createEmptyProductionBreakdown()
 };
 
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
@@ -662,7 +719,25 @@ const elements = {
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
   saveButton: document.getElementById('saveButton'),
-  resetButton: document.getElementById('resetButton')
+  resetButton: document.getElementById('resetButton'),
+  infoApsTotal: document.getElementById('infoApsTotal'),
+  infoApsBase: document.getElementById('infoApsBase'),
+  infoApsAdditionTotal: document.getElementById('infoApsAdditionTotal'),
+  infoApsMultiplierTotal: document.getElementById('infoApsMultiplierTotal'),
+  infoApsAdditions: document.getElementById('infoApsAdditions'),
+  infoApsMultipliers: document.getElementById('infoApsMultipliers'),
+  infoApcTotal: document.getElementById('infoApcTotal'),
+  infoApcBase: document.getElementById('infoApcBase'),
+  infoApcAdditionTotal: document.getElementById('infoApcAdditionTotal'),
+  infoApcMultiplierTotal: document.getElementById('infoApcMultiplierTotal'),
+  infoApcAdditions: document.getElementById('infoApcAdditions'),
+  infoApcMultipliers: document.getElementById('infoApcMultipliers'),
+  infoSessionAtoms: document.getElementById('infoSessionAtoms'),
+  infoSessionClicks: document.getElementById('infoSessionClicks'),
+  infoSessionDuration: document.getElementById('infoSessionDuration'),
+  infoGlobalAtoms: document.getElementById('infoGlobalAtoms'),
+  infoGlobalClicks: document.getElementById('infoGlobalClicks'),
+  infoGlobalDuration: document.getElementById('infoGlobalDuration')
 };
 
 const shopRows = new Map();
@@ -681,6 +756,44 @@ function formatAtomicMass(value) {
     return `${integer},${fraction}`;
   }
   return String(value);
+}
+
+function formatMultiplier(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '×—';
+  }
+  const abs = Math.abs(numeric);
+  const options = { maximumFractionDigits: 2 };
+  if (abs < 10) {
+    options.minimumFractionDigits = 2;
+  }
+  return `×${numeric.toLocaleString('fr-FR', options)}`;
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return '0s';
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = totalHours % 24;
+  const days = Math.floor(totalHours / 24);
+  const parts = [];
+  if (days > 0) {
+    parts.push(`${days}j`);
+  }
+  if (hours > 0 || days > 0) {
+    const hourStr = hours.toString().padStart(days > 0 ? 2 : 1, '0');
+    parts.push(`${hourStr}h`);
+  }
+  const minuteStr = minutes.toString().padStart(hours > 0 || days > 0 ? 2 : 1, '0');
+  parts.push(`${minuteStr}m`);
+  parts.push(`${seconds.toString().padStart(2, '0')}s`);
+  return parts.join(' ');
 }
 
 function updateElementInfoPanel(definition) {
@@ -894,6 +1007,142 @@ function updateCollectionDisplay() {
   }
 }
 
+function renderBonusList(container, entries, type) {
+  if (!container) return;
+  container.innerHTML = '';
+  if (!entries || !entries.length) {
+    const empty = document.createElement('li');
+    empty.className = 'info-bonus__empty';
+    empty.textContent = 'Aucun bonus actif';
+    container.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(entry => {
+    const item = document.createElement('li');
+    item.className = 'info-bonus__entry';
+
+    const label = document.createElement('span');
+    label.className = 'info-bonus__label';
+    const labelParts = [entry.label];
+    if (entry.level != null) {
+      labelParts.push(`(Niveau ${entry.level})`);
+    }
+    label.textContent = labelParts.join(' ');
+
+    const value = document.createElement('span');
+    value.className = 'info-bonus__value';
+    if (type === 'multiplier') {
+      value.textContent = formatMultiplier(entry.value);
+    } else {
+      const additionValue = entry.value instanceof LayeredNumber
+        ? entry.value
+        : new LayeredNumber(entry.value ?? 0);
+      value.textContent = additionValue.isZero()
+        ? '+0'
+        : `+${additionValue.toString()}`;
+    }
+
+    item.append(label, value);
+    container.appendChild(item);
+  });
+}
+
+function updateProductionInfo(breakdown, targets) {
+  if (!breakdown || !targets) return;
+
+  if (targets.total) {
+    const totalValue = breakdown.total instanceof LayeredNumber
+      ? breakdown.total
+      : new LayeredNumber(breakdown.total ?? 0);
+    targets.total.textContent = totalValue.toString();
+  }
+  if (targets.base) {
+    const baseValue = breakdown.base instanceof LayeredNumber
+      ? breakdown.base
+      : new LayeredNumber(breakdown.base ?? 0);
+    targets.base.textContent = baseValue.toString();
+  }
+  if (targets.additionTotal) {
+    const addition = breakdown.totalAddition instanceof LayeredNumber
+      ? breakdown.totalAddition
+      : new LayeredNumber(breakdown.totalAddition ?? 0);
+    targets.additionTotal.textContent = addition.isZero()
+      ? '+0'
+      : `+${addition.toString()}`;
+  }
+  if (targets.multiplierTotal) {
+    const multiplier = Number.isFinite(breakdown.totalMultiplier)
+      ? breakdown.totalMultiplier
+      : 1;
+    targets.multiplierTotal.textContent = formatMultiplier(multiplier);
+  }
+  if (targets.additionsList) {
+    renderBonusList(targets.additionsList, breakdown.additions, 'addition');
+  }
+  if (targets.multipliersList) {
+    renderBonusList(targets.multipliersList, breakdown.multipliers, 'multiplier');
+  }
+}
+
+function updateSessionStats() {
+  const session = gameState.stats?.session;
+  if (!session) return;
+
+  if (elements.infoSessionAtoms) {
+    const atoms = session.atomsGained instanceof LayeredNumber
+      ? session.atomsGained
+      : LayeredNumber.fromJSON(session.atomsGained);
+    elements.infoSessionAtoms.textContent = atoms.toString();
+  }
+  if (elements.infoSessionClicks) {
+    elements.infoSessionClicks.textContent = Number(session.manualClicks || 0).toLocaleString('fr-FR');
+  }
+  if (elements.infoSessionDuration) {
+    elements.infoSessionDuration.textContent = formatDuration(session.onlineTimeMs);
+  }
+}
+
+function updateGlobalStats() {
+  const global = gameState.stats?.global;
+  if (!global) return;
+
+  if (elements.infoGlobalAtoms) {
+    elements.infoGlobalAtoms.textContent = gameState.lifetime.toString();
+  }
+  if (elements.infoGlobalClicks) {
+    elements.infoGlobalClicks.textContent = Number(global.manualClicks || 0).toLocaleString('fr-FR');
+  }
+  if (elements.infoGlobalDuration) {
+    elements.infoGlobalDuration.textContent = formatDuration(global.playTimeMs);
+  }
+}
+
+function updateInfoPanels() {
+  const production = gameState.production;
+  if (production) {
+    updateProductionInfo(production.perSecond, {
+      total: elements.infoApsTotal,
+      base: elements.infoApsBase,
+      additionTotal: elements.infoApsAdditionTotal,
+      multiplierTotal: elements.infoApsMultiplierTotal,
+      additionsList: elements.infoApsAdditions,
+      multipliersList: elements.infoApsMultipliers
+    });
+    updateProductionInfo(production.perClick, {
+      total: elements.infoApcTotal,
+      base: elements.infoApcBase,
+      additionTotal: elements.infoApcAdditionTotal,
+      multiplierTotal: elements.infoApcMultiplierTotal,
+      additionsList: elements.infoApcAdditions,
+      multipliersList: elements.infoApcMultipliers
+    });
+  }
+
+  updateSessionStats();
+  updateGlobalStats();
+}
+
 let toastElement = null;
 
 const CLICK_WINDOW_MS = CONFIG.presentation?.clicks?.windowMs ?? 1000;
@@ -969,6 +1218,10 @@ function registerManualClick() {
   const now = performance.now();
   clickHistory.push(now);
   updateClickVisuals(now);
+  if (gameState.stats) {
+    gameState.stats.session.manualClicks += 1;
+    gameState.stats.global.manualClicks += 1;
+  }
 }
 
 function animateAtomPress() {
@@ -1063,6 +1316,12 @@ document.addEventListener('selectstart', event => {
 function gainAtoms(amount, fromClick = false) {
   gameState.atoms = gameState.atoms.add(amount);
   gameState.lifetime = gameState.lifetime.add(amount);
+  if (gameState.stats) {
+    const session = gameState.stats.session;
+    if (session?.atomsGained) {
+      session.atomsGained = session.atomsGained.add(amount);
+    }
+  }
 }
 
 function computeUpgradeCost(def) {
@@ -1074,26 +1333,87 @@ function computeUpgradeCost(def) {
 function recalcProduction() {
   const clickBase = BASE_PER_CLICK.clone();
   const autoBase = BASE_PER_SECOND.clone();
-  let clickAdd = 0;
-  let autoAdd = 0;
-  let clickMult = 1;
-  let autoMult = 1;
+
+  let clickAddition = LayeredNumber.zero();
+  let autoAddition = LayeredNumber.zero();
+  let clickMultiplier = 1;
+  let autoMultiplier = 1;
+
+  const clickDetails = {
+    base: clickBase.clone(),
+    totalAddition: LayeredNumber.zero(),
+    totalMultiplier: 1,
+    additions: [],
+    multipliers: [],
+    total: LayeredNumber.zero()
+  };
+
+  const autoDetails = {
+    base: autoBase.clone(),
+    totalAddition: LayeredNumber.zero(),
+    totalMultiplier: 1,
+    additions: [],
+    multipliers: [],
+    total: LayeredNumber.zero()
+  };
 
   UPGRADE_DEFS.forEach(def => {
     const level = gameState.upgrades[def.id] || 0;
     if (!level) return;
     const effects = def.effect(level);
-    if (effects.clickAdd) clickAdd += effects.clickAdd;
-    if (effects.autoAdd) autoAdd += effects.autoAdd;
-    if (effects.clickMult) clickMult *= effects.clickMult;
-    if (effects.autoMult) autoMult *= effects.autoMult;
+
+    if (effects.clickAdd != null) {
+      const value = new LayeredNumber(effects.clickAdd);
+      if (!value.isZero()) {
+        clickAddition = clickAddition.add(value);
+        clickDetails.additions.push({ id: def.id, label: def.name, level, value });
+      }
+    }
+
+    if (effects.autoAdd != null) {
+      const value = new LayeredNumber(effects.autoAdd);
+      if (!value.isZero()) {
+        autoAddition = autoAddition.add(value);
+        autoDetails.additions.push({ id: def.id, label: def.name, level, value });
+      }
+    }
+
+    if (effects.clickMult != null) {
+      const raw = Number(effects.clickMult);
+      const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
+      clickMultiplier *= multiplier;
+      if (multiplier !== 1) {
+        clickDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier });
+      }
+    }
+
+    if (effects.autoMult != null) {
+      const raw = Number(effects.autoMult);
+      const multiplier = Number.isFinite(raw) && raw > 0 ? raw : 1;
+      autoMultiplier *= multiplier;
+      if (multiplier !== 1) {
+        autoDetails.multipliers.push({ id: def.id, label: def.name, level, value: multiplier });
+      }
+    }
   });
 
-  let perClick = clickBase.addNumber(clickAdd).multiplyNumber(clickMult);
-  if (perClick.compare(LayeredNumber.zero()) < 0) perClick = LayeredNumber.zero();
-  let perSecond = autoBase.addNumber(autoAdd).multiplyNumber(autoMult);
+  clickDetails.totalAddition = clickAddition;
+  autoDetails.totalAddition = autoAddition;
+  clickDetails.totalMultiplier = clickMultiplier;
+  autoDetails.totalMultiplier = autoMultiplier;
+
+  let perClick = clickBase.add(clickAddition).multiplyNumber(clickMultiplier);
+  if (perClick.compare(LayeredNumber.zero()) < 0) {
+    perClick = LayeredNumber.zero();
+  }
+  let perSecond = autoBase.add(autoAddition).multiplyNumber(autoMultiplier);
+
+  clickDetails.total = perClick;
+  autoDetails.total = perSecond;
+
   gameState.perClick = perClick;
   gameState.perSecond = perSecond;
+  gameState.production = { perClick: clickDetails, perSecond: autoDetails };
 }
 
 LayeredNumber.prototype.addNumber = function (num) {
@@ -1211,6 +1531,7 @@ function updateUI() {
   updateCollectionDisplay();
   updateShopAffordability();
   updateMilestone();
+  updateInfoPanels();
 }
 
 function showToast(message) {
@@ -1262,6 +1583,7 @@ elements.resetButton.addEventListener('click', () => {
 });
 
 function serializeState() {
+  const stats = gameState.stats || createInitialStats();
   return {
     atoms: gameState.atoms.toJSON(),
     lifetime: gameState.lifetime.toJSON(),
@@ -1270,6 +1592,18 @@ function serializeState() {
     upgrades: gameState.upgrades,
     elements: gameState.elements,
     theme: gameState.theme,
+    stats: {
+      session: {
+        atomsGained: stats.session.atomsGained.toJSON(),
+        manualClicks: stats.session.manualClicks,
+        onlineTimeMs: stats.session.onlineTimeMs,
+        startedAt: stats.session.startedAt
+      },
+      global: {
+        manualClicks: stats.global.manualClicks,
+        playTimeMs: stats.global.playTimeMs
+      }
+    },
     lastSave: Date.now()
   };
 }
@@ -1291,9 +1625,12 @@ function resetGame() {
     perSecond: BASE_PER_SECOND.clone(),
     upgrades: {},
     elements: createInitialElementCollection(),
-    theme: DEFAULT_THEME
+    theme: DEFAULT_THEME,
+    stats: createInitialStats(),
+    production: createEmptyProductionBreakdown()
   });
   applyTheme(DEFAULT_THEME);
+  recalcProduction();
   renderShop();
   updateUI();
   saveGame();
@@ -1304,6 +1641,7 @@ function loadGame() {
     const raw = localStorage.getItem('atom2univers');
     if (!raw) {
       gameState.theme = DEFAULT_THEME;
+      gameState.stats = createInitialStats();
       applyTheme(DEFAULT_THEME);
       recalcProduction();
       renderShop();
@@ -1316,6 +1654,7 @@ function loadGame() {
     gameState.perClick = LayeredNumber.fromJSON(data.perClick);
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     gameState.upgrades = data.upgrades || {};
+    gameState.stats = parseStats(data.stats);
     const baseCollection = createInitialElementCollection();
     if (data.elements && typeof data.elements === 'object') {
       Object.entries(data.elements).forEach(([id, saved]) => {
@@ -1356,6 +1695,14 @@ let lastUpdate = performance.now();
 let lastSaveTime = performance.now();
 let lastUIUpdate = performance.now();
 
+function updatePlaytime(deltaSeconds) {
+  if (!gameState.stats) return;
+  const deltaMs = deltaSeconds * 1000;
+  if (!Number.isFinite(deltaMs) || deltaMs <= 0) return;
+  gameState.stats.session.onlineTimeMs += deltaMs;
+  gameState.stats.global.playTimeMs += deltaMs;
+}
+
 function loop(now) {
   const delta = Math.max(0, (now - lastUpdate) / 1000);
   lastUpdate = now;
@@ -1366,6 +1713,7 @@ function loop(now) {
   }
 
   updateClickVisuals(now);
+  updatePlaytime(delta);
 
   if (now - lastUIUpdate > 250) {
     updateUI();
