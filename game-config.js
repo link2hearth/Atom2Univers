@@ -49,6 +49,23 @@ const GAME_CONFIG = {
   },
 
   /**
+   * Paramètres du système de frénésie.
+   * - displayDurationMs : durée d'affichage des icônes (en millisecondes).
+   * - effectDurationMs : durée du bonus une fois collecté.
+   * - multiplier : multiplicateur appliqué à la production visée.
+   * - spawnChancePerSecond : probabilités d'apparition par seconde (APC / APS).
+   */
+  frenzies: {
+    displayDurationMs: 5000,
+    effectDurationMs: 30000,
+    multiplier: 2,
+    spawnChancePerSecond: {
+      perClick: 0.01,
+      perSecond: 0.01
+    }
+  },
+
+  /**
    * Ordre d'affichage des étapes de calcul des productions dans l'onglet Infos.
    * Chaque entrée correspond à un identifiant d'étape connu du jeu. La liste
    * peut être réorganisée ou complétée pour s'adapter à de futurs bonus.
@@ -60,6 +77,7 @@ const GAME_CONFIG = {
       'elementFlat',
       'shopBonus1',
       'shopBonus2',
+      'frenzy',
       'rarityMultiplier:commun',
       'rarityMultiplier:essentiel',
       'rarityMultiplier:stellaire',
