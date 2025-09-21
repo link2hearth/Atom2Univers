@@ -1472,7 +1472,7 @@ function updateGachaUI() {
     elements.gachaCostValue.textContent = GACHA_COST.toString();
   }
   if (elements.gachaWallet) {
-    elements.gachaWallet.textContent = `Réserve actuelle : ${gameState.atoms.toString()} atomes`;
+    elements.gachaWallet.textContent = `Solde : ${gameState.atoms.toString()} atomes`;
   }
   if (elements.gachaRollButton) {
     const affordable = gameState.atoms.compare(GACHA_COST) >= 0;

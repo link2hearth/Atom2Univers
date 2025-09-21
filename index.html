@@ -14,10 +14,10 @@
     <div class="header-main">
       <div class="brand">Atom → Univers</div>
       <nav class="nav-menu" aria-label="Navigation principale">
-        <button class="nav-button active" data-target="game">Jeu</button>
-        <button class="nav-button" data-target="shop">Boutique</button>
-        <button class="nav-button" data-target="gacha">Synthèse</button>
-        <button class="nav-button" data-target="tableau">Tableau</button>
+        <button class="nav-button active" data-target="game">Atoms</button>
+        <button class="nav-button" data-target="shop">Shop</button>
+        <button class="nav-button" data-target="gacha">Gacha</button>
+        <button class="nav-button" data-target="tableau">Table</button>
         <button class="nav-button" data-target="info">Infos</button>
         <button class="nav-button" data-target="options">Options</button>
       </nav>
@@ -50,7 +50,7 @@
     </section>
 
     <section id="shop" class="page" aria-labelledby="shop-title">
-      <h2 id="shop-title">Boutique quantique</h2>
+      <h2 id="shop-title">Shop quantique</h2>
       <p class="section-intro">Investissez vos atomes pour booster votre production.</p>
       <div class="shop-list" id="shopList" role="list"></div>
     </section>
@@ -59,10 +59,9 @@
       <div class="gacha-layout">
         <article class="gacha-card gacha-card--primary" aria-labelledby="gacha-title">
           <header class="gacha-card__header">
-            <h2 id="gacha-title">Chambre de synthèse élémentaire</h2>
-            <p class="gacha-card__intro">Investissez vos atomes pour cristalliser un élément issu des vents stellaires.</p>
+            <h2 id="gacha-title">Gacha</h2>
           </header>
-          <p class="gacha-wallet" id="gachaWallet">Réserve actuelle : 0 atomes</p>
+          <p class="gacha-wallet" id="gachaWallet">Solde : 0 atomes</p>
           <p class="gacha-cost">Coût d'une synthèse : <span id="gachaCostValue">100</span> atomes</p>
           <button class="gacha-roll-button" id="gachaRollButton" type="button">Lancer une synthèse</button>
           <p class="gacha-result" id="gachaResult" aria-live="polite">En attente de la prochaine transmutation.</p>
@@ -70,7 +69,7 @@
 
         <aside class="gacha-card gacha-card--rarities" aria-labelledby="gacha-rarity-title">
           <h3 id="gacha-rarity-title">Raretés et probabilités</h3>
-          <p class="gacha-card__intro">Les taux affichés proviennent du fichier de configuration et peuvent être ajustés.</p>
+          <p class="gacha-card__intro">Probabilités configurables.</p>
           <ul class="gacha-rarity-list" id="gachaRarityList" aria-live="polite"></ul>
         </aside>
       </div>
