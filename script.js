@@ -983,6 +983,34 @@ const gameState = {
 };
 
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
+const UPGRADE_NAME_MAP = new Map(UPGRADE_DEFS.map(def => [def.id, def.name || def.id]));
+
+const PRODUCTION_MULTIPLIER_SLOT_MAP = {
+  perClick: new Map([
+    ['quantumGloves', 'shopBonus1'],
+    ['overclock', 'shopBonus2']
+  ]),
+  perSecond: new Map([
+    ['reactorArray', 'shopBonus1'],
+    ['overclock', 'shopBonus2']
+  ])
+};
+
+const PRODUCTION_MULTIPLIER_SLOT_FALLBACK = {
+  perClick: 'shopBonus1',
+  perSecond: 'shopBonus2'
+};
+
+const PRODUCTION_STEP_LABEL_OVERRIDES = {
+  perClick: new Map([
+    ['shopBonus1', UPGRADE_NAME_MAP.get('quantumGloves') || 'Gants quantiques'],
+    ['shopBonus2', UPGRADE_NAME_MAP.get('overclock') || 'Surcadence du collecteur']
+  ]),
+  perSecond: new Map([
+    ['shopBonus1', UPGRADE_NAME_MAP.get('reactorArray') || 'Réseau de réacteurs'],
+    ['shopBonus2', UPGRADE_NAME_MAP.get('overclock') || 'Surcadence du collecteur']
+  ])
+};
 
 const milestoneSource = Array.isArray(CONFIG.milestones) ? CONFIG.milestones : FALLBACK_MILESTONES;
 
@@ -1677,7 +1705,19 @@ function formatProductionStepValue(step, entry) {
   }
 }
 
-function renderProductionBreakdown(container, entry) {
+function getProductionStepLabel(step, context) {
+  if (!step) return '';
+  if (!context) {
+    return step.label;
+  }
+  const overrides = PRODUCTION_STEP_LABEL_OVERRIDES[context];
+  if (overrides && overrides.has(step.id)) {
+    return overrides.get(step.id);
+  }
+  return step.label;
+}
+
+function renderProductionBreakdown(container, entry, context = null) {
   if (!container) return;
   container.innerHTML = '';
   PRODUCTION_STEP_ORDER.forEach(step => {
@@ -1687,7 +1727,7 @@ function renderProductionBreakdown(container, entry) {
 
     const label = document.createElement('span');
     label.className = 'production-breakdown__label';
-    label.textContent = step.label;
+    label.textContent = getProductionStepLabel(step, context);
 
     const value = document.createElement('span');
     value.className = 'production-breakdown__value';
@@ -1758,11 +1798,11 @@ function updateGlobalStats() {
 function updateInfoPanels() {
   const production = gameState.production;
   if (production) {
-    renderProductionBreakdown(elements.infoApsBreakdown, production.perSecond);
-    renderProductionBreakdown(elements.infoApcBreakdown, production.perClick);
+    renderProductionBreakdown(elements.infoApsBreakdown, production.perSecond, 'perSecond');
+    renderProductionBreakdown(elements.infoApcBreakdown, production.perClick, 'perClick');
   } else {
-    renderProductionBreakdown(elements.infoApsBreakdown, null);
-    renderProductionBreakdown(elements.infoApcBreakdown, null);
+    renderProductionBreakdown(elements.infoApsBreakdown, null, 'perSecond');
+    renderProductionBreakdown(elements.infoApcBreakdown, null, 'perClick');
   }
 
   updateSessionStats();
@@ -1980,8 +2020,17 @@ function recalcProduction() {
   let clickElementAddition = LayeredNumber.zero();
   let autoElementAddition = LayeredNumber.zero();
 
-  let clickShopMultiplier = LayeredNumber.one();
-  let autoShopMultiplier = LayeredNumber.one();
+  const clickMultiplierSlots = {
+    shopBonus1: LayeredNumber.one(),
+    shopBonus2: LayeredNumber.one()
+  };
+  const autoMultiplierSlots = {
+    shopBonus1: LayeredNumber.one(),
+    shopBonus2: LayeredNumber.one()
+  };
+
+  const clickSlotMap = PRODUCTION_MULTIPLIER_SLOT_MAP.perClick;
+  const autoSlotMap = PRODUCTION_MULTIPLIER_SLOT_MAP.perSecond;
 
   const clickRarityMultipliers = clickDetails.sources.multipliers.rarityMultipliers;
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
@@ -2012,7 +2061,10 @@ function recalcProduction() {
 
     if (effects.clickMult != null) {
       const multiplierValue = toMultiplierLayered(effects.clickMult);
-      clickShopMultiplier = clickShopMultiplier.multiply(multiplierValue);
+      const targetSlot = clickSlotMap.get(def.id) || PRODUCTION_MULTIPLIER_SLOT_FALLBACK.perClick;
+      if (targetSlot && clickMultiplierSlots[targetSlot]) {
+        clickMultiplierSlots[targetSlot] = clickMultiplierSlots[targetSlot].multiply(multiplierValue);
+      }
       if (!isLayeredOne(multiplierValue)) {
         clickDetails.multipliers.push({
           id: def.id,
@@ -2026,7 +2078,10 @@ function recalcProduction() {
 
     if (effects.autoMult != null) {
       const multiplierValue = toMultiplierLayered(effects.autoMult);
-      autoShopMultiplier = autoShopMultiplier.multiply(multiplierValue);
+      const targetSlot = autoSlotMap.get(def.id) || PRODUCTION_MULTIPLIER_SLOT_FALLBACK.perSecond;
+      if (targetSlot && autoMultiplierSlots[targetSlot]) {
+        autoMultiplierSlots[targetSlot] = autoMultiplierSlots[targetSlot].multiply(multiplierValue);
+      }
       if (!isLayeredOne(multiplierValue)) {
         autoDetails.multipliers.push({
           id: def.id,
@@ -2044,10 +2099,10 @@ function recalcProduction() {
   clickDetails.sources.flats.elementFlat = clickElementAddition.clone();
   autoDetails.sources.flats.elementFlat = autoElementAddition.clone();
 
-  clickDetails.sources.multipliers.shopBonus1 = clickShopMultiplier.clone();
-  clickDetails.sources.multipliers.shopBonus2 = LayeredNumber.one();
-  autoDetails.sources.multipliers.shopBonus1 = LayeredNumber.one();
-  autoDetails.sources.multipliers.shopBonus2 = autoShopMultiplier.clone();
+  clickDetails.sources.multipliers.shopBonus1 = clickMultiplierSlots.shopBonus1.clone();
+  clickDetails.sources.multipliers.shopBonus2 = clickMultiplierSlots.shopBonus2.clone();
+  autoDetails.sources.multipliers.shopBonus1 = autoMultiplierSlots.shopBonus1.clone();
+  autoDetails.sources.multipliers.shopBonus2 = autoMultiplierSlots.shopBonus2.clone();
   clickDetails.sources.multipliers.trophyMultiplier = clickTrophyMultiplier.clone();
   autoDetails.sources.multipliers.trophyMultiplier = autoTrophyMultiplier.clone();
 
