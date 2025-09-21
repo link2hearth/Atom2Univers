@@ -469,6 +469,44 @@ class LayeredNumber {
 
 const CONFIG = typeof window !== 'undefined' && window.GAME_CONFIG ? window.GAME_CONFIG : {};
 
+const periodicElements = Array.isArray(globalThis.PERIODIC_ELEMENTS)
+  ? globalThis.PERIODIC_ELEMENTS.map(def => ({
+      ...def,
+      position: def.position || { row: def.period ?? 0, column: def.group ?? 0 }
+    }))
+  : [];
+
+const TOTAL_ELEMENT_COUNT = periodicElements.length;
+
+const CATEGORY_LABELS = {
+  'alkali-metal': 'métal alcalin',
+  'alkaline-earth-metal': 'métal alcalino-terreux',
+  'transition-metal': 'métal de transition',
+  'post-transition-metal': 'métal pauvre',
+  metalloid: 'métalloïde',
+  nonmetal: 'non-métal',
+  halogen: 'halogène',
+  'noble-gas': 'gaz noble',
+  lanthanide: 'lanthanide',
+  actinide: 'actinide'
+};
+
+function createInitialElementCollection() {
+  const collection = {};
+  periodicElements.forEach(def => {
+    const gachaId = def.gachaId ?? def.id;
+    collection[def.id] = {
+      id: def.id,
+      gachaId,
+      owned: false,
+      rarity: null,
+      effects: [],
+      bonuses: []
+    };
+  });
+  return collection;
+}
+
 function toLayeredNumber(value, fallback = 0) {
   if (value instanceof LayeredNumber) return value.clone();
   if (value == null) return new LayeredNumber(fallback);
@@ -571,6 +609,7 @@ const DEFAULT_STATE = {
   perClick: BASE_PER_CLICK.clone(),
   perSecond: BASE_PER_SECOND.clone(),
   upgrades: {},
+  elements: createInitialElementCollection(),
   lastSave: Date.now(),
   theme: DEFAULT_THEME
 };
@@ -581,6 +620,7 @@ const gameState = {
   perClick: BASE_PER_CLICK.clone(),
   perSecond: BASE_PER_SECOND.clone(),
   upgrades: {},
+  elements: createInitialElementCollection(),
   theme: DEFAULT_THEME
 };
 
@@ -602,6 +642,8 @@ const elements = {
   atomButton: document.getElementById('atomButton'),
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
+  periodicTable: document.getElementById('periodicTable'),
+  collectionProgress: document.getElementById('elementCollectionProgress'),
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
   saveButton: document.getElementById('saveButton'),
@@ -609,6 +651,115 @@ const elements = {
 };
 
 const shopRows = new Map();
+const periodicCells = new Map();
+
+function formatAtomicMass(value) {
+  if (value == null) return '';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '—';
+    const text = value.toString();
+    if (!text.includes('.')) {
+      return text;
+    }
+    const [integer, fraction] = text.split('.');
+    return `${integer},${fraction}`;
+  }
+  return String(value);
+}
+
+function renderPeriodicTable() {
+  if (!elements.periodicTable) return;
+  elements.periodicTable.innerHTML = '';
+  periodicCells.clear();
+
+  if (!periodicElements.length) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'periodic-placeholder';
+    placeholder.textContent = 'Le tableau périodique sera bientôt disponible.';
+    elements.periodicTable.appendChild(placeholder);
+    if (elements.collectionProgress) {
+      elements.collectionProgress.textContent = 'Collection en préparation';
+    }
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  periodicElements.forEach(def => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'periodic-element';
+    cell.dataset.elementId = def.id;
+    cell.dataset.category = def.category ?? 'unknown';
+    if (def.atomicNumber != null) {
+      cell.dataset.atomicNumber = String(def.atomicNumber);
+    }
+    if (def.period != null) {
+      cell.dataset.period = String(def.period);
+    }
+    if (def.group != null) {
+      cell.dataset.group = String(def.group);
+    }
+    if (def.gachaId) {
+      cell.dataset.gachaId = def.gachaId;
+    }
+    const { row, column } = def.position || {};
+    if (column) {
+      cell.style.gridColumn = String(column);
+    }
+    if (row) {
+      cell.style.gridRow = String(row);
+    }
+    const massText = formatAtomicMass(def.atomicMass);
+    const labelParts = [
+      `${def.name} (${def.symbol})`,
+      `numéro atomique ${def.atomicNumber}`
+    ];
+    if (massText) {
+      labelParts.push(`masse atomique ${massText}`);
+    }
+    if (def.category) {
+      const categoryLabel = CATEGORY_LABELS[def.category] || def.category;
+      labelParts.push(`famille ${categoryLabel}`);
+    }
+    cell.setAttribute('aria-label', labelParts.join(', '));
+
+    cell.innerHTML = `
+      <span class="periodic-element__number">${def.atomicNumber}</span>
+      <span class="periodic-element__symbol">${def.symbol}</span>
+      <span class="periodic-element__name">${def.name}</span>
+      <span class="periodic-element__mass">${massText}</span>
+    `;
+
+    const state = gameState.elements[def.id];
+    if (state?.owned) {
+      cell.classList.add('is-owned');
+    }
+
+    periodicCells.set(def.id, cell);
+    fragment.appendChild(cell);
+  });
+
+  elements.periodicTable.appendChild(fragment);
+  updateCollectionDisplay();
+}
+
+function updateCollectionDisplay() {
+  if (elements.collectionProgress) {
+    const elementEntries = Object.values(gameState.elements || {});
+    const ownedCount = elementEntries.reduce((total, entry) => total + (entry.owned ? 1 : 0), 0);
+    const total = TOTAL_ELEMENT_COUNT || elementEntries.length;
+    if (total > 0) {
+      elements.collectionProgress.textContent = `Collection\u00a0: ${ownedCount} / ${total} éléments`;
+    } else {
+      elements.collectionProgress.textContent = 'Collection en préparation';
+    }
+  }
+
+  periodicCells.forEach((cell, id) => {
+    const entry = gameState.elements?.[id];
+    cell.classList.toggle('is-owned', Boolean(entry?.owned));
+  });
+}
 
 let toastElement = null;
 
@@ -752,6 +903,8 @@ if (initiallyActivePage) {
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.target));
 });
+
+renderPeriodicTable();
 
 if (elements.atomButton) {
   elements.atomButton.addEventListener('click', event => {
@@ -922,6 +1075,7 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
+  updateCollectionDisplay();
   updateShopAffordability();
   updateMilestone();
 }
@@ -981,6 +1135,7 @@ function serializeState() {
     perClick: gameState.perClick.toJSON(),
     perSecond: gameState.perSecond.toJSON(),
     upgrades: gameState.upgrades,
+    elements: gameState.elements,
     theme: gameState.theme,
     lastSave: Date.now()
   };
@@ -1002,6 +1157,7 @@ function resetGame() {
     perClick: BASE_PER_CLICK.clone(),
     perSecond: BASE_PER_SECOND.clone(),
     upgrades: {},
+    elements: createInitialElementCollection(),
     theme: DEFAULT_THEME
   });
   applyTheme(DEFAULT_THEME);
@@ -1027,6 +1183,22 @@ function loadGame() {
     gameState.perClick = LayeredNumber.fromJSON(data.perClick);
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     gameState.upgrades = data.upgrades || {};
+    const baseCollection = createInitialElementCollection();
+    if (data.elements && typeof data.elements === 'object') {
+      Object.entries(data.elements).forEach(([id, saved]) => {
+        if (!baseCollection[id]) return;
+        const reference = baseCollection[id];
+        baseCollection[id] = {
+          id,
+          gachaId: reference.gachaId,
+          owned: Boolean(saved?.owned),
+          rarity: saved?.rarity ?? reference.rarity,
+          effects: Array.isArray(saved?.effects) ? [...saved.effects] : [],
+          bonuses: Array.isArray(saved?.bonuses) ? [...saved.bonuses] : []
+        };
+      });
+    }
+    gameState.elements = baseCollection;
     gameState.theme = data.theme || DEFAULT_THEME;
     applyTheme(gameState.theme);
     recalcProduction();
