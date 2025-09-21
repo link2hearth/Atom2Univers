@@ -19,6 +19,7 @@
         <button class="nav-button" data-target="gacha">Gacha</button>
         <button class="nav-button" data-target="tableau">Table</button>
         <button class="nav-button" data-target="info">Infos</button>
+        <button class="nav-button" data-target="goals">Goals</button>
         <button class="nav-button" data-target="options">Options</button>
       </nav>
     </div>
@@ -33,7 +34,10 @@
       </div>
       <div class="status-item status-item--right">
         <span class="status-label">APS</span>
-        <span class="status-value" id="statusAps">0</span>
+        <div class="status-value-group">
+          <span class="status-value" id="statusAps">0</span>
+          <span class="status-frenzy-indicator" id="statusApsFrenzy" hidden></span>
+        </div>
       </div>
     </div>
   </header>
@@ -174,6 +178,13 @@
           </dl>
         </article>
       </div>
+    </section>
+
+    <section id="goals" class="page" aria-labelledby="goals-title">
+      <h2 id="goals-title">Objectifs &amp; trophées</h2>
+      <p class="section-intro">Surveillez vos succès galactiques et débloquez des bonus permanents.</p>
+      <p class="goals-empty" id="goalsEmpty" hidden>Aucun trophée disponible pour le moment.</p>
+      <div class="goals-list" id="goalsList" role="list"></div>
     </section>
 
     <section id="options" class="page" aria-labelledby="options-title">

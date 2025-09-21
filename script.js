@@ -834,6 +834,7 @@ const FRENZY_DEFAULTS = {
   displayDurationMs: 5000,
   effectDurationMs: 30000,
   multiplier: 2,
+  baseMaxStacks: 1,
   spawnChancePerSecond: {
     perClick: 0.01,
     perSecond: 0.01
@@ -871,6 +872,7 @@ const FRENZY_CONFIG = {
   displayDurationMs: Math.max(0, Number(CONFIG.frenzies?.displayDurationMs ?? FRENZY_DEFAULTS.displayDurationMs) || 0),
   effectDurationMs: Math.max(0, Number(CONFIG.frenzies?.effectDurationMs ?? FRENZY_DEFAULTS.effectDurationMs) || 0),
   multiplier: Math.max(1, Number(CONFIG.frenzies?.multiplier ?? FRENZY_DEFAULTS.multiplier) || FRENZY_DEFAULTS.multiplier),
+  baseMaxStacks: Math.max(1, Number(CONFIG.frenzies?.baseMaxStacks ?? FRENZY_DEFAULTS.baseMaxStacks) || FRENZY_DEFAULTS.baseMaxStacks),
   spawnChancePerSecond: normalizeFrenzySpawnChance(CONFIG.frenzies?.spawnChancePerSecond)
 };
 
@@ -949,18 +951,85 @@ const FALLBACK_MILESTONES = [
   { amount: { type: 'layer1', value: 8 }, text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
 ];
 
+const FALLBACK_TROPHIES = [
+  {
+    id: 'millionAtoms',
+    name: 'Ruée vers le million',
+    description: 'Accumulez un total d’un million d’atomes synthétisés.',
+    condition: {
+      type: 'lifetimeAtoms',
+      amount: { type: 'number', value: 1_000_000 }
+    },
+    reward: {
+      multiplier: { global: 1.1 },
+      description: 'Boost global ×1,10 sur la production manuelle et automatique.'
+    }
+  },
+  {
+    id: 'frenzyCollector',
+    name: 'Convergence frénétique',
+    description: 'Déclenchez 100 frénésies (APC et APS cumulés).',
+    condition: {
+      type: 'frenzyTotal',
+      amount: 100
+    },
+    reward: {
+      frenzyMaxStacks: 2,
+      description: 'Débloque la frénésie multiple : deux frénésies peuvent se cumuler.'
+    }
+  },
+  {
+    id: 'frenzyMaster',
+    name: 'Tempête tri-phasée',
+    description: 'Déclenchez 1 000 frénésies cumulées.',
+    condition: {
+      type: 'frenzyTotal',
+      amount: 1_000
+    },
+    reward: {
+      frenzyMaxStacks: 3,
+      multiplier: { global: 1.05 },
+      description: 'Active la triple frénésie et ajoute un bonus global ×1,05.'
+    }
+  }
+];
+
 function createInitialStats() {
   return {
     session: {
       atomsGained: LayeredNumber.zero(),
       manualClicks: 0,
       onlineTimeMs: 0,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      frenzyTriggers: {
+        perClick: 0,
+        perSecond: 0,
+        total: 0
+      }
     },
     global: {
       manualClicks: 0,
-      playTimeMs: 0
+      playTimeMs: 0,
+      frenzyTriggers: {
+        perClick: 0,
+        perSecond: 0,
+        total: 0
+      }
     }
+  };
+}
+
+function normalizeFrenzyStats(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { perClick: 0, perSecond: 0, total: 0 };
+  }
+  const perClick = Number(raw.perClick ?? raw.click ?? 0);
+  const perSecond = Number(raw.perSecond ?? raw.auto ?? raw.aps ?? 0);
+  const totalRaw = raw.total != null ? Number(raw.total) : perClick + perSecond;
+  return {
+    perClick: Number.isFinite(perClick) && perClick > 0 ? Math.floor(perClick) : 0,
+    perSecond: Number.isFinite(perSecond) && perSecond > 0 ? Math.floor(perSecond) : 0,
+    total: Number.isFinite(totalRaw) && totalRaw > 0 ? Math.floor(totalRaw) : 0
   };
 }
 
@@ -1072,13 +1141,17 @@ const frenzyState = {
     token: null,
     tokenExpire: 0,
     effectUntil: 0,
-    currentMultiplier: 1
+    currentMultiplier: 1,
+    effects: [],
+    currentStacks: 0
   },
   perSecond: {
     token: null,
     tokenExpire: 0,
     effectUntil: 0,
-    currentMultiplier: 1
+    currentMultiplier: 1,
+    effects: [],
+    currentStacks: 0
   },
   spawnAccumulator: 0
 };
@@ -1091,7 +1164,33 @@ function getFrenzyMultiplier(type, now = performance.now()) {
   if (!entry) {
     return 1;
   }
-  return entry.effectUntil > now ? FRENZY_CONFIG.multiplier : 1;
+  if (!Array.isArray(entry.effects) || entry.effects.length === 0) {
+    return entry.effectUntil > now ? FRENZY_CONFIG.multiplier : 1;
+  }
+  const activeStacks = entry.effects.filter(expire => expire > now).length;
+  if (activeStacks <= 0) {
+    return 1;
+  }
+  return Math.pow(FRENZY_CONFIG.multiplier, activeStacks);
+}
+
+function getFrenzyStackCount(type, now = performance.now()) {
+  if (!FRENZY_TYPES.includes(type)) return 0;
+  const entry = frenzyState[type];
+  if (!entry || !Array.isArray(entry.effects)) return entry && entry.effectUntil > now ? 1 : 0;
+  return entry.effects.filter(expire => expire > now).length;
+}
+
+function pruneFrenzyEffects(entry, now = performance.now()) {
+  if (!entry) return false;
+  if (!Array.isArray(entry.effects)) {
+    entry.effects = [];
+  }
+  const before = entry.effects.length;
+  entry.effects = entry.effects.filter(expire => expire > now);
+  entry.effectUntil = entry.effects.length ? Math.max(...entry.effects) : 0;
+  entry.currentStacks = entry.effects.length;
+  return before !== entry.effects.length;
 }
 
 function applyFrenzyEffects(now = performance.now()) {
@@ -1150,6 +1249,8 @@ function applyFrenzyEffects(now = performance.now()) {
 
   frenzyState.perClick.currentMultiplier = clickMultiplier;
   frenzyState.perSecond.currentMultiplier = autoMultiplier;
+  frenzyState.perClick.currentStacks = getFrenzyStackCount('perClick', now);
+  frenzyState.perSecond.currentStacks = getFrenzyStackCount('perSecond', now);
 }
 
 function clearFrenzyToken(type, immediate = false) {
@@ -1259,9 +1360,26 @@ function collectFrenzy(type, now = performance.now()) {
   if (!entry) return;
 
   clearFrenzyToken(type);
-  entry.effectUntil = now + FRENZY_CONFIG.effectDurationMs;
+  pruneFrenzyEffects(entry, now);
+  if (!Array.isArray(entry.effects)) {
+    entry.effects = [];
+  }
+  const duration = FRENZY_CONFIG.effectDurationMs;
+  const expireAt = now + duration;
+  const maxStacks = getTrophyFrenzyCap();
+  if (entry.effects.length >= maxStacks && entry.effects.length > 0) {
+    entry.effects.sort((a, b) => a - b);
+    entry.effects[0] = expireAt;
+  } else {
+    entry.effects.push(expireAt);
+  }
+  entry.effectUntil = entry.effects.length ? Math.max(...entry.effects) : expireAt;
+  entry.currentStacks = getFrenzyStackCount(type, now);
 
   applyFrenzyEffects(now);
+
+  registerFrenzyTrigger(type);
+  evaluateTrophies();
   updateUI();
 
   const rawSeconds = FRENZY_CONFIG.effectDurationMs / 1000;
@@ -1300,8 +1418,8 @@ function updateFrenzies(delta, now = performance.now()) {
     if (entry.token && now >= entry.tokenExpire) {
       clearFrenzyToken(type);
     }
-    if (entry.effectUntil > 0 && now >= entry.effectUntil) {
-      entry.effectUntil = 0;
+    const removed = pruneFrenzyEffects(entry, now);
+    if (removed) {
       needsUpdate = true;
     }
   });
@@ -1320,6 +1438,8 @@ function resetFrenzyState(options = {}) {
     if (!entry) return;
     entry.effectUntil = 0;
     entry.currentMultiplier = 1;
+    entry.effects = [];
+    entry.currentStacks = 0;
   });
   frenzyState.spawnAccumulator = 0;
   if (!skipApply) {
@@ -1340,10 +1460,12 @@ function parseStats(saved) {
     stats.session.startedAt = typeof saved.session.startedAt === 'number'
       ? saved.session.startedAt
       : Date.now();
+    stats.session.frenzyTriggers = normalizeFrenzyStats(saved.session.frenzyTriggers);
   }
   if (saved.global) {
     stats.global.manualClicks = Number(saved.global.manualClicks) || 0;
     stats.global.playTimeMs = Number(saved.global.playTimeMs) || 0;
+    stats.global.frenzyTriggers = normalizeFrenzyStats(saved.global.frenzyTriggers);
   }
   return stats;
 }
@@ -1362,7 +1484,8 @@ const DEFAULT_STATE = {
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
-  productionBase: createEmptyProductionBreakdown()
+  productionBase: createEmptyProductionBreakdown(),
+  trophies: []
 };
 
 const gameState = {
@@ -1377,7 +1500,8 @@ const gameState = {
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
-  productionBase: createEmptyProductionBreakdown()
+  productionBase: createEmptyProductionBreakdown(),
+  trophies: new Set()
 };
 
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
@@ -1417,12 +1541,246 @@ const milestoneList = milestoneSource.map(entry => ({
   text: entry.text
 }));
 
+function normalizeTrophyCondition(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { type: 'lifetimeAtoms', amount: toLayeredNumber(0, 0) };
+  }
+  const type = raw.type || raw.kind || (raw.frenzy ? 'frenzyTotal' : 'lifetimeAtoms');
+  if (type === 'frenzyTotal' || type === 'frenzy') {
+    const amount = Number(raw.amount ?? raw.value ?? 0);
+    return {
+      type: 'frenzyTotal',
+      amount: Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0
+    };
+  }
+  const amount = toLayeredNumber(raw.amount ?? raw.value ?? 0, 0);
+  return {
+    type: 'lifetimeAtoms',
+    amount
+  };
+}
+
+function normalizeTrophyReward(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      multiplier: null,
+      frenzyMaxStacks: null,
+      description: null
+    };
+  }
+  let multiplier = null;
+  if (raw.multiplier != null) {
+    if (typeof raw.multiplier === 'number' || raw.multiplier instanceof LayeredNumber) {
+      const value = toMultiplierLayered(raw.multiplier);
+      multiplier = { perClick: value.clone(), perSecond: value.clone() };
+    } else if (typeof raw.multiplier === 'object') {
+      const globalRaw = raw.multiplier.global ?? raw.multiplier.all ?? raw.multiplier.total;
+      const perClickRaw = raw.multiplier.perClick ?? raw.multiplier.click ?? null;
+      const perSecondRaw = raw.multiplier.perSecond ?? raw.multiplier.auto ?? raw.multiplier.aps ?? null;
+      const globalMult = globalRaw != null ? toMultiplierLayered(globalRaw) : null;
+      const clickMult = perClickRaw != null ? toMultiplierLayered(perClickRaw) : null;
+      const autoMult = perSecondRaw != null ? toMultiplierLayered(perSecondRaw) : null;
+      multiplier = {
+        perClick: clickMult ? clickMult.clone() : (globalMult ? globalMult.clone() : LayeredNumber.one()),
+        perSecond: autoMult ? autoMult.clone() : (globalMult ? globalMult.clone() : LayeredNumber.one())
+      };
+      if (globalMult && !perClickRaw && !perSecondRaw) {
+        multiplier.perClick = globalMult.clone();
+        multiplier.perSecond = globalMult.clone();
+      }
+    }
+  }
+  const frenzyMaxStacksRaw = raw.frenzyMaxStacks ?? raw.frenzyStacks ?? raw.maxStacks;
+  const frenzyMaxStacks = Number.isFinite(Number(frenzyMaxStacksRaw))
+    ? Math.max(1, Math.floor(Number(frenzyMaxStacksRaw)))
+    : null;
+  const description = typeof raw.description === 'string' ? raw.description : null;
+  return {
+    multiplier,
+    frenzyMaxStacks,
+    description
+  };
+}
+
+function normalizeTrophyDefinition(entry, index) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const id = String(entry.id || entry.key || index).trim();
+  if (!id) return null;
+  const name = typeof entry.name === 'string' ? entry.name : id;
+  const description = typeof entry.description === 'string' ? entry.description : '';
+  const condition = normalizeTrophyCondition(entry.condition || entry.requirement || {});
+  const reward = normalizeTrophyReward(entry.reward || entry.rewards || {});
+  return {
+    id,
+    name,
+    description,
+    condition,
+    reward,
+    rewardText: reward.description || null,
+    order: Number.isFinite(Number(entry.order)) ? Number(entry.order) : index
+  };
+}
+
+const trophySource = Array.isArray(CONFIG.trophies) ? CONFIG.trophies : FALLBACK_TROPHIES;
+const TROPHY_DEFS = trophySource
+  .map((entry, index) => normalizeTrophyDefinition(entry, index))
+  .filter(Boolean)
+  .sort((a, b) => a.order - b.order);
+
+const TROPHY_MAP = new Map(TROPHY_DEFS.map(def => [def.id, def]));
+const trophyCards = new Map();
+
+function getUnlockedTrophySet() {
+  if (gameState.trophies instanceof Set) {
+    return gameState.trophies;
+  }
+  const list = Array.isArray(gameState.trophies) ? gameState.trophies : [];
+  gameState.trophies = new Set(list);
+  return gameState.trophies;
+}
+
+function getUnlockedTrophyIds() {
+  return Array.from(getUnlockedTrophySet());
+}
+
+function getTotalFrenzyTriggers() {
+  const stats = gameState.stats?.global;
+  if (!stats) return 0;
+  const total = Number(stats.frenzyTriggers?.total ?? 0);
+  return Number.isFinite(total) ? total : 0;
+}
+
+function computeTrophyEffects() {
+  const unlocked = getUnlockedTrophySet();
+  let clickMultiplier = LayeredNumber.one();
+  let autoMultiplier = LayeredNumber.one();
+  let maxStacks = FRENZY_CONFIG.baseMaxStacks;
+
+  unlocked.forEach(id => {
+    const def = TROPHY_MAP.get(id);
+    if (!def) return;
+    const reward = def.reward;
+    if (reward?.multiplier) {
+      const clickMult = reward.multiplier.perClick instanceof LayeredNumber
+        ? reward.multiplier.perClick
+        : toMultiplierLayered(reward.multiplier.perClick ?? 1);
+      const autoMult = reward.multiplier.perSecond instanceof LayeredNumber
+        ? reward.multiplier.perSecond
+        : toMultiplierLayered(reward.multiplier.perSecond ?? 1);
+      if (!isLayeredOne(clickMult)) {
+        clickMultiplier = clickMultiplier.multiply(clickMult);
+      }
+      if (!isLayeredOne(autoMult)) {
+        autoMultiplier = autoMultiplier.multiply(autoMult);
+      }
+    }
+    if (Number.isFinite(reward?.frenzyMaxStacks)) {
+      maxStacks = Math.max(maxStacks, reward.frenzyMaxStacks);
+    }
+  });
+
+  return { clickMultiplier, autoMultiplier, maxStacks };
+}
+
+function getTrophyFrenzyCap() {
+  let maxStacks = FRENZY_CONFIG.baseMaxStacks;
+  getUnlockedTrophySet().forEach(id => {
+    const def = TROPHY_MAP.get(id);
+    if (!def?.reward) return;
+    if (Number.isFinite(def.reward.frenzyMaxStacks)) {
+      maxStacks = Math.max(maxStacks, def.reward.frenzyMaxStacks);
+    }
+  });
+  return maxStacks;
+}
+
+function formatTrophyProgress(def) {
+  const { condition } = def;
+  if (condition.type === 'frenzyTotal') {
+    const current = getTotalFrenzyTriggers();
+    const target = condition.amount || 0;
+    const clampedTarget = Math.max(1, target);
+    const percent = Math.max(0, Math.min(1, current / clampedTarget));
+    return {
+      current,
+      target,
+      percent,
+      displayCurrent: current.toLocaleString('fr-FR'),
+      displayTarget: clampedTarget.toLocaleString('fr-FR')
+    };
+  }
+  const current = gameState.lifetime;
+  const target = condition.amount instanceof LayeredNumber
+    ? condition.amount
+    : toLayeredNumber(condition.amount, 0);
+  let percent = 0;
+  if (current instanceof LayeredNumber && target instanceof LayeredNumber) {
+    if (current.compare(target) >= 0) {
+      percent = 1;
+    } else {
+      const targetNumber = target.toNumber();
+      const currentNumber = current.toNumber();
+      if (Number.isFinite(targetNumber) && targetNumber > 0 && Number.isFinite(currentNumber)) {
+        percent = Math.max(0, Math.min(1, currentNumber / targetNumber));
+      }
+    }
+  }
+  return {
+    current,
+    target,
+    percent,
+    displayCurrent: current.toString(),
+    displayTarget: target.toString()
+  };
+}
+
+function isTrophyConditionMet(def) {
+  if (!def) return false;
+  const { condition } = def;
+  if (!condition) return false;
+  if (condition.type === 'frenzyTotal') {
+    return getTotalFrenzyTriggers() >= (condition.amount || 0);
+  }
+  const target = condition.amount instanceof LayeredNumber
+    ? condition.amount
+    : toLayeredNumber(condition.amount, 0);
+  return gameState.lifetime.compare(target) >= 0;
+}
+
+function unlockTrophy(def) {
+  if (!def) return false;
+  const unlocked = getUnlockedTrophySet();
+  if (unlocked.has(def.id)) return false;
+  unlocked.add(def.id);
+  showToast(`Trophée débloqué : ${def.name} !`);
+  recalcProduction();
+  updateGoalsUI();
+  return true;
+}
+
+function evaluateTrophies() {
+  let changed = false;
+  TROPHY_DEFS.forEach(def => {
+    if (!getUnlockedTrophySet().has(def.id) && isTrophyConditionMet(def)) {
+      if (unlockTrophy(def)) {
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    saveGame();
+  }
+}
+
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
   pages: document.querySelectorAll('.page'),
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
+  statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
   atomVisual: document.querySelector('.atom-visual'),
   frenzyLayer: document.getElementById('frenzyLayer'),
@@ -1440,6 +1798,8 @@ const elements = {
   elementInfoCollection: document.getElementById('elementInfoCollection'),
   collectionProgress: document.getElementById('elementCollectionProgress'),
   nextMilestone: document.getElementById('nextMilestone'),
+  goalsList: document.getElementById('goalsList'),
+  goalsEmpty: document.getElementById('goalsEmpty'),
   gachaRollButton: document.getElementById('gachaRollButton'),
   gachaResult: document.getElementById('gachaResult'),
   gachaCostValue: document.getElementById('gachaCostValue'),
@@ -2414,6 +2774,23 @@ function registerManualClick() {
   }
 }
 
+function registerFrenzyTrigger(type) {
+  if (!gameState.stats) return;
+  const key = type === 'perClick' ? 'perClick' : 'perSecond';
+
+  const applyToStore = store => {
+    if (!store) return;
+    if (!store.frenzyTriggers) {
+      store.frenzyTriggers = { perClick: 0, perSecond: 0, total: 0 };
+    }
+    store.frenzyTriggers[key] = (store.frenzyTriggers[key] || 0) + 1;
+    store.frenzyTriggers.total = (store.frenzyTriggers.total || 0) + 1;
+  };
+
+  applyToStore(gameState.stats.session);
+  applyToStore(gameState.stats.global);
+}
+
 function animateAtomPress() {
   if (!elements.atomButton) return;
   elements.atomButton.classList.add('is-pressed');
@@ -2519,6 +2896,7 @@ function gainAtoms(amount, fromClick = false) {
       session.atomsGained = session.atomsGained.add(amount);
     }
   }
+  evaluateTrophies();
 }
 
 function computeUpgradeCost(def) {
@@ -2559,8 +2937,13 @@ function recalcProduction() {
   const clickRarityMultipliers = clickDetails.sources.multipliers.rarityMultipliers;
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
 
-  const clickTrophyMultiplier = LayeredNumber.one();
-  const autoTrophyMultiplier = LayeredNumber.one();
+  const trophyEffects = computeTrophyEffects();
+  const clickTrophyMultiplier = trophyEffects.clickMultiplier instanceof LayeredNumber
+    ? trophyEffects.clickMultiplier.clone()
+    : toMultiplierLayered(trophyEffects.clickMultiplier ?? 1);
+  const autoTrophyMultiplier = trophyEffects.autoMultiplier instanceof LayeredNumber
+    ? trophyEffects.autoMultiplier.clone()
+    : toMultiplierLayered(trophyEffects.autoMultiplier ?? 1);
 
   UPGRADE_DEFS.forEach(def => {
     const level = gameState.upgrades[def.id] || 0;
@@ -2766,6 +3149,81 @@ function renderShop() {
   updateShopAffordability();
 }
 
+function buildGoalCard(def) {
+  const card = document.createElement('article');
+  card.className = 'goal-card';
+  card.dataset.trophyId = def.id;
+  card.setAttribute('role', 'listitem');
+
+  const header = document.createElement('header');
+  header.className = 'goal-card__header';
+
+  const title = document.createElement('h3');
+  title.textContent = def.name;
+  title.className = 'goal-card__title';
+
+  const status = document.createElement('span');
+  status.className = 'goal-card__status';
+  status.textContent = '0%';
+
+  header.append(title, status);
+
+  const description = document.createElement('p');
+  description.className = 'goal-card__description';
+  description.textContent = def.description || '';
+
+  const progress = document.createElement('div');
+  progress.className = 'goal-card__progress';
+
+  const bar = document.createElement('div');
+  bar.className = 'goal-card__progress-bar';
+
+  const barFill = document.createElement('span');
+  barFill.className = 'goal-card__progress-fill';
+  barFill.style.width = '0%';
+  bar.appendChild(barFill);
+
+  const progressValue = document.createElement('span');
+  progressValue.className = 'goal-card__progress-value';
+  progressValue.textContent = '0 / 0';
+
+  progress.append(bar, progressValue);
+
+  card.append(header, description, progress);
+
+  if (def.rewardText) {
+    const reward = document.createElement('p');
+    reward.className = 'goal-card__reward';
+    reward.textContent = def.rewardText;
+    card.appendChild(reward);
+  }
+
+  return { root: card, status, progressValue, barFill };
+}
+
+function renderGoals() {
+  if (!elements.goalsList) return;
+  trophyCards.clear();
+  elements.goalsList.innerHTML = '';
+  if (!TROPHY_DEFS.length) {
+    if (elements.goalsEmpty) {
+      elements.goalsEmpty.hidden = false;
+    }
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  TROPHY_DEFS.forEach(def => {
+    const card = buildGoalCard(def);
+    trophyCards.set(def.id, card);
+    fragment.appendChild(card.root);
+  });
+  elements.goalsList.appendChild(fragment);
+  if (elements.goalsEmpty) {
+    elements.goalsEmpty.hidden = true;
+  }
+  updateGoalsUI();
+}
+
 function attemptPurchase(def) {
   const cost = computeUpgradeCost(def);
   if (gameState.atoms.compare(cost) < 0) {
@@ -2790,6 +3248,52 @@ function updateMilestone() {
   elements.nextMilestone.textContent = 'Continuez à explorer des ordres de grandeur toujours plus vastes !';
 }
 
+function updateGoalsUI() {
+  if (!elements.goalsList || !trophyCards.size) return;
+  const unlocked = getUnlockedTrophySet();
+  TROPHY_DEFS.forEach(def => {
+    const card = trophyCards.get(def.id);
+    if (!card) return;
+    const isUnlocked = unlocked.has(def.id);
+    const progress = formatTrophyProgress(def);
+    const percent = isUnlocked ? 1 : Math.max(0, Math.min(1, progress.percent || 0));
+    card.barFill.style.width = `${(percent * 100).toFixed(0)}%`;
+    card.progressValue.textContent = isUnlocked
+      ? `✓ ${progress.displayTarget}`
+      : `${progress.displayCurrent} / ${progress.displayTarget}`;
+    card.status.textContent = isUnlocked ? 'Débloqué' : `${(percent * 100).toFixed(0)}%`;
+    card.root.classList.toggle('goal-card--completed', isUnlocked);
+  });
+}
+
+function updateFrenzyIndicator(now = performance.now()) {
+  if (!elements.statusApsFrenzy) return;
+  const entry = frenzyState.perSecond;
+  if (!entry) {
+    elements.statusApsFrenzy.hidden = true;
+    return;
+  }
+  pruneFrenzyEffects(entry, now);
+  const stacks = getFrenzyStackCount('perSecond', now);
+  if (stacks <= 0 || entry.effectUntil <= now) {
+    elements.statusApsFrenzy.hidden = true;
+    elements.statusApsFrenzy.textContent = '';
+    return;
+  }
+  const remaining = Math.max(0, entry.effectUntil - now);
+  const seconds = remaining / 1000;
+  const precision = seconds < 10 ? 1 : 0;
+  const multiplier = Math.pow(FRENZY_CONFIG.multiplier, stacks);
+  const multiplierText = multiplier.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+  const timeText = seconds.toLocaleString('fr-FR', {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  });
+  elements.statusApsFrenzy.textContent = `⚡ ×${multiplierText} · ${timeText}s`;
+  elements.statusApsFrenzy.hidden = false;
+  elements.statusApsFrenzy.dataset.stacks = stacks;
+}
+
 function updateUI() {
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
@@ -2800,10 +3304,12 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
+  updateFrenzyIndicator();
   updateGachaUI();
   updateCollectionDisplay();
   updateShopAffordability();
   updateMilestone();
+  updateGoalsUI();
   updateInfoPanels();
 }
 
@@ -2874,13 +3380,24 @@ function serializeState() {
         atomsGained: stats.session.atomsGained.toJSON(),
         manualClicks: stats.session.manualClicks,
         onlineTimeMs: stats.session.onlineTimeMs,
-        startedAt: stats.session.startedAt
+        startedAt: stats.session.startedAt,
+        frenzyTriggers: {
+          perClick: stats.session.frenzyTriggers?.perClick || 0,
+          perSecond: stats.session.frenzyTriggers?.perSecond || 0,
+          total: stats.session.frenzyTriggers?.total || 0
+        }
       },
       global: {
         manualClicks: stats.global.manualClicks,
-        playTimeMs: stats.global.playTimeMs
+        playTimeMs: stats.global.playTimeMs,
+        frenzyTriggers: {
+          perClick: stats.global.frenzyTriggers?.perClick || 0,
+          perSecond: stats.global.frenzyTriggers?.perSecond || 0,
+          total: stats.global.frenzyTriggers?.total || 0
+        }
       }
     },
+    trophies: getUnlockedTrophyIds(),
     lastSave: Date.now()
   };
 }
@@ -2907,7 +3424,8 @@ function resetGame() {
     theme: DEFAULT_THEME,
     stats: createInitialStats(),
     production: createEmptyProductionBreakdown(),
-    productionBase: createEmptyProductionBreakdown()
+    productionBase: createEmptyProductionBreakdown(),
+    trophies: new Set()
   });
   resetFrenzyState({ skipApply: true });
   applyTheme(DEFAULT_THEME);
@@ -2937,6 +3455,7 @@ function loadGame() {
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     gameState.upgrades = data.upgrades || {};
     gameState.stats = parseStats(data.stats);
+    gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
     const baseCollection = createInitialElementCollection();
     if (data.elements && typeof data.elements === 'object') {
       Object.entries(data.elements).forEach(([id, saved]) => {
@@ -3021,6 +3540,7 @@ window.addEventListener('beforeunload', saveGame);
 loadGame();
 recalcProduction();
 renderShop();
+renderGoals();
 updateUI();
 initStarfield();
 requestAnimationFrame(loop);

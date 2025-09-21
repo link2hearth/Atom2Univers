@@ -59,6 +59,7 @@ const GAME_CONFIG = {
     displayDurationMs: 5000,
     effectDurationMs: 30000,
     multiplier: 2,
+    baseMaxStacks: 1,
     spawnChancePerSecond: {
       perClick: 0.01,
       perSecond: 0.01
@@ -168,6 +169,61 @@ const GAME_CONFIG = {
     {
       amount: { type: 'layer1', value: 8 },
       text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.'
+    }
+  ],
+
+  /**
+   * Liste des trophées et succès spéciaux.
+   * Chaque entrée définit :
+   * - id : identifiant unique.
+   * - name / description : textes affichés dans la page Objectifs.
+   * - condition : type de condition et valeur cible.
+   * - reward : effets associés (multiplicateurs, améliorations de frénésie, etc.).
+   */
+  trophies: [
+    {
+      id: 'millionAtoms',
+      name: 'Ruée vers le million',
+      description: 'Accumulez un total d’un million d’atomes synthétisés.',
+      condition: {
+        type: 'lifetimeAtoms',
+        amount: { type: 'number', value: 1_000_000 }
+      },
+      reward: {
+        multiplier: {
+          global: 1.1
+        },
+        description: 'Boost global ×1,10 sur la production manuelle et automatique.'
+      }
+    },
+    {
+      id: 'frenzyCollector',
+      name: 'Convergence frénétique',
+      description: 'Déclenchez 100 frénésies (APC et APS cumulés).',
+      condition: {
+        type: 'frenzyTotal',
+        amount: 100
+      },
+      reward: {
+        frenzyMaxStacks: 2,
+        description: 'Débloque la frénésie multiple : deux frénésies peuvent se cumuler.'
+      }
+    },
+    {
+      id: 'frenzyMaster',
+      name: 'Tempête tri-phasée',
+      description: 'Déclenchez 1 000 frénésies cumulées.',
+      condition: {
+        type: 'frenzyTotal',
+        amount: 1_000
+      },
+      reward: {
+        frenzyMaxStacks: 3,
+        multiplier: {
+          global: 1.05
+        },
+        description: 'Active la triple frénésie et ajoute un bonus global ×1,05.'
+      }
     }
   ],
 
