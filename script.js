@@ -718,7 +718,6 @@ const elements = {
   collectionProgress: document.getElementById('elementCollectionProgress'),
   nextMilestone: document.getElementById('nextMilestone'),
   themeSelect: document.getElementById('themeSelect'),
-  saveButton: document.getElementById('saveButton'),
   resetButton: document.getElementById('resetButton'),
   infoApsTotal: document.getElementById('infoApsTotal'),
   infoApsBase: document.getElementById('infoApsBase'),
@@ -1570,16 +1569,20 @@ elements.themeSelect.addEventListener('change', event => {
   showToast('Thème mis à jour');
 });
 
-elements.saveButton.addEventListener('click', () => {
-  saveGame();
-  showToast('Sauvegarde manuelle effectuée');
-});
-
 elements.resetButton.addEventListener('click', () => {
-  if (confirm('Réinitialiser la progression ? Cette action est irréversible.')) {
-    resetGame();
-    showToast('Progression réinitialisée');
+  const confirmationWord = 'RESET';
+  const promptMessage = `Réinitialisation complète du jeu. Tapez "${confirmationWord}" pour confirmer.\nCette action est irréversible.`;
+  const response = prompt(promptMessage);
+  if (response == null) {
+    showToast('Réinitialisation annulée');
+    return;
   }
+  if (response.trim().toUpperCase() !== confirmationWord) {
+    showToast('Mot de confirmation incorrect');
+    return;
+  }
+  resetGame();
+  showToast('Progression réinitialisée');
 });
 
 function serializeState() {
@@ -1720,7 +1723,7 @@ function loop(now) {
     lastUIUpdate = now;
   }
 
-  if (now - lastSaveTime > 30000) {
+  if (now - lastSaveTime > 5000) {
     saveGame();
     lastSaveTime = now;
   }

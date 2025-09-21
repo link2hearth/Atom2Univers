@@ -1014,6 +1014,16 @@ body.theme-neon .info-card {
   gap: clamp(1rem, 2vw, 1.6rem);
 }
 
+#options.page.active {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.2rem, 2vw, 1.8rem);
+}
+
+#options.page {
+  position: relative;
+}
+
 .option-card {
   background: var(--card-dark);
   border-radius: 18px;
@@ -1021,6 +1031,16 @@ body.theme-neon .info-card {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+}
+
+.options-reset {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.options-reset > #resetButton {
+  align-self: flex-end;
 }
 
 .option-row {
