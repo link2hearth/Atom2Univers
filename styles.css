@@ -895,7 +895,7 @@ body.theme-neon .page--void {
   --shake-scale-x: 1;
   --shake-scale-y: 1;
   transform-origin: center;
-  transform: translate(var(--shake-x), var(--shake-y)) rotate(var(--shake-rot)) scaleX(var(--shake-scale-x)) scaleY(var(--shake-scale-y));
+  transform: translate3d(var(--shake-x), var(--shake-y), 0) rotate(var(--shake-rot)) scaleX(var(--shake-scale-x)) scaleY(var(--shake-scale-y));
   will-change: transform;
 }
 

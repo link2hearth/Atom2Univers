@@ -1819,10 +1819,12 @@ let targetClickStrength = 0;
 let displayedClickStrength = 0;
 
 const atomAnimationState = {
-  intensity: 0,
+  drive: 0,
   velocity: 0,
-  wobblePhase: 0,
-  wobbleSecondary: 0,
+  twist: 0,
+  twistVelocity: 0,
+  swirlPhase: Math.random() * Math.PI * 2,
+  jitterPhase: Math.random() * Math.PI * 2,
   lastTime: null
 };
 
@@ -1921,58 +1923,74 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   state.lastTime = now;
 
   const clampedDrive = Math.max(0, Math.min(1, drive));
-  const driveInfluence = easeOutCubic(clampedDrive);
-  const normalizedDrive = Math.min(1.2, (driveInfluence * 0.38 + clampedDrive * 0.62) * 1.05);
-  const stiffness = 26;
-  const damping = 10.8;
-  const displacement = state.intensity - normalizedDrive;
-  const acceleration = (-stiffness * displacement) - (damping * state.velocity);
+  const easedDrive = easeOutCubic(clampedDrive);
+  const target = Math.min(1.35, easedDrive * 0.55 + clampedDrive * 0.9);
 
-  state.velocity += acceleration * delta;
-  state.intensity += state.velocity * delta;
+  const springK = 32;
+  const springDamping = 12.5;
+  const displacement = state.drive - target;
+  const accel = (-springK * displacement) - (springDamping * state.velocity);
 
-  if (state.intensity < 0) {
-    state.intensity = 0;
+  state.velocity += accel * delta;
+  state.drive += state.velocity * delta;
+
+  if (!Number.isFinite(state.drive)) state.drive = 0;
+  if (!Number.isFinite(state.velocity)) state.velocity = 0;
+
+  if (state.drive < 0) {
+    state.drive = 0;
     if (state.velocity < 0) {
       state.velocity = 0;
     }
-  } else if (state.intensity > 1.6) {
-    state.intensity = 1.6;
+  } else if (state.drive > 1.8) {
+    state.drive = 1.8;
   }
 
-  const velocityEnergy = Math.min(0.9, Math.abs(state.velocity) * 0.16);
-  const energy = Math.min(1.35, Math.max(normalizedDrive, state.intensity + velocityEnergy));
-  const baseFrequency = 4.8;
-  const frequencyBoost = 12.5;
-  const primaryFrequency = baseFrequency + frequencyBoost * Math.pow(energy, 0.85);
-  const secondaryFrequency = (baseFrequency * 0.8) + (frequencyBoost * 0.58 * Math.pow(energy, 0.92));
+  const energyFromVelocity = Math.min(0.95, Math.abs(state.velocity) * 0.22);
+  const energy = Math.min(1.5, Math.max(target, state.drive + energyFromVelocity));
 
-  state.wobblePhase += primaryFrequency * delta * Math.PI * 2;
-  state.wobbleSecondary += secondaryFrequency * delta * Math.PI * 2;
+  state.swirlPhase += delta * (5 + 20 * Math.pow(energy, 0.9));
+  state.jitterPhase += delta * (16 + 42 * Math.pow(energy, 1.1));
 
-  if (!Number.isFinite(state.wobblePhase)) state.wobblePhase = 0;
-  if (!Number.isFinite(state.wobbleSecondary)) state.wobbleSecondary = 0;
-  if (state.wobblePhase > Math.PI * 1000) state.wobblePhase %= Math.PI * 2;
-  if (state.wobbleSecondary > Math.PI * 1000) state.wobbleSecondary %= Math.PI * 2;
+  if (!Number.isFinite(state.swirlPhase)) state.swirlPhase = 0;
+  if (!Number.isFinite(state.jitterPhase)) state.jitterPhase = 0;
+  if (state.swirlPhase > Math.PI * 1000) state.swirlPhase %= Math.PI * 2;
+  if (state.jitterPhase > Math.PI * 1000) state.jitterPhase %= Math.PI * 2;
 
-  const travel = Math.pow(energy, 1.35) * 34;
-  const offsetX = Math.sin(state.wobblePhase) * travel;
-  const offsetY = Math.cos(state.wobblePhase * 1.12) * travel * (0.6 + 0.3 * energy);
-  const rotationRange = Math.pow(energy, 0.9) * 28;
-  const rotation = Math.sin(state.wobbleSecondary) * rotationRange;
+  const rotationTarget = state.velocity * 0.65;
+  const twistK = 24;
+  const twistDamping = 9.5;
+  const twistDisplacement = state.twist - rotationTarget;
+  const twistAccel = (-twistK * twistDisplacement) - (twistDamping * state.twistVelocity);
+  state.twistVelocity += twistAccel * delta;
+  state.twist += state.twistVelocity * delta;
 
-  const velocityStretch = Math.max(-0.6, Math.min(0.6, state.velocity * 1.18));
-  const wobbleStretch = Math.sin(state.wobblePhase * 1.7) * Math.pow(energy, 1.4) * 0.18;
-  let scaleY = 1 + velocityStretch * 0.58 + wobbleStretch;
-  let scaleX = 1 - velocityStretch * 0.45 - wobbleStretch * 0.85;
+  if (!Number.isFinite(state.twist)) state.twist = 0;
+  if (!Number.isFinite(state.twistVelocity)) state.twistVelocity = 0;
+  state.twist = Math.max(-1.3, Math.min(1.3, state.twist));
 
-  scaleX = Math.min(1.45, Math.max(0.62, scaleX));
-  scaleY = Math.min(1.45, Math.max(0.62, scaleY));
+  const swirlRadius = 6 + Math.pow(energy, 1.3) * 32;
+  const jitterX = Math.sin(state.jitterPhase * 1.7) * (4 + energy * 12);
+  const jitterY = Math.cos(state.jitterPhase * 2.3) * (5 + energy * 16);
+  const offsetX = Math.cos(state.swirlPhase) * swirlRadius + jitterX;
+  const offsetY = Math.sin(state.swirlPhase * 1.35 + 0.4) * (swirlRadius * (0.7 + energy * 0.25)) + jitterY;
+
+  const rotationFromTwist = state.twist * (18 + energy * 34);
+  const rotationNoise = Math.sin(state.swirlPhase * 2.2) * (4 + energy * 12);
+  const rotation = rotationFromTwist + rotationNoise;
+
+  const velocitySquash = Math.max(-0.85, Math.min(0.85, state.velocity * 0.9));
+  const jitterSquash = Math.sin(state.jitterPhase * 2.8) * energy * 0.25;
+  let scaleY = 1 + velocitySquash * 0.7 + jitterSquash;
+  let scaleX = 1 - velocitySquash * 0.5 - jitterSquash * 0.85;
+
+  scaleX = Math.min(1.55, Math.max(0.55, scaleX));
+  scaleY = Math.min(1.55, Math.max(0.55, scaleY));
 
   const visual = elements.atomVisual;
-  visual.style.setProperty('--shake-x', `${offsetX.toFixed(3)}px`);
-  visual.style.setProperty('--shake-y', `${offsetY.toFixed(3)}px`);
-  visual.style.setProperty('--shake-rot', `${rotation.toFixed(3)}deg`);
+  visual.style.setProperty('--shake-x', `${offsetX.toFixed(2)}px`);
+  visual.style.setProperty('--shake-y', `${offsetY.toFixed(2)}px`);
+  visual.style.setProperty('--shake-rot', `${rotation.toFixed(2)}deg`);
   visual.style.setProperty('--shake-scale-x', scaleX.toFixed(4));
   visual.style.setProperty('--shake-scale-y', scaleY.toFixed(4));
 }
