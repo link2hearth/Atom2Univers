@@ -845,8 +845,8 @@ function renderPeriodicTable() {
     cell.setAttribute('aria-label', labelParts.join(', '));
 
     cell.innerHTML = `
-      <span class="periodic-element__number">${def.atomicNumber}</span>
       <span class="periodic-element__symbol">${def.symbol}</span>
+      <span class="periodic-element__number">${def.atomicNumber}</span>
     `;
     cell.setAttribute('aria-pressed', 'false');
     cell.addEventListener('click', () => selectPeriodicElement(def.id));

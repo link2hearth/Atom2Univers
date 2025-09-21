@@ -263,11 +263,11 @@ main {
   --category-weak: rgba(255, 255, 255, 0.02);
   --category-border: rgba(255, 255, 255, 0.1);
   position: relative;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: clamp(0.1rem, 0.5vw, 0.25rem);
+  gap: clamp(0.15rem, 0.6vw, 0.35rem);
   padding: clamp(0.45rem, 1vw, 0.65rem);
   border-radius: 12px;
   background: linear-gradient(150deg, var(--category-strong), var(--category-weak));
@@ -276,6 +276,7 @@ main {
   cursor: pointer;
   transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
   min-height: var(--cell-height);
+  text-align: center;
   text-decoration: none;
 }
 
@@ -297,18 +298,19 @@ main {
   box-shadow: 0 0 0 2px rgba(76, 141, 255, 0.55);
 }
 
-.periodic-element__number {
-  font-size: clamp(0.6rem, 0.9vw, 0.75rem);
-  opacity: 0.7;
-  justify-self: start;
-}
 
 .periodic-element__symbol {
   font-family: 'Orbitron', sans-serif;
   font-size: clamp(1.2rem, 3vw, 2rem);
   letter-spacing: 0.08em;
+  line-height: 1;
 }
 
+.periodic-element__number {
+  font-size: clamp(0.52rem, 0.8vw, 0.68rem);
+  opacity: 0.75;
+  line-height: 1;
+}
 .periodic-element__name {
   font-size: clamp(0.62rem, 1vw, 0.82rem);
   text-transform: uppercase;
@@ -338,6 +340,7 @@ main {
   color: inherit;
   min-width: 0;
   min-height: 0;
+  justify-content: center;
 }
 
 .element-info-panel__placeholder {
@@ -354,8 +357,9 @@ main {
 }
 
 .element-info-panel__header {
-  display: flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
   gap: clamp(0.75rem, 1.5vw, 1rem);
 }
 
@@ -371,12 +375,14 @@ main {
   letter-spacing: 0.15em;
   text-transform: uppercase;
   opacity: 0.8;
+  align-self: start;
 }
 
 .element-info-panel__symbol {
   font-family: 'Orbitron', sans-serif;
   font-size: clamp(2.2rem, 4.5vw, 3.2rem);
   letter-spacing: 0.1em;
+  line-height: 1;
 }
 
 .element-info-panel__name {
