@@ -52,10 +52,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const baseAutoAdd = 0.1 * level * tierMultiplier;
-        const autoAdd = level > 0 ? Math.max(1, Math.round(baseAutoAdd)) : 0;
-        const rawClickAdd = level >= 100 ? 0.01 * level : 0;
-        const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
+        const rawAutoAdd = level * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
+        const clickAdd = level >= 100 ? level : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
           result.clickAdd = clickAdd;
@@ -79,7 +78,8 @@ function createShopBuildingDefinitions() {
         if (acceleratorLevel >= 200) {
           productionMultiplier *= 1.2;
         }
-        const autoAdd = level * 1 * productionMultiplier;
+        const rawAutoAdd = level * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
         const clickBonus = Math.pow(1.05, Math.floor(level / 10));
         return {
           autoAdd,
@@ -107,7 +107,9 @@ function createShopBuildingDefinitions() {
         if (labLevel >= 200) {
           productionMultiplier *= 1.2;
         }
-        const autoAdd = 10 * level * productionMultiplier;
+        const baseAmount = 10 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 2 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -130,7 +132,9 @@ function createShopBuildingDefinitions() {
         if (supercomputerLevel >= 100) {
           productionMultiplier *= 1.5;
         }
-        const autoAdd = 50 * level * productionMultiplier;
+        const baseAmount = 50 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = Math.pow(1.02, level);
         return { autoAdd, clickMult };
       }
@@ -151,7 +155,9 @@ function createShopBuildingDefinitions() {
         if (stationLevel >= 300) {
           productionMultiplier *= 2;
         }
-        const autoAdd = 500 * level * productionMultiplier;
+        const baseAmount = 500 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const autoMult = Math.pow(1.01, Math.floor(level / 25));
         return autoMult > 1
           ? { autoAdd, autoMult }
@@ -174,7 +180,9 @@ function createShopBuildingDefinitions() {
         if (reactorLevel > 0) {
           productionMultiplier *= 1 + 0.001 * reactorLevel;
         }
-        const autoAdd = 5000 * level * productionMultiplier;
+        const baseAmount = 5000 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickAdd = level >= 150 ? level : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
@@ -194,7 +202,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 50_000 * level * tierMultiplier;
+        const baseAmount = 50_000 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = Math.pow(1.05, level);
         return { autoAdd, clickMult };
       }
@@ -215,7 +225,9 @@ function createShopBuildingDefinitions() {
         if (stationLevel > 0) {
           productionMultiplier *= 1 + 0.02 * stationLevel;
         }
-        const autoAdd = 500_000 * level * productionMultiplier;
+        const baseAmount = 500_000 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 1.25 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -238,7 +250,9 @@ function createShopBuildingDefinitions() {
         if (libraryLevel >= 300) {
           productionMultiplier *= 2;
         }
-        const autoAdd = 5e6 * level * productionMultiplier;
+        const baseAmount = 5e6 * level;
+        const rawAutoAdd = baseAmount * productionMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const autoMult = Math.pow(1.1, level);
         const clickMult = level >= 100 ? 1.5 : 1;
         const result = { autoAdd };
@@ -262,7 +276,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 5e8 * level * tierMultiplier;
+        const baseAmount = 5e8 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const totalBuildings = getTotalBuildings(context);
         const autoMult = totalBuildings > 0 ? Math.pow(1.005, totalBuildings) : 1;
         return autoMult > 1
@@ -282,7 +298,9 @@ function createShopBuildingDefinitions() {
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const totalBuildings = getTotalBuildings(context);
-        const autoAdd = 1e10 * level * tierMultiplier;
+        const baseAmount = 1e10 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const rawClickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
         const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
         const globalMult = level >= 300 ? 2 : 1;
@@ -308,7 +326,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 1e12 * level * tierMultiplier;
+        const baseAmount = 1e12 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 1.2 : 1;
         return clickMult > 1
           ? { autoAdd, clickMult }
@@ -326,7 +346,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 1e14 * level * tierMultiplier;
+        const baseAmount = 1e14 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         return { autoAdd };
       }
     },
@@ -341,7 +363,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 1e16 * level * tierMultiplier;
+        const baseAmount = 1e16 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const parallelLevel = getBuildingLevel(context, 'parallelUniverse');
         const globalBoost = parallelLevel > 0 ? Math.pow(1.02, parallelLevel) : 1;
         if (globalBoost > 1) {
@@ -365,7 +389,9 @@ function createShopBuildingDefinitions() {
       costScale: 1.15,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
-        const autoAdd = 1e18 * level * tierMultiplier;
+        const baseAmount = 1e18 * level;
+        const rawAutoAdd = baseAmount * tierMultiplier;
+        const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const globalMult = level >= 100 ? 2 : 1;
         return globalMult > 1
           ? { autoAdd, autoMult: globalMult, clickMult: globalMult }
