@@ -44,20 +44,23 @@ function createShopBuildingDefinitions() {
     {
       id: 'freeElectrons',
       name: 'Électrons libres',
-      description: 'Libérez des électrons pour une production de base stable.',
+      description: 'Canalisez des électrons pour amplifier chaque clic quantique.',
       effectSummary:
-        'Production passive : minimum +1 APS par niveau (paliers ×2/×4). À 100 exemplaires : chaque électron ajoute +1 APC (valeur arrondie).',
-      category: 'auto',
+        'Production manuelle : +1 APC par niveau. Tous les 25 niveaux : +5 % APC. Les paliers ×2/×4 convertissent leur énergie en +2 % APC supplémentaires.',
+      category: 'manual',
       baseCost: 15,
       costScale: 1.15,
       effect: (level = 0) => {
-        const tierMultiplier = computeBuildingTierMultiplier(level);
-        const rawAutoAdd = level * tierMultiplier;
-        const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
-        const clickAdd = level >= 100 ? level : 0;
-        const result = { autoAdd };
-        if (clickAdd > 0) {
-          result.clickAdd = clickAdd;
+        const clickAdd = level > 0 ? level : 0;
+        const streakBonus = Math.pow(1.05, Math.floor(level / 25));
+        const doubleThresholds = BUILDING_DOUBLE_THRESHOLDS.filter(threshold => level >= threshold).length;
+        const quadThresholds = BUILDING_QUAD_THRESHOLDS.filter(threshold => level >= threshold).length;
+        const tierStacks = doubleThresholds + quadThresholds * 2;
+        const tierBonus = tierStacks > 0 ? 1 + tierStacks * 0.02 : 1;
+        const clickMult = streakBonus * tierBonus;
+        const result = { clickAdd };
+        if (clickMult > 1 && clickAdd > 0) {
+          result.clickMult = clickMult;
         }
         return result;
       }
