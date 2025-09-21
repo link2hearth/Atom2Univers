@@ -1834,8 +1834,30 @@ function updateClickHistory(now = performance.now()) {
   while (clickHistory.length && now - clickHistory[0] > CLICK_WINDOW_MS) {
     clickHistory.shift();
   }
-  const effective = Math.min(MAX_CLICKS_PER_SECOND, clickHistory.length);
-  targetClickStrength = effective / MAX_CLICKS_PER_SECOND;
+  const count = clickHistory.length;
+  if (count === 0) {
+    targetClickStrength = 0;
+    return;
+  }
+
+  let rawRate = 0;
+  if (count === 1) {
+    const timeSince = now - clickHistory[0];
+    const safeSpan = Math.max(780, Math.min(CLICK_WINDOW_MS, timeSince));
+    rawRate = 1000 / safeSpan;
+  } else {
+    const span = Math.max(140, Math.min(CLICK_WINDOW_MS, clickHistory[count - 1] - clickHistory[0]));
+    rawRate = (count - 1) / (span / 1000);
+    const windowAverage = count / (CLICK_WINDOW_MS / 1000);
+    if (windowAverage > rawRate) {
+      rawRate = windowAverage;
+    }
+  }
+
+  rawRate = Math.min(rawRate, MAX_CLICKS_PER_SECOND * 1.6);
+  const normalized = Math.max(0, Math.min(1, rawRate / MAX_CLICKS_PER_SECOND));
+  const curved = 1 - Math.exp(-normalized * 3.8);
+  targetClickStrength = Math.min(1, curved * 1.08);
 }
 
 const glowStops = [
@@ -1877,6 +1899,13 @@ function applyClickStrength(strength) {
   }
 }
 
+function easeOutCubic(value) {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  const inv = 1 - value;
+  return 1 - inv * inv * inv;
+}
+
 function updateAtomSpring(now = performance.now(), drive = 0) {
   if (!elements.atomVisual) return;
   const state = atomAnimationState;
@@ -1891,9 +1920,11 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   delta = Math.min(delta, 0.05);
   state.lastTime = now;
 
-  const normalizedDrive = Math.pow(Math.max(0, Math.min(1, drive)), 0.85);
-  const stiffness = 22;
-  const damping = 9.5;
+  const clampedDrive = Math.max(0, Math.min(1, drive));
+  const driveInfluence = easeOutCubic(clampedDrive);
+  const normalizedDrive = Math.min(1.2, (driveInfluence * 0.38 + clampedDrive * 0.62) * 1.05);
+  const stiffness = 26;
+  const damping = 10.8;
   const displacement = state.intensity - normalizedDrive;
   const acceleration = (-stiffness * displacement) - (damping * state.velocity);
 
@@ -1905,15 +1936,16 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
     if (state.velocity < 0) {
       state.velocity = 0;
     }
-  } else if (state.intensity > 1.4) {
-    state.intensity = 1.4;
+  } else if (state.intensity > 1.6) {
+    state.intensity = 1.6;
   }
 
-  const energy = Math.max(normalizedDrive, state.intensity);
-  const baseFrequency = 4.6;
-  const frequencyBoost = 9.2;
-  const primaryFrequency = baseFrequency + frequencyBoost * Math.pow(energy, 0.82);
-  const secondaryFrequency = (baseFrequency * 0.7) + (frequencyBoost * 0.54 * Math.pow(energy, 0.9));
+  const velocityEnergy = Math.min(0.9, Math.abs(state.velocity) * 0.16);
+  const energy = Math.min(1.35, Math.max(normalizedDrive, state.intensity + velocityEnergy));
+  const baseFrequency = 4.8;
+  const frequencyBoost = 12.5;
+  const primaryFrequency = baseFrequency + frequencyBoost * Math.pow(energy, 0.85);
+  const secondaryFrequency = (baseFrequency * 0.8) + (frequencyBoost * 0.58 * Math.pow(energy, 0.92));
 
   state.wobblePhase += primaryFrequency * delta * Math.PI * 2;
   state.wobbleSecondary += secondaryFrequency * delta * Math.PI * 2;
@@ -1923,19 +1955,19 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   if (state.wobblePhase > Math.PI * 1000) state.wobblePhase %= Math.PI * 2;
   if (state.wobbleSecondary > Math.PI * 1000) state.wobbleSecondary %= Math.PI * 2;
 
-  const travel = 1.5 + 18 * Math.pow(energy, 1.1);
+  const travel = Math.pow(energy, 1.35) * 34;
   const offsetX = Math.sin(state.wobblePhase) * travel;
-  const offsetY = Math.cos(state.wobblePhase * 0.9) * travel * 0.72;
-  const rotationRange = 2 + 14 * Math.pow(energy, 1.05);
+  const offsetY = Math.cos(state.wobblePhase * 1.12) * travel * (0.6 + 0.3 * energy);
+  const rotationRange = Math.pow(energy, 0.9) * 28;
   const rotation = Math.sin(state.wobbleSecondary) * rotationRange;
 
-  const velocityStretch = Math.max(-0.35, Math.min(0.35, state.velocity * 0.9));
-  const wobbleStretch = Math.sin(state.wobblePhase * 1.35) * Math.pow(energy, 1.2) * 0.06;
-  let scaleY = 1 + velocityStretch + wobbleStretch;
-  let scaleX = 1 - velocityStretch * 0.6 - wobbleStretch * 0.8;
+  const velocityStretch = Math.max(-0.6, Math.min(0.6, state.velocity * 1.18));
+  const wobbleStretch = Math.sin(state.wobblePhase * 1.7) * Math.pow(energy, 1.4) * 0.18;
+  let scaleY = 1 + velocityStretch * 0.58 + wobbleStretch;
+  let scaleX = 1 - velocityStretch * 0.45 - wobbleStretch * 0.85;
 
-  scaleX = Math.min(1.35, Math.max(0.7, scaleX));
-  scaleY = Math.min(1.35, Math.max(0.7, scaleY));
+  scaleX = Math.min(1.45, Math.max(0.62, scaleX));
+  scaleY = Math.min(1.45, Math.max(0.62, scaleY));
 
   const visual = elements.atomVisual;
   visual.style.setProperty('--shake-x', `${offsetX.toFixed(3)}px`);
@@ -1947,8 +1979,8 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
 
 function updateClickVisuals(now = performance.now()) {
   updateClickHistory(now);
-  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.18;
-  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0005) {
+  displayedClickStrength += (targetClickStrength - displayedClickStrength) * 0.28;
+  if (Math.abs(targetClickStrength - displayedClickStrength) < 0.0003) {
     displayedClickStrength = targetClickStrength;
   }
   applyClickStrength(displayedClickStrength);
