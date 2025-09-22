@@ -6899,6 +6899,58 @@ function buildShopItem(def) {
   return { root: item, level, description: desc, buttons: buttonMap };
 }
 
+function updateShopVisibility() {
+  if (!shopRows.size) return;
+  const shopFree = isDevKitShopFree();
+  let highestVisibleCost = null;
+  let canRevealNext = true;
+
+  UPGRADE_DEFS.forEach((def, index) => {
+    const row = shopRows.get(def.id);
+    if (!row) return;
+
+    if (shopFree) {
+      row.root.hidden = false;
+      row.root.classList.remove('shop-item--locked');
+      return;
+    }
+
+    if (index === 0) {
+      row.root.hidden = false;
+      row.root.classList.remove('shop-item--locked');
+      const cost = computeUpgradeCost(def, 1);
+      if (cost instanceof LayeredNumber) {
+        highestVisibleCost = cost.clone();
+      } else {
+        highestVisibleCost = new LayeredNumber(cost);
+      }
+      canRevealNext = gameState.atoms.compare(highestVisibleCost) >= 0;
+      return;
+    }
+
+    if (!canRevealNext) {
+      row.root.hidden = true;
+      row.root.classList.add('shop-item--locked');
+      return;
+    }
+
+    row.root.hidden = false;
+    row.root.classList.remove('shop-item--locked');
+    const cost = computeUpgradeCost(def, 1);
+    if (cost instanceof LayeredNumber) {
+      if (!highestVisibleCost || cost.compare(highestVisibleCost) > 0) {
+        highestVisibleCost = cost.clone();
+      }
+    } else {
+      const numericCost = new LayeredNumber(cost);
+      if (!highestVisibleCost || numericCost.compare(highestVisibleCost) > 0) {
+        highestVisibleCost = numericCost;
+      }
+    }
+    canRevealNext = gameState.atoms.compare(highestVisibleCost) >= 0;
+  });
+}
+
 function updateShopAffordability() {
   if (!shopRows.size) return;
   UPGRADE_DEFS.forEach(def => {
@@ -6932,6 +6984,7 @@ function updateShopAffordability() {
 
     row.root.classList.toggle('shop-item--ready', anyAffordable);
   });
+  updateShopVisibility();
 }
 
 function renderShop() {
