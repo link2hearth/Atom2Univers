@@ -2427,7 +2427,8 @@ const elements = {
   infoSessionDuration: document.getElementById('infoSessionDuration'),
   infoGlobalAtoms: document.getElementById('infoGlobalAtoms'),
   infoGlobalClicks: document.getElementById('infoGlobalClicks'),
-  infoGlobalDuration: document.getElementById('infoGlobalDuration')
+  infoGlobalDuration: document.getElementById('infoGlobalDuration'),
+  critConfettiLayer: null
 };
 
 const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
@@ -3645,37 +3646,110 @@ function initStarfield() {
   elements.starfield.appendChild(fragment);
 }
 
-function formatCriticalMultiplier(multiplier) {
-  const numeric = Number(multiplier);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return '×1';
+const CRIT_CONFETTI_COLORS = [
+  '#ff8ba7', '#ffd166', '#6fffe9', '#a5b4ff', '#ff9ff3',
+  '#70d6ff', '#fcd5ce', '#caffbf', '#bdb2ff', '#ffe066'
+];
+
+const CRIT_CONFETTI_SHAPES = [
+  { className: 'crit-confetti--circle', widthFactor: 1, heightFactor: 1 },
+  { className: 'crit-confetti--oval', widthFactor: 1.4, heightFactor: 1 },
+  { className: 'crit-confetti--heart', widthFactor: 1.1, heightFactor: 1.1 },
+  { className: 'crit-confetti--star', widthFactor: 1.2, heightFactor: 1.2 },
+  { className: 'crit-confetti--square', widthFactor: 1, heightFactor: 1 },
+  { className: 'crit-confetti--triangle', widthFactor: 1.15, heightFactor: 1.3 },
+  { className: 'crit-confetti--rectangle', widthFactor: 1.8, heightFactor: 0.7 },
+  { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
+];
+
+function ensureCritConfettiLayer() {
+  if (elements.critConfettiLayer && elements.critConfettiLayer.isConnected) {
+    return elements.critConfettiLayer;
   }
-  const value = Math.max(1, numeric);
-  let maximumFractionDigits = 2;
-  if (value >= 50) {
-    maximumFractionDigits = 0;
-  } else if (value >= 10) {
-    maximumFractionDigits = 1;
+  const layer = document.createElement('div');
+  layer.className = 'crit-confetti-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(layer);
+  elements.critConfettiLayer = layer;
+  return layer;
+}
+
+function pickRandom(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function createCritConfettiNode() {
+  const confetti = document.createElement('span');
+  const baseSize = 12 + Math.random() * 18;
+  const shape = pickRandom(CRIT_CONFETTI_SHAPES);
+  const width = baseSize * shape.widthFactor;
+  const height = baseSize * shape.heightFactor;
+  confetti.className = `crit-confetti ${shape.className}`;
+  confetti.style.width = `${width.toFixed(2)}px`;
+  confetti.style.height = `${height.toFixed(2)}px`;
+
+  const startX = Math.random() * 100;
+  const startY = Math.random() * 100;
+  confetti.style.left = `${startX.toFixed(2)}%`;
+  confetti.style.top = `${startY.toFixed(2)}%`;
+
+  const driftX = (Math.random() - 0.5) * 200;
+  const driftY = 80 + Math.random() * 140;
+  const endX = driftX + (Math.random() - 0.5) * 120;
+  const endY = driftY + 60 + Math.random() * 90;
+
+  const rotationStart = Math.random() * 360;
+  const rotationEnd = rotationStart + (Math.random() * 220 - 110);
+  const spin = 50 + Math.random() * 160;
+  const scale = 0.85 + Math.random() * 0.55;
+  const duration = 2.8 + Math.random() * 0.5;
+  const delay = Math.random() * 0.25;
+
+  confetti.style.setProperty('--confetti-drift-x', `${driftX.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-drift-y', `${driftY.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-end-x', `${endX.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-end-y', `${endY.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-rotation', `${rotationStart.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-end-rotation', `${rotationEnd.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-spin', `${spin.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-scale', scale.toFixed(3));
+  confetti.style.setProperty('--confetti-duration', `${duration.toFixed(2)}s`);
+  confetti.style.setProperty('--confetti-delay', `${delay.toFixed(2)}s`);
+
+  const colorA = pickRandom(CRIT_CONFETTI_COLORS);
+  let colorB = pickRandom(CRIT_CONFETTI_COLORS);
+  if (colorA === colorB) {
+    colorB = pickRandom(CRIT_CONFETTI_COLORS);
   }
-  return `×${value.toLocaleString('fr-FR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits
-  })}`;
+  const gradientAngle = Math.floor(Math.random() * 360);
+  confetti.style.background = `linear-gradient(${gradientAngle}deg, ${colorA}, ${colorB})`;
+
+  confetti.style.setProperty('--confetti-lifetime', (duration + delay).toFixed(2));
+
+  return confetti;
 }
 
 function showCriticalIndicator(multiplier) {
-  if (!elements.atomButton) return;
-  const button = elements.atomButton;
-  button.querySelectorAll('.atom-button__crit').forEach(node => node.remove());
-  const indicator = document.createElement('span');
-  indicator.className = 'atom-button__crit';
-  indicator.textContent = formatCriticalMultiplier(multiplier);
-  button.appendChild(indicator);
-  setTimeout(() => {
-    if (indicator.isConnected) {
-      indicator.remove();
-    }
-  }, 650);
+  const layer = ensureCritConfettiLayer();
+  if (!layer) return;
+  const safeMultiplier = Math.max(1, Number(multiplier) || 1);
+  const baseCount = 26;
+  const extraCount = Math.min(42, Math.round((safeMultiplier - 1) * 8));
+  const totalConfetti = baseCount + extraCount;
+  const fragment = document.createDocumentFragment();
+
+  for (let i = 0; i < totalConfetti; i += 1) {
+    const confetti = createCritConfettiNode();
+    fragment.appendChild(confetti);
+    const lifetime = Number(confetti.style.getPropertyValue('--confetti-lifetime')) || 3;
+    setTimeout(() => {
+      if (confetti.isConnected) {
+        confetti.remove();
+      }
+    }, (lifetime + 0.3) * 1000);
+  }
+
+  layer.appendChild(fragment);
 }
 
 function applyCriticalHit(baseAmount) {
