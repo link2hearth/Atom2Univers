@@ -721,6 +721,26 @@ const GAME_CONFIG = {
           multiplier: 'Forge stellaire · intensité stellaire'
         }
       },
+      singulier: {
+        perCopy: {
+          uniqueClickAdd: 25,
+          uniqueAutoAdd: 25,
+          duplicateClickAdd: 20,
+          duplicateAutoAdd: 20,
+          label: 'Singularité minérale · résonance cristalline'
+        },
+        multiplier: {
+          base: 1,
+          every: 50,
+          increment: 1,
+          targets: ['perClick', 'perSecond'],
+          label: 'Singularité minérale · densité extrême'
+        },
+        labels: {
+          perCopy: 'Singularité minérale · résonance cristalline',
+          multiplier: 'Singularité minérale · densité extrême'
+        }
+      },
       irreel: {
         crit: {
           perUnique: {
