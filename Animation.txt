@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tirage Hyperspace</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: black;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Tunnel lumineux */
+    .tunnel {
+      position: absolute;
+      width: 200vw;
+      height: 200vh;
+      background: radial-gradient(circle, #b3e5fc 2%, transparent 70%);
+      animation: warp 1s linear infinite;
+      opacity: 0.8;
+      z-index: 0;
+    }
+
+    @keyframes warp {
+      from { transform: scale(1) rotate(0deg); }
+      to   { transform: scale(1.2) rotate(360deg); }
+    }
+
+    /* Effet hyperspace - particules */
+    .stars {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      width: 2px;
+      height: 80px;
+      opacity: 0.8;
+      animation: fly 1s linear infinite;
+    }
+
+    @keyframes fly {
+      from { transform: translateY(100vh) scaleY(0.2); opacity: 0.2; }
+      to   { transform: translateY(-200px) scaleY(1.5); opacity: 1; }
+    }
+
+    /* Overlay sombre pour l'effet tunnel */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,1) 100%);
+      z-index: 1;
+    }
+
+    /* Résultat */
+    .result {
+      position: relative;
+      z-index: 2;
+      color: white;
+      font-size: 3rem;
+      opacity: 0;
+      transform: scale(0.8);
+      transition: all 0.5s ease-out;
+      text-align: center;
+      text-shadow: 0 0 15px white;
+    }
+
+    .show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* === Couleurs par rareté === */
+    .commun-cosmique   { background: radial-gradient(circle, #b3e5fc 10%, transparent 70%); }
+    .essentiel-planetaire { background: radial-gradient(circle, #9cff9c 10%, transparent 70%); }
+    .forge-stellaire   { background: radial-gradient(circle, #4b0082 10%, transparent 70%); }
+    .singularite-minerale { background: radial-gradient(circle, #ff5722 10%, transparent 70%); }
+    .mythe-quantique   { background: radial-gradient(circle, #ffeb3b 5%, #ff80ab 30%, transparent 70%); }
+    
+    /* Arc-en-ciel animé pour "Irréel" */
+    .irreel {
+      background: conic-gradient(
+        from 0deg,
+        red, orange, yellow, green, cyan, blue, violet, red
+      );
+      animation: rainbow 2s linear infinite;
+      mix-blend-mode: screen;
+    }
+
+    @keyframes rainbow {
+      from { filter: hue-rotate(0deg); }
+      to   { filter: hue-rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="tunnel" id="tunnel"></div>
+  <div class="stars" id="stars"></div>
+  <div class="overlay"></div>
+  <div class="result" id="result"></div>
+
+  <script>
+    // Liste des raretés possibles
+    const rarities = [
+      { key: "commun-cosmique", label: "Commun Cosmique" },
+      { key: "essentiel-planetaire", label: "Essentiel Planétaire" },
+      { key: "forge-stellaire", label: "Forge Stellaire" },
+      { key: "singularite-minerale", label: "Singularité Minérale" },
+      { key: "mythe-quantique", label: "Mythe Quantique" },
+      { key: "irreel", label: "Irréel" }
+    ];
+
+    // Choisir une rareté aléatoire (exemple)
+    const rarity = rarities[Math.floor(Math.random() * rarities.length)];
+    const tunnelEl = document.getElementById("tunnel");
+    const resultEl = document.getElementById("result");
+    const starsEl = document.getElementById("stars");
+
+    // Générer des étoiles façon hyperspace
+    for (let i = 0; i < 80; i++) {
+      const star = document.createElement("div");
+      star.className = "star";
+      star.style.left = Math.random() * window.innerWidth + "px";
+      star.style.animationDuration = (0.5 + Math.random()) + "s";
+      starsEl.appendChild(star);
+    }
+
+    // Étape 1 : au bout de 2.5s on applique la couleur de la rareté
+    setTimeout(() => {
+      tunnelEl.className = "tunnel " + rarity.key;
+    }, 2500);
+
+    // Étape 2 : au bout de 5s on affiche le résultat
+    setTimeout(() => {
+      resultEl.textContent = rarity.label + " !!!";
+      resultEl.classList.add("show");
+    }, 5000);
+  </script>
+</body>
+</html>
