@@ -2678,12 +2678,15 @@ const elements = {
   nextMilestone: document.getElementById('nextMilestone'),
   goalsList: document.getElementById('goalsList'),
   goalsEmpty: document.getElementById('goalsEmpty'),
-  gachaRollButton: document.getElementById('gachaRollButton'),
   gachaResult: document.getElementById('gachaResult'),
-  gachaCostValue: document.getElementById('gachaCostValue'),
-  gachaWallet: document.getElementById('gachaWallet'),
   gachaRarityList: document.getElementById('gachaRarityList'),
   gachaOwnedSummary: document.getElementById('gachaOwnedSummary'),
+  gachaSunButton: document.getElementById('gachaSunButton'),
+  gachaTicketCounter: document.getElementById('gachaTicketCounter'),
+  gachaAnimation: document.getElementById('gachaAnimation'),
+  gachaAnimationStars: document.getElementById('gachaAnimationStars'),
+  gachaWarp: document.getElementById('gachaWarp'),
+  gachaContinueHint: document.getElementById('gachaContinueHint'),
   themeSelect: document.getElementById('themeSelect'),
   resetButton: document.getElementById('resetButton'),
   infoApsBreakdown: document.getElementById('infoApsBreakdown'),
@@ -3210,42 +3213,53 @@ function formatTicketLabel(count) {
   return `${formatted} ${unit}`;
 }
 
+const GACHA_ANIMATION_STAR_COUNT = 90;
+const GACHA_ANIMATION_REVEAL_DELAY = 2600;
+let gachaAnimationInProgress = false;
+
 function updateGachaUI() {
-  if (elements.gachaCostValue) {
-    elements.gachaCostValue.textContent = formatTicketLabel(GACHA_TICKET_COST);
+  const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+  if (elements.gachaTicketCounter) {
+    elements.gachaTicketCounter.textContent = formatTicketLabel(available);
   }
-  if (elements.gachaWallet) {
-    elements.gachaWallet.textContent = `Solde : ${formatTicketLabel(gameState.gachaTickets || 0)}`;
-  }
-  if (elements.gachaRollButton) {
-    const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+  if (elements.gachaSunButton) {
     const affordable = available >= GACHA_TICKET_COST;
-    const label = affordable ? 'Lancer un tirage' : 'Tickets insuffisants';
-    elements.gachaRollButton.disabled = !affordable;
+    const busy = gachaAnimationInProgress;
     const costLabel = formatTicketLabel(GACHA_TICKET_COST);
-    elements.gachaRollButton.setAttribute('aria-label', `${label} (${costLabel})`);
-    elements.gachaRollButton.title = `${label} (${costLabel})`;
-    elements.gachaRollButton.setAttribute('aria-disabled', affordable ? 'false' : 'true');
+    const label = busy
+      ? 'Tirage cosmique en cours'
+      : affordable
+        ? 'Déclencher un tirage cosmique'
+        : 'Tickets insuffisants';
+    elements.gachaSunButton.classList.toggle('is-locked', !affordable || busy);
+    elements.gachaSunButton.setAttribute('aria-disabled', !affordable || busy ? 'true' : 'false');
+    elements.gachaSunButton.setAttribute('aria-label', label);
+    elements.gachaSunButton.title = `${label} (${costLabel})`;
+    if (busy) {
+      elements.gachaSunButton.disabled = true;
+    } else if (elements.gachaSunButton.disabled) {
+      elements.gachaSunButton.disabled = false;
+    }
   }
 }
 
-function handleGachaRoll() {
+function performGachaRoll() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
   if (available < GACHA_TICKET_COST) {
     showToast('Pas assez de tickets de tirage.');
-    return;
+    return null;
   }
 
   const rarity = pickGachaRarity();
   if (!rarity) {
     showToast('Aucun élément disponible dans les chambres de synthèse.');
-    return;
+    return null;
   }
 
   const elementDef = pickRandomElementFromRarity(rarity.id);
   if (!elementDef) {
     showToast('Flux instable, impossible de matérialiser un élément.');
-    return;
+    return null;
   }
 
   gameState.gachaTickets = available - GACHA_TICKET_COST;
@@ -3278,11 +3292,165 @@ function handleGachaRoll() {
 
   recalcProduction();
   updateUI();
-  setGachaResult(rarity, elementDef, isNew);
-  showToast(isNew
-    ? `Nouvel élément obtenu : ${elementDef.name} !`
-    : `${elementDef.name} rejoint à nouveau votre collection.`);
   saveGame();
+
+  return { rarity, elementDef, isNew };
+}
+
+function displayGachaResult(outcome) {
+  if (!outcome) return;
+  setGachaResult(outcome.rarity, outcome.elementDef, outcome.isNew);
+}
+
+function getGachaToastMessage(outcome) {
+  if (!outcome) return '';
+  return outcome.isNew
+    ? `Nouvel élément obtenu : ${outcome.elementDef.name} !`
+    : `${outcome.elementDef.name} rejoint à nouveau votre collection.`;
+}
+
+function wait(duration) {
+  return new Promise(resolve => {
+    setTimeout(resolve, Math.max(0, Number(duration) || 0));
+  });
+}
+
+function populateGachaAnimationStars() {
+  if (!elements.gachaAnimationStars) return;
+  const container = elements.gachaAnimationStars;
+  container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < GACHA_ANIMATION_STAR_COUNT; i += 1) {
+    const star = document.createElement('span');
+    star.className = 'gacha-star';
+    star.style.left = `${Math.random() * 100}%`;
+    star.style.height = `${60 + Math.random() * 90}px`;
+    star.style.opacity = (0.3 + Math.random() * 0.6).toFixed(2);
+    star.style.animationDuration = `${0.7 + Math.random() * 1.2}s`;
+    star.style.animationDelay = `${Math.random()}s`;
+    star.style.setProperty('--star-rotation', `${Math.random() * 40 - 20}deg`);
+    fragment.appendChild(star);
+  }
+  container.appendChild(fragment);
+}
+
+function waitForGachaAnimationDismiss(layer) {
+  return new Promise(resolve => {
+    const handleClick = event => {
+      event.preventDefault();
+      cleanup();
+    };
+    const handleKeyDown = event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        cleanup();
+      }
+      if (event.key === 'Escape') {
+        cleanup();
+      }
+    };
+    const cleanup = () => {
+      layer.removeEventListener('click', handleClick);
+      layer.removeEventListener('keydown', handleKeyDown);
+      resolve();
+    };
+    requestAnimationFrame(() => {
+      try {
+        layer.focus({ preventScroll: true });
+      } catch (err) {
+        layer.focus();
+      }
+    });
+    layer.addEventListener('click', handleClick);
+    layer.addEventListener('keydown', handleKeyDown);
+  });
+}
+
+async function playGachaAnimation(outcome) {
+  if (!outcome) return;
+  if (!elements.gachaAnimation) {
+    displayGachaResult(outcome);
+    return;
+  }
+
+  const layer = elements.gachaAnimation;
+  const stars = elements.gachaAnimationStars;
+  const warp = elements.gachaWarp;
+  const hint = elements.gachaContinueHint;
+  const color = outcome.rarity?.color || '#ffd56a';
+
+  layer.hidden = false;
+  layer.setAttribute('aria-hidden', 'false');
+  layer.classList.remove('show-result');
+  layer.classList.add('is-active');
+  layer.style.setProperty('--gacha-color', color);
+  if (warp) {
+    warp.style.background = `radial-gradient(circle, ${color} 0%, transparent 70%)`;
+  }
+  if (elements.gachaResult) {
+    elements.gachaResult.innerHTML = '';
+    elements.gachaResult.style.removeProperty('--rarity-color');
+  }
+
+  populateGachaAnimationStars();
+
+  await wait(GACHA_ANIMATION_REVEAL_DELAY);
+
+  displayGachaResult(outcome);
+  layer.classList.add('show-result');
+
+  await waitForGachaAnimationDismiss(layer);
+
+  layer.classList.remove('show-result');
+  layer.classList.remove('is-active');
+  layer.setAttribute('aria-hidden', 'true');
+  layer.hidden = true;
+  if (stars) {
+    stars.innerHTML = '';
+  }
+  if (warp) {
+    warp.style.removeProperty('background');
+  }
+  layer.style.removeProperty('--gacha-color');
+  if (elements.gachaResult) {
+    elements.gachaResult.innerHTML = '';
+    elements.gachaResult.style.removeProperty('--rarity-color');
+  }
+}
+
+function handleGachaRoll() {
+  const outcome = performGachaRoll();
+  if (!outcome) return;
+  displayGachaResult(outcome);
+  const message = getGachaToastMessage(outcome);
+  if (message) {
+    showToast(message);
+  }
+}
+
+async function handleGachaSunClick() {
+  if (gachaAnimationInProgress) return;
+  const outcome = performGachaRoll();
+  if (!outcome) {
+    return;
+  }
+
+  gachaAnimationInProgress = true;
+  updateGachaUI();
+
+  try {
+    await playGachaAnimation(outcome);
+    const message = getGachaToastMessage(outcome);
+    if (message) {
+      showToast(message);
+    }
+  } finally {
+    gachaAnimationInProgress = false;
+    if (elements.gachaSunButton) {
+      elements.gachaSunButton.disabled = false;
+    }
+    updateGachaUI();
+  }
 }
 
 function gainGachaTickets(amount = 1) {
@@ -4136,9 +4304,12 @@ if (elements.atomButton) {
   });
 }
 
-if (elements.gachaRollButton) {
-  elements.gachaRollButton.addEventListener('click', () => {
-    handleGachaRoll();
+if (elements.gachaSunButton) {
+  elements.gachaSunButton.addEventListener('click', event => {
+    event.preventDefault();
+    handleGachaSunClick().catch(error => {
+      console.error('Erreur lors du tirage cosmique', error);
+    });
   });
 }
 
