@@ -695,6 +695,32 @@ const GAME_CONFIG = {
           label: 'Essentiel planétaire · synergie orbitale'
         }
       },
+      stellaire: {
+        perCopy: {
+          uniqueClickAdd: 50,
+          duplicateClickAdd: 25,
+          label: 'Forge stellaire · fragments activés'
+        },
+        multiplier: {
+          base: 1,
+          every: 20,
+          increment: 1,
+          targets: ['perClick'],
+          label: 'Forge stellaire · intensité stellaire'
+        },
+        setBonus: {
+          requireAllUnique: true,
+          label: 'Forge stellaire · forge parfaite',
+          rarityFlatMultipliers: {
+            commun: { perClick: 2 }
+          }
+        },
+        labels: {
+          perCopy: 'Forge stellaire · fragments',
+          setBonus: 'Forge stellaire · forge parfaite',
+          multiplier: 'Forge stellaire · intensité stellaire'
+        }
+      },
       irreel: {
         crit: {
           perUnique: {
