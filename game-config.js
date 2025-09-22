@@ -647,6 +647,25 @@ const GAME_CONFIG = {
     rewardTickets: 1
   },
 
+  elementBonuses: {
+    groups: {
+      commun: {
+        perCopy: {
+          clickAdd: 1
+        },
+        setBonus: {
+          clickAdd: 500
+        },
+        multiplier: {
+          every: 50,
+          increment: 1,
+          cap: 100,
+          targets: ['perClick', 'perSecond']
+        }
+      }
+    }
+  },
+
   elements: [
     {
       numero: 1,
