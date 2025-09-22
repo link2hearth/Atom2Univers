@@ -1445,7 +1445,12 @@ configuredRarityIds.forEach(id => {
 
 const RARITY_IDS = GACHA_RARITIES.map(entry => entry.id);
 const RARITY_LABEL_MAP = new Map(GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
-const INFO_BONUS_RARITIES = ['commun', 'essentiel', 'irreel'];
+const INFO_BONUS_RARITIES = RARITY_IDS.length > 0
+  ? [...RARITY_IDS]
+  : ['commun', 'essentiel', 'stellaire', 'singulier', 'mythique', 'irreel'];
+const INFO_BONUS_SUBTITLE = INFO_BONUS_RARITIES.length
+  ? INFO_BONUS_RARITIES.map(id => RARITY_LABEL_MAP.get(id) || id).join(' · ')
+  : 'Raretés indisponibles';
 
 const rawTicketStarConfig = CONFIG.ticketStar && typeof CONFIG.ticketStar === 'object'
   ? CONFIG.ticketStar
@@ -3331,6 +3336,7 @@ const elements = {
   infoGlobalAtoms: document.getElementById('infoGlobalAtoms'),
   infoGlobalClicks: document.getElementById('infoGlobalClicks'),
   infoGlobalDuration: document.getElementById('infoGlobalDuration'),
+  infoBonusSubtitle: document.getElementById('infoBonusSubtitle'),
   infoElementBonuses: document.getElementById('infoElementBonuses'),
   infoShopBonuses: document.getElementById('infoShopBonuses'),
   critConfettiLayer: null,
@@ -4865,6 +4871,9 @@ function stripBonusLabelPrefix(label, rarityLabel) {
 function renderElementBonuses() {
   const container = elements.infoElementBonuses;
   if (!container) return;
+  if (elements.infoBonusSubtitle) {
+    elements.infoBonusSubtitle.textContent = INFO_BONUS_SUBTITLE;
+  }
   container.innerHTML = '';
 
   const summaryStore = gameState.elementBonusSummary || {};
