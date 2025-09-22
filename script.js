@@ -1795,7 +1795,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Laboratoire de Physique',
       description: 'Des équipes de chercheurs boostent votre production atomique.',
       effectSummary:
-        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Palier 200 : Réacteurs +20 %.',
+        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Accélérateur ≥200 : Labos +20 % APS.',
       category: 'auto',
       baseCost: 100,
       costScale: 1.15,
@@ -1820,7 +1820,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Réacteur nucléaire',
       description: 'Des réacteurs contrôlés libèrent une énergie colossale.',
       effectSummary:
-        'Production passive : +10 APS par niveau (bonifiée par Électrons et Labos). Palier 150 : APC global ×2. Synergie : +1 % APS des Réacteurs par 50 Électrons.',
+        'Production passive : +10 APS par niveau (+1 % par 50 Électrons, +20 % si Labos ≥200). Palier 150 : APC global ×2.',
       category: 'auto',
       baseCost: 1000,
       costScale: 1.15,
@@ -1942,7 +1942,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Forgeron d’étoiles',
       description: 'Façonnez des étoiles et dopez votre APC.',
       effectSummary:
-        'Production passive : +500 000 APS par niveau (boostée par Stations). Palier 150 : +25 % APC global.',
+        'Production passive : +500 000 APS par niveau (+2 % APS par Station). Palier 150 : +25 % APC global.',
       category: 'hybrid',
       baseCost: 5e10,
       costScale: 1.15,
@@ -2068,7 +2068,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Univers parallèle',
       description: 'Expérimentez des réalités alternatives à haut rendement.',
       effectSummary:
-        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4). Synergie : +50 % APS/APC à chaque renaissance.',
+        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4).',
       category: 'auto',
       baseCost: 1e30,
       costScale: 1.15,
@@ -3084,6 +3084,7 @@ const elements = {
   infoGlobalClicks: document.getElementById('infoGlobalClicks'),
   infoGlobalDuration: document.getElementById('infoGlobalDuration'),
   infoElementBonuses: document.getElementById('infoElementBonuses'),
+  infoShopBonuses: document.getElementById('infoShopBonuses'),
   critConfettiLayer: null,
   devkitOverlay: document.getElementById('devkitOverlay'),
   devkitPanel: document.getElementById('devkitPanel'),
@@ -4733,6 +4734,171 @@ function renderElementBonuses() {
   });
 }
 
+function formatShopFlatBonus(value) {
+  if (value == null) return null;
+  const layered = value instanceof LayeredNumber ? value : toLayeredValue(value, 0);
+  if (layered.isZero() || layered.sign <= 0) {
+    return null;
+  }
+  const normalized = normalizeProductionUnit(layered);
+  if (normalized.isZero() || normalized.sign <= 0) {
+    return null;
+  }
+  return normalized.toString();
+}
+
+function formatShopMultiplierBonus(value) {
+  if (value == null) return null;
+  const layered = value instanceof LayeredNumber ? value : toMultiplierLayered(value);
+  return isLayeredOne(layered) ? null : formatMultiplier(layered);
+}
+
+function collectShopBonusSummaries() {
+  const productionBase = gameState.productionBase || createEmptyProductionBreakdown();
+  const clickEntry = productionBase.perClick || createEmptyProductionEntry();
+  const autoEntry = productionBase.perSecond || createEmptyProductionEntry();
+
+  const summaries = new Map();
+  UPGRADE_DEFS.forEach(def => {
+    summaries.set(def.id, {
+      id: def.id,
+      name: def.name || def.id,
+      effectSummary: def.effectSummary || def.description || '',
+      level: getUpgradeLevel(gameState.upgrades, def.id),
+      clickAdd: LayeredNumber.zero(),
+      autoAdd: LayeredNumber.zero(),
+      clickMult: LayeredNumber.one(),
+      autoMult: LayeredNumber.one()
+    });
+  });
+
+  const accumulateAddition = (list, key) => {
+    if (!Array.isArray(list)) return;
+    list.forEach(entry => {
+      if (!entry || entry.source !== 'shop') return;
+      const summary = summaries.get(entry.id);
+      if (!summary) return;
+      const value = entry.value instanceof LayeredNumber
+        ? entry.value
+        : toLayeredValue(entry.value, 0);
+      if (value.isZero() || value.sign <= 0) return;
+      summary[key] = summary[key].add(value);
+    });
+  };
+
+  const accumulateMultiplier = (list, key) => {
+    if (!Array.isArray(list)) return;
+    list.forEach(entry => {
+      if (!entry || entry.source !== 'shop') return;
+      const summary = summaries.get(entry.id);
+      if (!summary) return;
+      const value = entry.value instanceof LayeredNumber
+        ? entry.value
+        : toMultiplierLayered(entry.value);
+      summary[key] = summary[key].multiply(value);
+    });
+  };
+
+  accumulateAddition(clickEntry.additions, 'clickAdd');
+  accumulateAddition(autoEntry.additions, 'autoAdd');
+  accumulateMultiplier(clickEntry.multipliers, 'clickMult');
+  accumulateMultiplier(autoEntry.multipliers, 'autoMult');
+
+  return UPGRADE_DEFS.map(def => summaries.get(def.id)).filter(Boolean);
+}
+
+function renderShopBonuses() {
+  const container = elements.infoShopBonuses;
+  if (!container) return;
+  container.innerHTML = '';
+
+  const summaries = collectShopBonusSummaries();
+  if (!summaries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'element-bonus-empty shop-bonus-empty';
+    empty.textContent = 'Aucune amélioration disponible.';
+    container.appendChild(empty);
+    return;
+  }
+
+  summaries.forEach(summary => {
+    const card = document.createElement('article');
+    card.className = 'element-bonus-card shop-bonus-card';
+    card.setAttribute('role', 'listitem');
+    card.dataset.upgradeId = summary.id;
+    if (!summary.level) {
+      card.classList.add('shop-bonus-card--inactive');
+    }
+
+    const header = document.createElement('header');
+    header.className = 'element-bonus-card__header shop-bonus-card__header';
+
+    const title = document.createElement('h4');
+    title.textContent = summary.name;
+    header.appendChild(title);
+
+    const status = document.createElement('span');
+    status.className = 'element-bonus-card__status shop-bonus-card__status';
+    if (summary.level > 0) {
+      status.textContent = `Niveau ${summary.level.toLocaleString('fr-FR')}`;
+    } else {
+      status.textContent = 'Non acheté';
+    }
+    header.appendChild(status);
+
+    card.appendChild(header);
+
+    if (summary.effectSummary) {
+      const desc = document.createElement('p');
+      desc.className = 'shop-bonus-card__summary';
+      desc.textContent = summary.effectSummary;
+      card.appendChild(desc);
+    }
+
+    if (summary.level > 0) {
+      const effects = document.createElement('ul');
+      effects.className = 'element-bonus-effects shop-bonus-effects';
+      let hasEffect = false;
+
+      const appendEffect = (labelText, valueText) => {
+        if (!valueText) return;
+        const item = document.createElement('li');
+        item.className = 'element-bonus-effects__item';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'element-bonus-effects__label';
+        labelEl.textContent = labelText;
+        const valueEl = document.createElement('span');
+        valueEl.className = 'element-bonus-effects__value';
+        valueEl.textContent = valueText;
+        item.append(labelEl, valueEl);
+        effects.appendChild(item);
+        hasEffect = true;
+      };
+
+      appendEffect('APC +', formatShopFlatBonus(summary.clickAdd));
+      appendEffect('APS +', formatShopFlatBonus(summary.autoAdd));
+      appendEffect('APC ×', formatShopMultiplierBonus(summary.clickMult));
+      appendEffect('APS ×', formatShopMultiplierBonus(summary.autoMult));
+
+      if (hasEffect) {
+        card.appendChild(effects);
+      } else {
+        const empty = document.createElement('p');
+        empty.className = 'element-bonus-empty shop-bonus-empty';
+        empty.textContent = 'Bonus en attente de seuil.';
+        card.appendChild(empty);
+      }
+    } else {
+      const locked = document.createElement('p');
+      locked.className = 'element-bonus-empty shop-bonus-empty';
+      locked.textContent = 'Achetez cette amélioration pour activer ses effets.';
+      card.appendChild(locked);
+    }
+
+    container.appendChild(card);
+  });
+}
+
 function computeRarityMultiplierProduct(store) {
   if (!store) return LayeredNumber.one();
   if (store instanceof Map) {
@@ -4803,6 +4969,7 @@ function updateInfoPanels() {
   updateSessionStats();
   updateGlobalStats();
   renderElementBonuses();
+  renderShopBonuses();
 }
 
 let toastElement = null;

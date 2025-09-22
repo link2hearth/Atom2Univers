@@ -1754,6 +1754,18 @@ body.theme-neon .element-bonus-card {
   box-shadow: 0 0 0 1px rgba(116, 245, 198, 0.25);
 }
 
+.shop-bonus-card--inactive {
+  opacity: 0.65;
+}
+
+.shop-bonus-card--inactive .element-bonus-card__status {
+  background: rgba(255,255,255,0.08);
+}
+
+body.theme-light .shop-bonus-card--inactive .element-bonus-card__status {
+  background: rgba(12,16,32,0.12);
+}
+
 .element-bonus-card__header {
   display: flex;
   align-items: baseline;
@@ -1777,6 +1789,13 @@ body.theme-neon .element-bonus-card {
 
 body.theme-light .element-bonus-card__status {
   background: rgba(12,16,32,0.12);
+}
+
+.shop-bonus-card__summary {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  opacity: 0.75;
 }
 
 .element-bonus-stats {
