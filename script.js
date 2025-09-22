@@ -871,6 +871,207 @@ const BASE_PER_SECOND = toLayeredNumber(CONFIG.progression?.basePerSecond, 0);
 const DEFAULT_THEME = CONFIG.progression?.defaultTheme ?? 'dark';
 const OFFLINE_GAIN_CAP = CONFIG.progression?.offlineCapSeconds ?? 60 * 60 * 12;
 
+function clampCritChance(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  if (numeric >= 1) {
+    return 1;
+  }
+  return numeric;
+}
+
+function normalizeCritConfig(raw) {
+  const defaults = {
+    baseChance: 0.05,
+    baseMultiplier: 2,
+    maxMultiplier: 100
+  };
+  if (!raw || typeof raw !== 'object') {
+    return { ...defaults };
+  }
+  const parseNumber = (value, fallback) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+  const baseChance = clampCritChance(parseNumber(raw.baseChance ?? raw.chance ?? raw.defaultChance, defaults.baseChance));
+  const baseMultiplierRaw = parseNumber(
+    raw.baseMultiplier ?? raw.multiplier ?? raw.defaultMultiplier,
+    defaults.baseMultiplier
+  );
+  const baseMultiplier = baseMultiplierRaw > 0 ? baseMultiplierRaw : defaults.baseMultiplier;
+  const maxMultiplierRaw = parseNumber(raw.maxMultiplier ?? raw.cap ?? raw.maximum, defaults.maxMultiplier);
+  const maxMultiplier = Math.max(1, maxMultiplierRaw);
+  return {
+    baseChance,
+    baseMultiplier,
+    maxMultiplier: Math.max(baseMultiplier, maxMultiplier)
+  };
+}
+
+const CRIT_DEFAULTS = normalizeCritConfig(CONFIG.progression?.crit);
+
+function createDefaultCritState() {
+  const multiplier = Math.max(1, Math.min(CRIT_DEFAULTS.baseMultiplier, CRIT_DEFAULTS.maxMultiplier));
+  return {
+    chance: clampCritChance(CRIT_DEFAULTS.baseChance),
+    multiplier,
+    rawMultiplier: Math.max(1, CRIT_DEFAULTS.baseMultiplier),
+    maxMultiplier: Math.max(1, CRIT_DEFAULTS.maxMultiplier)
+  };
+}
+
+function cloneCritState(state) {
+  if (!state || typeof state !== 'object') {
+    return createDefaultCritState();
+  }
+  const baseChance = Number(state.chance ?? state.baseChance);
+  const chance = clampCritChance(Number.isFinite(baseChance) ? baseChance : CRIT_DEFAULTS.baseChance);
+  const rawMultiplierValue = Number(state.rawMultiplier ?? state.multiplier);
+  const rawMultiplier = Number.isFinite(rawMultiplierValue) && rawMultiplierValue > 0
+    ? rawMultiplierValue
+    : CRIT_DEFAULTS.baseMultiplier;
+  const maxMultiplierValue = Number(state.maxMultiplier);
+  const maxMultiplier = Number.isFinite(maxMultiplierValue) && maxMultiplierValue > 0
+    ? maxMultiplierValue
+    : CRIT_DEFAULTS.maxMultiplier;
+  const effectiveMultiplier = Math.max(1, Math.min(Number(state.multiplier ?? rawMultiplier) || rawMultiplier, maxMultiplier));
+  return {
+    chance,
+    multiplier: effectiveMultiplier,
+    rawMultiplier: Math.max(1, rawMultiplier),
+    maxMultiplier: Math.max(1, maxMultiplier)
+  };
+}
+
+function createCritAccumulator() {
+  return {
+    chanceAdd: 0,
+    chanceMult: 1,
+    chanceSet: null,
+    multiplierAdd: 0,
+    multiplierMult: 1,
+    multiplierSet: null,
+    maxMultiplierAdd: 0,
+    maxMultiplierMult: 1,
+    maxMultiplierSet: null
+  };
+}
+
+function applyCritModifiersFromEffect(accumulator, effect) {
+  if (!accumulator || !effect || typeof effect !== 'object') {
+    return;
+  }
+  const readNumber = value => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+  const nested = effect.crit && typeof effect.crit === 'object' ? effect.crit : null;
+
+  const chanceSetDirect = readNumber(effect.critChanceSet ?? effect.critChance ?? nested?.chanceSet ?? nested?.chance);
+  if (chanceSetDirect != null) {
+    accumulator.chanceSet = Math.max(0, chanceSetDirect);
+  }
+  const chanceAdd = readNumber(effect.critChanceAdd ?? nested?.chanceAdd);
+  if (chanceAdd != null) {
+    accumulator.chanceAdd += chanceAdd;
+  }
+  const chanceMult = readNumber(effect.critChanceMult ?? nested?.chanceMult);
+  if (chanceMult != null) {
+    accumulator.chanceMult *= Math.max(0, chanceMult);
+  }
+
+  const multiplierSet = readNumber(effect.critMultiplierSet ?? effect.critMultiplier ?? nested?.multiplierSet ?? nested?.multiplier);
+  if (multiplierSet != null) {
+    accumulator.multiplierSet = Math.max(0, multiplierSet);
+  }
+  const multiplierAdd = readNumber(effect.critMultiplierAdd ?? nested?.multiplierAdd);
+  if (multiplierAdd != null) {
+    accumulator.multiplierAdd += multiplierAdd;
+  }
+  const multiplierMult = readNumber(effect.critMultiplierMult ?? nested?.multiplierMult);
+  if (multiplierMult != null) {
+    accumulator.multiplierMult *= Math.max(0, multiplierMult);
+  }
+
+  const maxMultiplierSet = readNumber(
+    effect.critMaxMultiplierSet ?? effect.critMaxMultiplier ?? nested?.maxMultiplierSet ?? nested?.maxMultiplier ?? nested?.cap
+  );
+  if (maxMultiplierSet != null) {
+    accumulator.maxMultiplierSet = Math.max(0, maxMultiplierSet);
+  }
+  const maxMultiplierAdd = readNumber(effect.critMaxMultiplierAdd ?? nested?.maxMultiplierAdd ?? nested?.capAdd);
+  if (maxMultiplierAdd != null) {
+    accumulator.maxMultiplierAdd += maxMultiplierAdd;
+  }
+  const maxMultiplierMult = readNumber(effect.critMaxMultiplierMult ?? nested?.maxMultiplierMult ?? nested?.capMult);
+  if (maxMultiplierMult != null) {
+    accumulator.maxMultiplierMult *= Math.max(0, maxMultiplierMult);
+  }
+}
+
+function finalizeCritEffect(accumulator) {
+  if (!accumulator) {
+    return null;
+  }
+  const effect = {};
+  if (accumulator.chanceSet != null) {
+    effect.critChanceSet = accumulator.chanceSet;
+  }
+  if (accumulator.chanceAdd !== 0) {
+    effect.critChanceAdd = accumulator.chanceAdd;
+  }
+  if (accumulator.chanceMult !== 1) {
+    effect.critChanceMult = accumulator.chanceMult;
+  }
+  if (accumulator.multiplierSet != null) {
+    effect.critMultiplierSet = accumulator.multiplierSet;
+  }
+  if (accumulator.multiplierAdd !== 0) {
+    effect.critMultiplierAdd = accumulator.multiplierAdd;
+  }
+  if (accumulator.multiplierMult !== 1) {
+    effect.critMultiplierMult = accumulator.multiplierMult;
+  }
+  if (accumulator.maxMultiplierSet != null) {
+    effect.critMaxMultiplierSet = accumulator.maxMultiplierSet;
+  }
+  if (accumulator.maxMultiplierAdd !== 0) {
+    effect.critMaxMultiplierAdd = accumulator.maxMultiplierAdd;
+  }
+  if (accumulator.maxMultiplierMult !== 1) {
+    effect.critMaxMultiplierMult = accumulator.maxMultiplierMult;
+  }
+  return Object.keys(effect).length ? effect : null;
+}
+
+function resolveCritState(accumulator) {
+  const acc = accumulator || createCritAccumulator();
+  const baseChance = acc.chanceSet != null ? acc.chanceSet : CRIT_DEFAULTS.baseChance;
+  const chance = clampCritChance((baseChance + acc.chanceAdd) * (acc.chanceMult != null ? acc.chanceMult : 1));
+
+  const baseMultiplier = acc.multiplierSet != null ? acc.multiplierSet : CRIT_DEFAULTS.baseMultiplier;
+  let rawMultiplier = baseMultiplier + acc.multiplierAdd;
+  rawMultiplier = Math.max(0, rawMultiplier);
+  rawMultiplier *= acc.multiplierMult != null ? acc.multiplierMult : 1;
+  rawMultiplier = Math.max(1, rawMultiplier);
+
+  const baseMaxMultiplier = acc.maxMultiplierSet != null ? acc.maxMultiplierSet : CRIT_DEFAULTS.maxMultiplier;
+  let maxMultiplier = baseMaxMultiplier + acc.maxMultiplierAdd;
+  maxMultiplier = Math.max(0, maxMultiplier);
+  maxMultiplier *= acc.maxMultiplierMult != null ? acc.maxMultiplierMult : 1;
+  maxMultiplier = Math.max(1, maxMultiplier);
+
+  const effectiveMultiplier = Math.max(1, Math.min(rawMultiplier, maxMultiplier));
+  return {
+    chance,
+    multiplier: effectiveMultiplier,
+    rawMultiplier,
+    maxMultiplier
+  };
+}
+
 const FRENZY_DEFAULTS = {
   displayDurationMs: 5000,
   effectDurationMs: 30000,
@@ -1645,6 +1846,8 @@ function applyFrenzyEffects(now = performance.now()) {
     perSecond: autoEntry
   };
 
+  gameState.crit = cloneCritState(gameState.baseCrit);
+
   frenzyState.perClick.currentMultiplier = clickMultiplier;
   frenzyState.perSecond.currentMultiplier = autoMultiplier;
   frenzyState.perClick.currentStacks = getFrenzyStackCount('perClick', now);
@@ -1884,6 +2087,9 @@ const DEFAULT_STATE = {
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
   productionBase: createEmptyProductionBreakdown(),
+  crit: createDefaultCritState(),
+  baseCrit: createDefaultCritState(),
+  lastCritical: null,
   trophies: []
 };
 
@@ -1901,6 +2107,9 @@ const gameState = {
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
   productionBase: createEmptyProductionBreakdown(),
+  crit: createDefaultCritState(),
+  baseCrit: createDefaultCritState(),
+  lastCritical: null,
   trophies: new Set()
 };
 
@@ -2051,6 +2260,7 @@ function computeTrophyEffects() {
   let clickMultiplier = LayeredNumber.one();
   let autoMultiplier = LayeredNumber.one();
   let maxStacks = FRENZY_CONFIG.baseMaxStacks;
+  const critAccumulator = createCritAccumulator();
 
   unlocked.forEach(id => {
     const def = TROPHY_MAP.get(id);
@@ -2073,9 +2283,15 @@ function computeTrophyEffects() {
     if (Number.isFinite(reward?.frenzyMaxStacks)) {
       maxStacks = Math.max(maxStacks, reward.frenzyMaxStacks);
     }
+    applyCritModifiersFromEffect(critAccumulator, reward);
+    if (reward?.crit) {
+      applyCritModifiersFromEffect(critAccumulator, reward.crit);
+    }
   });
 
-  return { clickMultiplier, autoMultiplier, maxStacks };
+  const critEffect = finalizeCritEffect(critAccumulator);
+
+  return { clickMultiplier, autoMultiplier, maxStacks, critEffect };
 }
 
 function getTrophyFrenzyCap() {
@@ -3390,12 +3606,22 @@ function registerFrenzyTrigger(type) {
   applyToStore(gameState.stats.global);
 }
 
-function animateAtomPress() {
+function animateAtomPress(options = {}) {
   if (!elements.atomButton) return;
-  elements.atomButton.classList.add('is-pressed');
+  const { critical = false, multiplier = 1 } = options;
+  const button = elements.atomButton;
+  button.classList.add('is-pressed');
+  if (critical) {
+    button.classList.add('is-critical');
+    showCriticalIndicator(multiplier);
+    clearTimeout(animateAtomPress.criticalTimeout);
+    animateAtomPress.criticalTimeout = setTimeout(() => {
+      button.classList.remove('is-critical');
+    }, 280);
+  }
   clearTimeout(animateAtomPress.timeout);
   animateAtomPress.timeout = setTimeout(() => {
-    elements.atomButton.classList.remove('is-pressed');
+    button.classList.remove('is-pressed');
   }, 110);
 }
 
@@ -3419,10 +3645,70 @@ function initStarfield() {
   elements.starfield.appendChild(fragment);
 }
 
+function formatCriticalMultiplier(multiplier) {
+  const numeric = Number(multiplier);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '×1';
+  }
+  const value = Math.max(1, numeric);
+  let maximumFractionDigits = 2;
+  if (value >= 50) {
+    maximumFractionDigits = 0;
+  } else if (value >= 10) {
+    maximumFractionDigits = 1;
+  }
+  return `×${value.toLocaleString('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits
+  })}`;
+}
+
+function showCriticalIndicator(multiplier) {
+  if (!elements.atomButton) return;
+  const button = elements.atomButton;
+  button.querySelectorAll('.atom-button__crit').forEach(node => node.remove());
+  const indicator = document.createElement('span');
+  indicator.className = 'atom-button__crit';
+  indicator.textContent = formatCriticalMultiplier(multiplier);
+  button.appendChild(indicator);
+  setTimeout(() => {
+    if (indicator.isConnected) {
+      indicator.remove();
+    }
+  }, 650);
+}
+
+function applyCriticalHit(baseAmount) {
+  const amount = baseAmount instanceof LayeredNumber
+    ? baseAmount.clone()
+    : new LayeredNumber(baseAmount ?? 0);
+  const critState = cloneCritState(gameState.crit);
+  const chance = Number(critState.chance) || 0;
+  const effectiveMultiplier = Math.max(1, Math.min(critState.multiplier || 1, critState.maxMultiplier || critState.multiplier || 1));
+  if (chance <= 0 || effectiveMultiplier <= 1) {
+    return { amount, isCritical: false, multiplier: 1 };
+  }
+  if (Math.random() >= chance) {
+    return { amount, isCritical: false, multiplier: 1 };
+  }
+  const critAmount = amount.multiplyNumber(effectiveMultiplier);
+  return { amount: critAmount, isCritical: true, multiplier: effectiveMultiplier };
+}
+
 function handleManualAtomClick() {
-  gainAtoms(gameState.perClick, true);
+  const baseAmount = gameState.perClick instanceof LayeredNumber
+    ? gameState.perClick
+    : toLayeredNumber(gameState.perClick ?? 0, 0);
+  const critResult = applyCriticalHit(baseAmount);
+  gainAtoms(critResult.amount, true);
   registerManualClick();
-  animateAtomPress();
+  if (critResult.isCritical) {
+    gameState.lastCritical = {
+      at: Date.now(),
+      multiplier: critResult.multiplier
+    };
+  }
+  animateAtomPress({ critical: critResult.isCritical, multiplier: critResult.multiplier });
 }
 
 function shouldTriggerGlobalClick(event) {
@@ -3562,6 +3848,7 @@ function recalcProduction() {
   let autoShopAddition = LayeredNumber.zero();
   let clickElementAddition = LayeredNumber.zero();
   let autoElementAddition = LayeredNumber.zero();
+  const critAccumulator = createCritAccumulator();
 
   const clickMultiplierSlots = {
     shopBonus1: LayeredNumber.one(),
@@ -3585,6 +3872,9 @@ function recalcProduction() {
   const autoTrophyMultiplier = trophyEffects.autoMultiplier instanceof LayeredNumber
     ? trophyEffects.autoMultiplier.clone()
     : toMultiplierLayered(trophyEffects.autoMultiplier ?? 1);
+  if (trophyEffects.critEffect) {
+    applyCritModifiersFromEffect(critAccumulator, trophyEffects.critEffect);
+  }
 
   UPGRADE_DEFS.forEach(def => {
     const level = getUpgradeLevel(gameState.upgrades, def.id);
@@ -3640,6 +3930,7 @@ function recalcProduction() {
         });
       }
     }
+    applyCritModifiersFromEffect(critAccumulator, effects);
   });
 
   clickDetails.sources.flats.shopFlat = clickShopAddition.clone();
@@ -3711,6 +4002,10 @@ function recalcProduction() {
   gameState.basePerClick = perClick.clone();
   gameState.basePerSecond = perSecond.clone();
   gameState.productionBase = { perClick: clickDetails, perSecond: autoDetails };
+
+  const baseCritState = resolveCritState(critAccumulator);
+  gameState.baseCrit = baseCritState;
+  gameState.crit = cloneCritState(baseCritState);
 
   applyFrenzyEffects();
 }
@@ -4107,6 +4402,9 @@ function resetGame() {
     stats: createInitialStats(),
     production: createEmptyProductionBreakdown(),
     productionBase: createEmptyProductionBreakdown(),
+    crit: createDefaultCritState(),
+    baseCrit: createDefaultCritState(),
+    lastCritical: null,
     trophies: new Set()
   });
   resetFrenzyState({ skipApply: true });
@@ -4122,6 +4420,9 @@ function loadGame() {
   try {
     resetFrenzyState({ skipApply: true });
     resetTicketStarState({ reschedule: true });
+    gameState.baseCrit = createDefaultCritState();
+    gameState.crit = createDefaultCritState();
+    gameState.lastCritical = null;
     const raw = localStorage.getItem('atom2univers');
     if (!raw) {
       gameState.theme = DEFAULT_THEME;

@@ -425,12 +425,18 @@ const GAME_CONFIG = {
    * - basePerSecond : production passive initiale (0 si aucune production automatique).
    * - offlineCapSeconds : durée maximale (en secondes) prise en compte pour les gains hors-ligne.
    * - defaultTheme : thème visuel utilisé lors d'une nouvelle partie ou après réinitialisation.
+   * - crit : paramètres initiaux des coups critiques (chance, multiplicateur et plafond).
    */
   progression: {
     basePerClick: { type: 'number', value: 1 },
     basePerSecond: { type: 'number', value: 0 },
     offlineCapSeconds: 60 * 60 * 12,
-    defaultTheme: 'dark'
+    defaultTheme: 'dark',
+    crit: {
+      baseChance: 0.05,
+      baseMultiplier: 2,
+      maxMultiplier: 100
+    }
   },
 
   /**
