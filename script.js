@@ -3680,7 +3680,7 @@ function pickRandom(array) {
 
 function createCritConfettiNode() {
   const confetti = document.createElement('span');
-  const baseSize = 12 + Math.random() * 18;
+  const baseSize = (12 + Math.random() * 18) * 0.1;
   const shape = pickRandom(CRIT_CONFETTI_SHAPES);
   const width = baseSize * shape.widthFactor;
   const height = baseSize * shape.heightFactor;

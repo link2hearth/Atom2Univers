@@ -1083,9 +1083,6 @@ body.theme-neon .page--void {
   animation: crit-confetti-float var(--confetti-duration, 3s) ease-in-out forwards;
   animation-delay: var(--confetti-delay, 0s);
   pointer-events: none;
-  filter:
-    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18))
-    drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
   mix-blend-mode: screen;
 }
 
