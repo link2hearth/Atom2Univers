@@ -144,46 +144,55 @@
           <ul id="infoApcBreakdown" class="production-breakdown" aria-label="Détail du calcul APC"></ul>
         </article>
 
-        <article class="info-card info-card--stats" aria-labelledby="info-session-title">
+        <article class="info-card info-card--stats info-card--progression" aria-labelledby="info-progress-title">
           <header class="info-card__header">
-            <h3 id="info-session-title">Session en cours</h3>
-            <p class="info-card__subtitle">Données depuis le chargement</p>
+            <h3 id="info-progress-title">Progression</h3>
+            <p class="info-card__subtitle">Session &amp; globale</p>
           </header>
-          <dl class="info-metrics">
-            <div class="info-metrics__row">
-              <dt>Atomes gagnés</dt>
-              <dd id="infoSessionAtoms">0</dd>
-            </div>
-            <div class="info-metrics__row">
-              <dt>Clics manuels</dt>
-              <dd id="infoSessionClicks">0</dd>
-            </div>
-            <div class="info-metrics__row">
-              <dt>Durée en ligne</dt>
-              <dd id="infoSessionDuration">0s</dd>
-            </div>
-          </dl>
+          <div class="info-progress-grid" role="group" aria-labelledby="info-progress-title">
+            <section class="info-progress-block" aria-labelledby="info-session-title">
+              <h4 id="info-session-title">Session</h4>
+              <dl class="info-metrics">
+                <div class="info-metrics__row">
+                  <dt>Atomes gagnés</dt>
+                  <dd id="infoSessionAtoms">0</dd>
+                </div>
+                <div class="info-metrics__row">
+                  <dt>Clics manuels</dt>
+                  <dd id="infoSessionClicks">0</dd>
+                </div>
+                <div class="info-metrics__row">
+                  <dt>Durée en ligne</dt>
+                  <dd id="infoSessionDuration">0s</dd>
+                </div>
+              </dl>
+            </section>
+            <section class="info-progress-block" aria-labelledby="info-global-title">
+              <h4 id="info-global-title">Globale</h4>
+              <dl class="info-metrics">
+                <div class="info-metrics__row">
+                  <dt>Atomes gagnés</dt>
+                  <dd id="infoGlobalAtoms">0</dd>
+                </div>
+                <div class="info-metrics__row">
+                  <dt>Clics manuels</dt>
+                  <dd id="infoGlobalClicks">0</dd>
+                </div>
+                <div class="info-metrics__row">
+                  <dt>Durée de jeu</dt>
+                  <dd id="infoGlobalDuration">0s</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
         </article>
 
-        <article class="info-card info-card--stats" aria-labelledby="info-global-title">
+        <article class="info-card info-card--bonuses" aria-labelledby="info-bonus-title">
           <header class="info-card__header">
-            <h3 id="info-global-title">Progression globale</h3>
-            <p class="info-card__subtitle">Statistiques sauvegardées</p>
+            <h3 id="info-bonus-title">Bonus éléments</h3>
+            <p class="info-card__subtitle">Commun · Essentiel · Irréel</p>
           </header>
-          <dl class="info-metrics">
-            <div class="info-metrics__row">
-              <dt>Atomes gagnés</dt>
-              <dd id="infoGlobalAtoms">0</dd>
-            </div>
-            <div class="info-metrics__row">
-              <dt>Clics manuels</dt>
-              <dd id="infoGlobalClicks">0</dd>
-            </div>
-            <div class="info-metrics__row">
-              <dt>Durée de jeu</dt>
-              <dd id="infoGlobalDuration">0s</dd>
-            </div>
-          </dl>
+          <div id="infoElementBonuses" class="element-bonus-list" role="list" aria-live="polite"></div>
         </article>
       </div>
     </section>
