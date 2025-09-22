@@ -1202,11 +1202,10 @@ function normalizeElementGroupBonus(raw) {
   };
 }
 
-const ELEMENT_GROUP_BONUS_CONFIG = (() => {
-  const result = new Map();
+const RAW_ELEMENT_GROUP_BONUS_GROUPS = (() => {
   const rawConfig = CONFIG.elementBonuses ?? CONFIG.elementBonus ?? null;
   if (!rawConfig || typeof rawConfig !== 'object') {
-    return result;
+    return {};
   }
   const rawGroups = rawConfig.groups
     ?? rawConfig.byRarity
@@ -1214,9 +1213,14 @@ const ELEMENT_GROUP_BONUS_CONFIG = (() => {
     ?? rawConfig.groupsByRarity
     ?? rawConfig;
   if (!rawGroups || typeof rawGroups !== 'object') {
-    return result;
+    return {};
   }
-  Object.entries(rawGroups).forEach(([rarityId, rawValue]) => {
+  return rawGroups;
+})();
+
+const ELEMENT_GROUP_BONUS_CONFIG = (() => {
+  const result = new Map();
+  Object.entries(RAW_ELEMENT_GROUP_BONUS_GROUPS).forEach(([rarityId, rawValue]) => {
     if (!rarityId) return;
     const normalizedRarityId = String(rarityId).trim();
     if (!normalizedRarityId) return;
@@ -1226,6 +1230,35 @@ const ELEMENT_GROUP_BONUS_CONFIG = (() => {
   });
   return result;
 })();
+
+const MYTHIQUE_RARITY_ID = 'mythique';
+const RAW_MYTHIQUE_GROUP_CONFIG = (() => {
+  const raw = RAW_ELEMENT_GROUP_BONUS_GROUPS[MYTHIQUE_RARITY_ID];
+  return raw && typeof raw === 'object' ? raw : null;
+})();
+
+if (!ELEMENT_GROUP_BONUS_CONFIG.has(MYTHIQUE_RARITY_ID)) {
+  const fallback = {};
+  if (RAW_MYTHIQUE_GROUP_CONFIG?.labels && typeof RAW_MYTHIQUE_GROUP_CONFIG.labels === 'object') {
+    fallback.labels = {};
+    Object.entries(RAW_MYTHIQUE_GROUP_CONFIG.labels).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.trim()) {
+        fallback.labels[key] = value.trim();
+      }
+    });
+  }
+  ELEMENT_GROUP_BONUS_CONFIG.set(MYTHIQUE_RARITY_ID, fallback);
+} else if (RAW_MYTHIQUE_GROUP_CONFIG?.labels && typeof RAW_MYTHIQUE_GROUP_CONFIG.labels === 'object') {
+  const entry = ELEMENT_GROUP_BONUS_CONFIG.get(MYTHIQUE_RARITY_ID);
+  if (entry) {
+    entry.labels = { ...(entry.labels || {}) };
+    Object.entries(RAW_MYTHIQUE_GROUP_CONFIG.labels).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.trim()) {
+        entry.labels[key] = value.trim();
+      }
+    });
+  }
+}
 
 const CATEGORY_LABELS = {
   'alkali-metal': 'métal alcalin',
@@ -1445,6 +1478,18 @@ const TICKET_STAR_CONFIG = {
     return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
   })()
 };
+
+const DEFAULT_TICKET_STAR_INTERVAL_SECONDS = TICKET_STAR_CONFIG.averageSpawnIntervalMs / 1000;
+const MYTHIQUE_OFFLINE_BASE = 0.01;
+const MYTHIQUE_OFFLINE_PER_DUPLICATE = 0.01;
+const MYTHIQUE_OFFLINE_CAP = 1;
+const MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS = 50;
+const MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS = 5;
+const MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER = 1.5;
+const MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP = Math.max(
+  0,
+  Math.ceil((MYTHIQUE_OFFLINE_CAP - MYTHIQUE_OFFLINE_BASE) / MYTHIQUE_OFFLINE_PER_DUPLICATE)
+);
 
 const PRODUCTION_STEP_DEFINITIONS = new Map();
 
@@ -1897,6 +1942,30 @@ const FRENZY_TYPE_INFO = {
 };
 
 const FRENZY_TYPES = ['perClick', 'perSecond'];
+
+const frenzySpawnChanceBonus = { perClick: 1, perSecond: 1 };
+
+function applyFrenzySpawnChanceBonus(bonus) {
+  const perClick = Number(bonus?.perClick);
+  const perSecond = Number(bonus?.perSecond);
+  frenzySpawnChanceBonus.perClick = Number.isFinite(perClick) && perClick > 0 ? perClick : 1;
+  frenzySpawnChanceBonus.perSecond = Number.isFinite(perSecond) && perSecond > 0 ? perSecond : 1;
+}
+
+function getEffectiveFrenzySpawnChance(type) {
+  const base = FRENZY_CONFIG.spawnChancePerSecond[type] ?? 0;
+  if (!Number.isFinite(base) || base <= 0) {
+    return 0;
+  }
+  const modifier = type === 'perClick'
+    ? frenzySpawnChanceBonus.perClick
+    : (type === 'perSecond' ? frenzySpawnChanceBonus.perSecond : 1);
+  const total = base * modifier;
+  if (!Number.isFinite(total) || total <= 0) {
+    return 0;
+  }
+  return Math.min(1, total);
+}
 
 const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
   if (typeof createShopBuildingDefinitions === 'function') {
@@ -2716,7 +2785,7 @@ function attemptFrenzySpawn(type, now = performance.now()) {
   if (!elements.frenzyLayer || !elements.atomButton) return;
   const entry = frenzyState[type];
   if (entry.token) return;
-  const chance = FRENZY_CONFIG.spawnChancePerSecond[type] ?? 0;
+  const chance = getEffectiveFrenzySpawnChance(type);
   if (chance <= 0) return;
   if (Math.random() >= chance) return;
   spawnFrenzyToken(type, now);
@@ -2880,7 +2949,10 @@ const DEFAULT_STATE = {
   baseCrit: createDefaultCritState(),
   lastCritical: null,
   elementBonusSummary: {},
-  trophies: []
+  trophies: [],
+  offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+  frenzySpawnBonus: { perClick: 1, perSecond: 1 }
 };
 
 const gameState = {
@@ -2901,8 +2973,13 @@ const gameState = {
   baseCrit: createDefaultCritState(),
   lastCritical: null,
   elementBonusSummary: {},
-  trophies: new Set()
+  trophies: new Set(),
+  offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+  frenzySpawnBonus: { perClick: 1, perSecond: 1 }
 };
+
+applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
 
 const DEVKIT_STATE = {
   isOpen: false,
@@ -4363,8 +4440,33 @@ function gainGachaTickets(amount = 1) {
   return gain;
 }
 
+let ticketStarAverageIntervalMsOverride = TICKET_STAR_CONFIG.averageSpawnIntervalMs;
+
+function getTicketStarAverageIntervalMs() {
+  const value = Number.isFinite(ticketStarAverageIntervalMsOverride) && ticketStarAverageIntervalMsOverride > 0
+    ? ticketStarAverageIntervalMsOverride
+    : TICKET_STAR_CONFIG.averageSpawnIntervalMs;
+  return Math.max(1000, value);
+}
+
+function setTicketStarAverageIntervalSeconds(seconds) {
+  const baseSeconds = DEFAULT_TICKET_STAR_INTERVAL_SECONDS;
+  const numericSeconds = Number(seconds);
+  const resolvedSeconds = Number.isFinite(numericSeconds) && numericSeconds > 0
+    ? numericSeconds
+    : baseSeconds;
+  const normalizedMs = Math.max(1000, resolvedSeconds * 1000);
+  if (Math.abs(ticketStarAverageIntervalMsOverride - normalizedMs) < 1) {
+    gameState.ticketStarAverageIntervalSeconds = normalizedMs / 1000;
+    return false;
+  }
+  ticketStarAverageIntervalMsOverride = normalizedMs;
+  gameState.ticketStarAverageIntervalSeconds = normalizedMs / 1000;
+  return true;
+}
+
 function computeTicketStarDelay() {
-  const average = Math.max(1000, TICKET_STAR_CONFIG.averageSpawnIntervalMs);
+  const average = getTicketStarAverageIntervalMs();
   const jitter = 0.5 + Math.random();
   return average * jitter;
 }
@@ -5823,6 +5925,11 @@ function recalcProduction() {
 
   const elementCountsByRarity = new Map();
   const elementGroupSummaries = new Map();
+  const mythiqueBonuses = {
+    ticketIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+    offlineMultiplier: MYTHIQUE_OFFLINE_BASE,
+    frenzyChanceMultiplier: 1
+  };
   const getRarityCounter = rarityId => {
     if (!rarityId) return null;
     let counter = elementCountsByRarity.get(rarityId);
@@ -6040,6 +6147,7 @@ function recalcProduction() {
       label: rarityLabel,
       copies: copyCount,
       uniques: uniqueCount,
+      duplicates: duplicateCount,
       totalUnique,
       isComplete: totalUnique > 0 && uniqueCount >= totalUnique,
       clickFlatTotal: 0,
@@ -6365,6 +6473,86 @@ function recalcProduction() {
       }
     }
 
+    if (rarityId === MYTHIQUE_RARITY_ID) {
+      const labels = groupConfig?.labels || {};
+      const resolveLabel = (key, fallback) => {
+        const raw = typeof labels[key] === 'string' ? labels[key].trim() : '';
+        return raw || fallback;
+      };
+      const ticketLabel = resolveLabel('ticketBonus', `${rarityLabel} · accélération quantique`);
+      const offlineLabel = resolveLabel('offlineBonus', `${rarityLabel} · collecte hors ligne`);
+      const overflowLabel = resolveLabel('duplicateOverflow', `${rarityLabel} · surcharge fractale`);
+      const baseTicketSeconds = DEFAULT_TICKET_STAR_INTERVAL_SECONDS;
+      const ticketSeconds = Math.max(
+        MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS,
+        baseTicketSeconds - uniqueCount
+      );
+      mythiqueBonuses.ticketIntervalSeconds = ticketSeconds;
+      summary.ticketIntervalSeconds = ticketSeconds;
+      if (uniqueCount > 0) {
+        activeLabels.add(ticketLabel);
+      }
+
+      const duplicates = duplicateCount;
+      const multiplierDuplicates = Math.min(duplicates, MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP);
+      const offlineMultiplier = Math.min(
+        MYTHIQUE_OFFLINE_CAP,
+        MYTHIQUE_OFFLINE_BASE + multiplierDuplicates * MYTHIQUE_OFFLINE_PER_DUPLICATE
+      );
+      mythiqueBonuses.offlineMultiplier = offlineMultiplier;
+      summary.offlineMultiplier = offlineMultiplier;
+      if (duplicates > 0) {
+        activeLabels.add(offlineLabel);
+      }
+
+      const overflowDuplicates = Math.max(0, duplicates - MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP);
+      summary.overflowDuplicates = overflowDuplicates;
+      if (overflowDuplicates > 0) {
+        const clickLabel = overflowLabel;
+        const autoLabel = overflowLabel;
+        const overflowClick = addClickElementFlat(
+          MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS * overflowDuplicates,
+          {
+            id: `elements:${rarityId}:overflow:click`,
+            label: clickLabel,
+            rarityId
+          }
+        );
+        if (Number.isFinite(overflowClick) && overflowClick !== 0) {
+          summary.clickFlatTotal += overflowClick;
+        }
+        const overflowAuto = addAutoElementFlat(
+          MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS * overflowDuplicates,
+          {
+            id: `elements:${rarityId}:overflow:auto`,
+            label: autoLabel,
+            rarityId
+          }
+        );
+        if (Number.isFinite(overflowAuto) && overflowAuto !== 0) {
+          summary.autoFlatTotal += overflowAuto;
+        }
+        if (
+          (Number.isFinite(overflowClick) && overflowClick !== 0)
+          || (Number.isFinite(overflowAuto) && overflowAuto !== 0)
+        ) {
+          activeLabels.add(overflowLabel);
+        }
+      } else {
+        summary.overflowDuplicates = 0;
+      }
+
+      const frenzyMultiplier = summary.isComplete
+        ? MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER
+        : 1;
+      mythiqueBonuses.frenzyChanceMultiplier = frenzyMultiplier;
+      summary.frenzyChanceMultiplier = frenzyMultiplier;
+      if (frenzyMultiplier !== 1) {
+        const frenzyLabel = resolveLabel('setBonus', `${rarityLabel} · convergence totale`);
+        activeLabels.add(frenzyLabel);
+      }
+    }
+
     if (
       stellaireBoostActive
       && (
@@ -6382,6 +6570,18 @@ function recalcProduction() {
     summary.activeLabels = Array.from(activeLabels);
     elementGroupSummaries.set(rarityId, summary);
   });
+
+  const intervalChanged = setTicketStarAverageIntervalSeconds(mythiqueBonuses.ticketIntervalSeconds);
+  if (intervalChanged && !ticketStarState.active) {
+    resetTicketStarState({ reschedule: true });
+  }
+  gameState.offlineGainMultiplier = mythiqueBonuses.offlineMultiplier;
+  const frenzyBonus = {
+    perClick: mythiqueBonuses.frenzyChanceMultiplier,
+    perSecond: mythiqueBonuses.frenzyChanceMultiplier
+  };
+  gameState.frenzySpawnBonus = frenzyBonus;
+  applyFrenzySpawnChanceBonus(frenzyBonus);
 
   const elementBonusSummary = {};
   elementGroupSummaries.forEach((value, key) => {
@@ -6922,6 +7122,23 @@ function serializeState() {
         }
       }
     },
+    offlineGainMultiplier: Number.isFinite(Number(gameState.offlineGainMultiplier))
+      ? Math.max(0, Number(gameState.offlineGainMultiplier))
+      : MYTHIQUE_OFFLINE_BASE,
+    ticketStarIntervalSeconds: Number.isFinite(Number(gameState.ticketStarAverageIntervalSeconds))
+      && Number(gameState.ticketStarAverageIntervalSeconds) > 0
+      ? Number(gameState.ticketStarAverageIntervalSeconds)
+      : DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+    frenzySpawnBonus: {
+      perClick: Number.isFinite(Number(gameState.frenzySpawnBonus?.perClick))
+        && Number(gameState.frenzySpawnBonus.perClick) > 0
+        ? Number(gameState.frenzySpawnBonus.perClick)
+        : 1,
+      perSecond: Number.isFinite(Number(gameState.frenzySpawnBonus?.perSecond))
+        && Number(gameState.frenzySpawnBonus.perSecond) > 0
+        ? Number(gameState.frenzySpawnBonus.perSecond)
+        : 1
+    },
     trophies: getUnlockedTrophyIds(),
     lastSave: Date.now()
   };
@@ -6955,8 +7172,13 @@ function resetGame() {
     baseCrit: createDefaultCritState(),
     lastCritical: null,
     elementBonusSummary: {},
-    trophies: new Set()
+    trophies: new Set(),
+    offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+    ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+    frenzySpawnBonus: { perClick: 1, perSecond: 1 }
   });
+  applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
+  setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
   resetFrenzyState({ skipApply: true });
   resetTicketStarState({ reschedule: true });
   applyTheme(DEFAULT_THEME);
@@ -6993,6 +7215,34 @@ function loadGame() {
     gameState.upgrades = data.upgrades || {};
     gameState.stats = parseStats(data.stats);
     gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
+    const storedOffline = Number(data.offlineGainMultiplier);
+    if (Number.isFinite(storedOffline) && storedOffline > 0) {
+      gameState.offlineGainMultiplier = Math.min(MYTHIQUE_OFFLINE_CAP, storedOffline);
+    } else {
+      gameState.offlineGainMultiplier = MYTHIQUE_OFFLINE_BASE;
+    }
+    const storedInterval = Number(data.ticketStarIntervalSeconds);
+    if (Number.isFinite(storedInterval) && storedInterval > 0) {
+      gameState.ticketStarAverageIntervalSeconds = storedInterval;
+    } else {
+      gameState.ticketStarAverageIntervalSeconds = DEFAULT_TICKET_STAR_INTERVAL_SECONDS;
+    }
+    const storedFrenzyBonus = data.frenzySpawnBonus;
+    if (storedFrenzyBonus && typeof storedFrenzyBonus === 'object') {
+      const perClick = Number(storedFrenzyBonus.perClick);
+      const perSecond = Number(storedFrenzyBonus.perSecond);
+      gameState.frenzySpawnBonus = {
+        perClick: Number.isFinite(perClick) && perClick > 0 ? perClick : 1,
+        perSecond: Number.isFinite(perSecond) && perSecond > 0 ? perSecond : 1
+      };
+    } else {
+      gameState.frenzySpawnBonus = { perClick: 1, perSecond: 1 };
+    }
+    applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
+    const intervalChanged = setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
+    if (intervalChanged) {
+      resetTicketStarState({ reschedule: true });
+    }
     const baseCollection = createInitialElementCollection();
     if (data.elements && typeof data.elements === 'object') {
       Object.entries(data.elements).forEach(([id, saved]) => {
@@ -7023,9 +7273,15 @@ function loadGame() {
       const diff = (Date.now() - data.lastSave) / 1000;
       const capped = Math.min(diff, OFFLINE_GAIN_CAP);
       if (capped > 0) {
-        const offlineGain = gameState.perSecond.multiplyNumber(capped);
-        gainAtoms(offlineGain);
-        showToast(`Progression hors ligne : +${offlineGain.toString()} atomes`);
+        const multiplier = Number.isFinite(Number(gameState.offlineGainMultiplier))
+          && Number(gameState.offlineGainMultiplier) > 0
+          ? Math.min(MYTHIQUE_OFFLINE_CAP, Number(gameState.offlineGainMultiplier))
+          : MYTHIQUE_OFFLINE_BASE;
+        if (multiplier > 0) {
+          const offlineGain = gameState.perSecond.multiplyNumber(capped * multiplier);
+          gainAtoms(offlineGain);
+          showToast(`Progression hors ligne : +${offlineGain.toString()} atomes`);
+        }
       }
     }
   } catch (err) {
