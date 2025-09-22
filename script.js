@@ -5849,6 +5849,12 @@ function recalcProduction() {
     counter.unique += 1;
   });
 
+  const singularityCounts = elementCountsByRarity.get('singulier') || { copies: 0, unique: 0 };
+  const singularityPoolSize = getRarityPoolSize('singulier');
+  const isSingularityComplete = singularityPoolSize > 0 && singularityCounts.unique >= singularityPoolSize;
+  const stellaireSingularityBoost = isSingularityComplete ? 2 : 1;
+  const STELLAIRE_SINGULARITY_BONUS_LABEL = 'Forge stellaire · singularité amplifiée';
+
   const flatBonusMultipliers = {
     perClick: new Map(),
     perSecond: new Map()
@@ -5865,20 +5871,27 @@ function recalcProduction() {
     }
   };
 
-  const applyFlatMultiplierTargets = targets => {
+  const applyFlatMultiplierTargets = (targets, sourceRarityId) => {
     if (!Array.isArray(targets)) return;
+    const boostMultiplier = sourceRarityId === 'stellaire' && stellaireSingularityBoost !== 1
+      ? stellaireSingularityBoost
+      : 1;
     targets.forEach(target => {
       if (!target || typeof target !== 'object') return;
       const targetRarity = typeof target.rarityId === 'string' ? target.rarityId.trim() : '';
       if (!targetRarity) return;
       registerFlatMultiplierDefaults(targetRarity);
-      if (Number.isFinite(target.perClick) && target.perClick > 0 && target.perClick !== 1) {
+      const rawPerClick = Number(target.perClick);
+      if (Number.isFinite(rawPerClick) && rawPerClick > 0 && rawPerClick !== 1) {
+        const perClickValue = boostMultiplier !== 1 ? rawPerClick * boostMultiplier : rawPerClick;
         const current = flatBonusMultipliers.perClick.get(targetRarity) ?? 1;
-        flatBonusMultipliers.perClick.set(targetRarity, current * target.perClick);
+        flatBonusMultipliers.perClick.set(targetRarity, current * perClickValue);
       }
-      if (Number.isFinite(target.perSecond) && target.perSecond > 0 && target.perSecond !== 1) {
+      const rawPerSecond = Number(target.perSecond);
+      if (Number.isFinite(rawPerSecond) && rawPerSecond > 0 && rawPerSecond !== 1) {
+        const perSecondValue = boostMultiplier !== 1 ? rawPerSecond * boostMultiplier : rawPerSecond;
         const current = flatBonusMultipliers.perSecond.get(targetRarity) ?? 1;
-        flatBonusMultipliers.perSecond.set(targetRarity, current * target.perSecond);
+        flatBonusMultipliers.perSecond.set(targetRarity, current * perSecondValue);
       }
     });
   };
@@ -5914,7 +5927,7 @@ function recalcProduction() {
     if (!isActive) {
       return;
     }
-    applyFlatMultiplierTargets(entry.rarityFlatMultipliers);
+    applyFlatMultiplierTargets(entry.rarityFlatMultipliers, rarityId);
     activeFlatMultiplierEntries.add(`${rarityId}:${key}`);
   };
 
@@ -5947,7 +5960,10 @@ function recalcProduction() {
     const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
     if (layeredValue.isZero()) return 0;
     const multiplier = getFlatBonusMultiplier('perClick', rarityId);
-    const finalValue = multiplier !== 1 ? layeredValue.multiplyNumber(multiplier) : layeredValue;
+    let finalValue = multiplier !== 1 ? layeredValue.multiplyNumber(multiplier) : layeredValue;
+    if (stellaireSingularityBoost !== 1 && rarityId === 'stellaire') {
+      finalValue = finalValue.multiplyNumber(stellaireSingularityBoost);
+    }
     clickElementAddition = clickElementAddition.add(finalValue);
     clickDetails.additions.push({
       id,
@@ -5963,7 +5979,10 @@ function recalcProduction() {
     const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
     if (layeredValue.isZero()) return 0;
     const multiplier = getFlatBonusMultiplier('perSecond', rarityId);
-    const finalValue = multiplier !== 1 ? layeredValue.multiplyNumber(multiplier) : layeredValue;
+    let finalValue = multiplier !== 1 ? layeredValue.multiplyNumber(multiplier) : layeredValue;
+    if (stellaireSingularityBoost !== 1 && rarityId === 'stellaire') {
+      finalValue = finalValue.multiplyNumber(stellaireSingularityBoost);
+    }
     autoElementAddition = autoElementAddition.add(finalValue);
     autoDetails.additions.push({
       id,
@@ -6012,6 +6031,7 @@ function recalcProduction() {
       || multiplierLabel;
     const duplicateCount = Math.max(0, copyCount - uniqueCount);
     const totalUnique = getRarityPoolSize(rarityId);
+    const stellaireBoostActive = stellaireSingularityBoost !== 1 && rarityId === 'stellaire';
     const activeLabels = new Set();
     let clickMultiplierValue = 1;
     let autoMultiplierValue = 1;
@@ -6259,18 +6279,21 @@ function recalcProduction() {
         finalMultiplier = 1;
       }
       const multiplierLabelResolved = multiplierLabelOverride || multiplierLabel;
+      const appliedMultiplier = stellaireBoostActive
+        ? finalMultiplier * stellaireSingularityBoost
+        : finalMultiplier;
       let multiplierApplied = false;
       if (targets.has('perClick')) {
-        clickRarityMultipliers.set(rarityId, finalMultiplier);
-        updateRarityMultiplierDetail(clickDetails.multipliers, multiplierDetailId, multiplierLabelResolved, finalMultiplier);
-        clickMultiplierValue = finalMultiplier;
-        multiplierApplied = multiplierApplied || Math.abs(finalMultiplier - 1) > 1e-9;
+        clickRarityMultipliers.set(rarityId, appliedMultiplier);
+        updateRarityMultiplierDetail(clickDetails.multipliers, multiplierDetailId, multiplierLabelResolved, appliedMultiplier);
+        clickMultiplierValue = appliedMultiplier;
+        multiplierApplied = multiplierApplied || Math.abs(appliedMultiplier - 1) > 1e-9;
       }
       if (targets.has('perSecond')) {
-        autoRarityMultipliers.set(rarityId, finalMultiplier);
-        updateRarityMultiplierDetail(autoDetails.multipliers, multiplierDetailId, multiplierLabelResolved, finalMultiplier);
-        autoMultiplierValue = finalMultiplier;
-        multiplierApplied = multiplierApplied || Math.abs(finalMultiplier - 1) > 1e-9;
+        autoRarityMultipliers.set(rarityId, appliedMultiplier);
+        updateRarityMultiplierDetail(autoDetails.multipliers, multiplierDetailId, multiplierLabelResolved, appliedMultiplier);
+        autoMultiplierValue = appliedMultiplier;
+        multiplierApplied = multiplierApplied || Math.abs(appliedMultiplier - 1) > 1e-9;
       }
       if (multiplierApplied) {
         activeLabels.add(multiplierLabelResolved);
@@ -6340,6 +6363,17 @@ function recalcProduction() {
           activeLabels.add(resolvedLabel);
         }
       }
+    }
+
+    if (
+      stellaireBoostActive
+      && (
+        copyCount > 0
+        || Math.abs((clickMultiplierValue ?? 1) - 1) > 1e-9
+        || Math.abs((autoMultiplierValue ?? 1) - 1) > 1e-9
+      )
+    ) {
+      activeLabels.add(STELLAIRE_SINGULARITY_BONUS_LABEL);
     }
 
     summary.multiplierPerClick = clickMultiplierValue;
