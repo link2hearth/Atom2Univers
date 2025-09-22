@@ -1122,42 +1122,42 @@ const DEFAULT_GACHA_RARITIES = [
     label: 'Commun cosmique',
     description: 'Les briques fondamentales présentes dans la majorité des nébuleuses.',
     weight: 55,
-    color: '#6bb8ff'
+    color: '#4f7ec2'
   },
   {
     id: 'essentiel',
     label: 'Essentiel planétaire',
     description: 'Éléments abondants dans les mondes rocheux et les atmosphères habitables.',
     weight: 20,
-    color: '#74f5c6'
+    color: '#4ba88c'
   },
   {
     id: 'stellaire',
     label: 'Forge stellaire',
     description: 'Alliages façonnés au coeur des étoiles et disséminés par les supernovæ.',
     weight: 12,
-    color: '#c1f06a'
+    color: '#8caf58'
   },
   {
     id: 'singulier',
     label: 'Singularité minérale',
     description: 'Cristaux recherchés, rarement concentrés au même endroit.',
     weight: 7,
-    color: '#ffb45a'
+    color: '#d08a54'
   },
   {
     id: 'mythique',
     label: 'Mythe quantique',
     description: 'Éléments légendaires aux propriétés extrêmes et insaisissables.',
     weight: 4,
-    color: '#ff6cb1'
+    color: '#c46a9a'
   },
   {
     id: 'irreel',
     label: 'Irréel',
     description: 'Synthèses artificielles nées uniquement dans des accélérateurs.',
     weight: 2,
-    color: '#a579ff'
+    color: '#7d6fc9'
   }
 ];
 
