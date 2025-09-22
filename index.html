@@ -216,6 +216,61 @@
     </section>
   </main>
 
+  <div class="devkit-overlay" id="devkitOverlay" hidden aria-hidden="true">
+    <div class="devkit-panel" id="devkitPanel" role="dialog" aria-modal="true" aria-labelledby="devkitTitle" tabindex="-1">
+      <header class="devkit-panel__header">
+        <h2 id="devkitTitle">DevKit quantique</h2>
+        <button type="button" class="devkit-panel__close" id="devkitCloseButton" aria-label="Fermer le DevKit">×</button>
+      </header>
+      <p class="devkit-panel__intro">Outils de triche pour expérimentations rapides. Les changements sont immédiats.</p>
+      <div class="devkit-grid">
+        <section class="devkit-section" aria-labelledby="devkitResourcesTitle">
+          <h3 id="devkitResourcesTitle">Ressources</h3>
+          <form id="devkitAtomsForm" class="devkit-form">
+            <label for="devkitAtomsInput">Donner des atomes</label>
+            <div class="devkit-form__controls">
+              <input type="text" id="devkitAtomsInput" inputmode="decimal" autocomplete="off" placeholder="ex : 1e9" />
+              <button type="submit" class="primary">Ajouter</button>
+            </div>
+          </form>
+          <form id="devkitAutoForm" class="devkit-form">
+            <label for="devkitAutoInput">Augmenter les APS plats</label>
+            <div class="devkit-form__controls">
+              <input type="text" id="devkitAutoInput" inputmode="decimal" autocomplete="off" placeholder="ex : 250000" />
+              <button type="submit" class="primary">Augmenter</button>
+            </div>
+          </form>
+          <div class="devkit-status-row">
+            <span>Bonus APS actuel :</span>
+            <strong id="devkitAutoStatus">0</strong>
+            <button type="button" id="devkitResetAuto" class="devkit-link">Réinitialiser</button>
+          </div>
+          <form id="devkitTicketsForm" class="devkit-form">
+            <label for="devkitTicketsInput">Donner des tickets de tirage</label>
+            <div class="devkit-form__controls">
+              <input type="number" id="devkitTicketsInput" min="1" step="1" autocomplete="off" placeholder="ex : 50" />
+              <button type="submit" class="primary">Ajouter</button>
+            </div>
+          </form>
+        </section>
+        <section class="devkit-section" aria-labelledby="devkitUnlockTitle">
+          <h3 id="devkitUnlockTitle">Déblocages instantanés</h3>
+          <button type="button" class="devkit-action" id="devkitUnlockTrophies">Débloquer tous les succès</button>
+          <button type="button" class="devkit-action" id="devkitUnlockElements">Débloquer tout le tableau périodique</button>
+        </section>
+        <section class="devkit-section" aria-labelledby="devkitModesTitle">
+          <h3 id="devkitModesTitle">Modes persistants</h3>
+          <button type="button" class="devkit-toggle" id="devkitToggleShop" data-active="false" aria-pressed="false">Magasin gratuit : désactivé</button>
+          <button type="button" class="devkit-toggle" id="devkitToggleGacha" data-active="false" aria-pressed="false">Tirages gratuits : désactivés</button>
+          <p class="devkit-note">Les modes restent actifs tant que la session est ouverte (raccourci F9).</p>
+        </section>
+      </div>
+      <footer class="devkit-panel__footer">
+        <p>Appuyez sur <kbd>F9</kbd> pour ouvrir ou fermer le DevKit.</p>
+      </footer>
+    </div>
+  </div>
+
   <script src="game-config.js"></script>
   <script src="periodic-elements.js"></script>
   <script src="script.js"></script>

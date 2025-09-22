@@ -1908,7 +1908,8 @@ function createEmptyProductionEntry() {
       flats: {
         baseFlat: LayeredNumber.zero(),
         shopFlat: LayeredNumber.zero(),
-        elementFlat: LayeredNumber.zero()
+        elementFlat: LayeredNumber.zero(),
+        devkitFlat: LayeredNumber.zero()
       },
       multipliers: {
         shopBonus1: LayeredNumber.one(),
@@ -1973,7 +1974,10 @@ function cloneProductionEntry(entry) {
           : toLayeredValue(entry.sources?.flats?.shopFlat, 0),
         elementFlat: entry.sources?.flats?.elementFlat instanceof LayeredNumber
           ? entry.sources.flats.elementFlat.clone()
-          : toLayeredValue(entry.sources?.flats?.elementFlat, 0)
+          : toLayeredValue(entry.sources?.flats?.elementFlat, 0),
+        devkitFlat: entry.sources?.flats?.devkitFlat instanceof LayeredNumber
+          ? entry.sources.flats.devkitFlat.clone()
+          : toLayeredValue(entry.sources?.flats?.devkitFlat, 0)
       },
       multipliers: {
         shopBonus1: entry.sources?.multipliers?.shopBonus1 instanceof LayeredNumber
@@ -2379,6 +2383,38 @@ const gameState = {
   trophies: new Set()
 };
 
+const DEVKIT_STATE = {
+  isOpen: false,
+  lastFocusedElement: null,
+  cheats: {
+    freeShop: false,
+    freeGacha: false
+  },
+  bonuses: {
+    autoFlat: LayeredNumber.zero()
+  }
+};
+
+function isDevKitShopFree() {
+  return DEVKIT_STATE.cheats.freeShop === true;
+}
+
+function isDevKitGachaFree() {
+  return DEVKIT_STATE.cheats.freeGacha === true;
+}
+
+function getDevKitAutoFlatBonus() {
+  return DEVKIT_STATE.bonuses.autoFlat instanceof LayeredNumber
+    ? DEVKIT_STATE.bonuses.autoFlat
+    : LayeredNumber.zero();
+}
+
+function setDevKitAutoFlatBonus(value) {
+  DEVKIT_STATE.bonuses.autoFlat = value instanceof LayeredNumber
+    ? value.clone()
+    : new LayeredNumber(value || 0);
+}
+
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
 const UPGRADE_NAME_MAP = new Map(UPGRADE_DEFS.map(def => [def.id, def.name || def.id]));
 
@@ -2697,7 +2733,22 @@ const elements = {
   infoGlobalAtoms: document.getElementById('infoGlobalAtoms'),
   infoGlobalClicks: document.getElementById('infoGlobalClicks'),
   infoGlobalDuration: document.getElementById('infoGlobalDuration'),
-  critConfettiLayer: null
+  critConfettiLayer: null,
+  devkitOverlay: document.getElementById('devkitOverlay'),
+  devkitPanel: document.getElementById('devkitPanel'),
+  devkitClose: document.getElementById('devkitCloseButton'),
+  devkitAtomsForm: document.getElementById('devkitAtomsForm'),
+  devkitAtomsInput: document.getElementById('devkitAtomsInput'),
+  devkitAutoForm: document.getElementById('devkitAutoForm'),
+  devkitAutoInput: document.getElementById('devkitAutoInput'),
+  devkitAutoStatus: document.getElementById('devkitAutoStatus'),
+  devkitAutoReset: document.getElementById('devkitResetAuto'),
+  devkitTicketsForm: document.getElementById('devkitTicketsForm'),
+  devkitTicketsInput: document.getElementById('devkitTicketsInput'),
+  devkitUnlockTrophies: document.getElementById('devkitUnlockTrophies'),
+  devkitUnlockElements: document.getElementById('devkitUnlockElements'),
+  devkitToggleShop: document.getElementById('devkitToggleShop'),
+  devkitToggleGacha: document.getElementById('devkitToggleGacha')
 };
 
 const soundEffects = (() => {
@@ -2737,6 +2788,272 @@ const soundEffects = (() => {
     crit: createSoundPool('Assets/Sounds/crit.mp3', 3)
   };
 })();
+
+const DEVKIT_AUTO_LABEL = 'DevKit (APS +)';
+
+function parseDevKitLayeredInput(raw) {
+  if (raw instanceof LayeredNumber) {
+    return raw.clone();
+  }
+  if (raw == null) {
+    return null;
+  }
+  const normalized = String(raw)
+    .trim()
+    .replace(/,/g, '.')
+    .replace(/\s+/g, '');
+  if (!normalized) {
+    return null;
+  }
+  const powMatch = normalized.match(/^10\^([+-]?\d+)$/);
+  if (powMatch) {
+    const exponent = Number(powMatch[1]);
+    if (Number.isFinite(exponent)) {
+      return LayeredNumber.fromLayer0(1, exponent);
+    }
+  }
+  const sciMatch = normalized.match(/^([+-]?\d+(?:\.\d+)?)e([+-]?\d+)$/i);
+  if (sciMatch) {
+    const mantissa = Number(sciMatch[1]);
+    const exponent = Number(sciMatch[2]);
+    if (Number.isFinite(mantissa) && Number.isFinite(exponent)) {
+      return LayeredNumber.fromLayer0(mantissa, exponent);
+    }
+  }
+  const numeric = Number(normalized);
+  if (Number.isFinite(numeric)) {
+    return new LayeredNumber(numeric);
+  }
+  return null;
+}
+
+function parseDevKitInteger(raw) {
+  if (raw == null) {
+    return null;
+  }
+  const normalized = String(raw)
+    .trim()
+    .replace(/\s+/g, '');
+  if (!normalized) {
+    return null;
+  }
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return Math.floor(numeric);
+}
+
+function updateDevKitUI() {
+  if (elements.devkitAutoStatus) {
+    const bonus = getDevKitAutoFlatBonus();
+    const text = bonus instanceof LayeredNumber && !bonus.isZero()
+      ? bonus.toString()
+      : '0';
+    elements.devkitAutoStatus.textContent = text;
+  }
+  if (elements.devkitToggleShop) {
+    const active = isDevKitShopFree();
+    elements.devkitToggleShop.dataset.active = active ? 'true' : 'false';
+    elements.devkitToggleShop.setAttribute('aria-pressed', active ? 'true' : 'false');
+    elements.devkitToggleShop.textContent = `Magasin gratuit : ${active ? 'activé' : 'désactivé'}`;
+  }
+  if (elements.devkitToggleGacha) {
+    const active = isDevKitGachaFree();
+    elements.devkitToggleGacha.dataset.active = active ? 'true' : 'false';
+    elements.devkitToggleGacha.setAttribute('aria-pressed', active ? 'true' : 'false');
+    elements.devkitToggleGacha.textContent = `Tirages gratuits : ${active ? 'activés' : 'désactivés'}`;
+  }
+}
+
+function focusDevKitDefault() {
+  const target = elements.devkitAtomsInput || elements.devkitPanel;
+  if (!target) return;
+  requestAnimationFrame(() => {
+    try {
+      target.focus({ preventScroll: true });
+    } catch (error) {
+      target.focus();
+    }
+  });
+}
+
+function openDevKit() {
+  if (DEVKIT_STATE.isOpen || !elements.devkitOverlay) {
+    return;
+  }
+  DEVKIT_STATE.isOpen = true;
+  DEVKIT_STATE.lastFocusedElement = document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+  elements.devkitOverlay.hidden = false;
+  elements.devkitOverlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('devkit-open');
+  updateDevKitUI();
+  focusDevKitDefault();
+}
+
+function closeDevKit() {
+  if (!DEVKIT_STATE.isOpen || !elements.devkitOverlay) {
+    return;
+  }
+  DEVKIT_STATE.isOpen = false;
+  elements.devkitOverlay.hidden = true;
+  elements.devkitOverlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('devkit-open');
+  if (DEVKIT_STATE.lastFocusedElement && typeof DEVKIT_STATE.lastFocusedElement.focus === 'function') {
+    DEVKIT_STATE.lastFocusedElement.focus();
+  }
+  DEVKIT_STATE.lastFocusedElement = null;
+}
+
+function toggleDevKit() {
+  if (DEVKIT_STATE.isOpen) {
+    closeDevKit();
+  } else {
+    openDevKit();
+  }
+}
+
+function handleDevKitAtomsSubmission(value) {
+  const amount = parseDevKitLayeredInput(value);
+  if (!(amount instanceof LayeredNumber) || amount.isZero() || amount.sign <= 0) {
+    showToast('Valeur d’atome invalide.');
+    return;
+  }
+  gainAtoms(amount);
+  updateUI();
+  saveGame();
+  updateDevKitUI();
+  showToast(`DevKit : +${amount.toString()} atomes`);
+}
+
+function handleDevKitAutoSubmission(value) {
+  const amount = parseDevKitLayeredInput(value);
+  if (!(amount instanceof LayeredNumber) || amount.isZero() || amount.sign <= 0) {
+    showToast('Bonus APS invalide.');
+    return;
+  }
+  const nextBonus = getDevKitAutoFlatBonus().add(amount);
+  setDevKitAutoFlatBonus(nextBonus);
+  recalcProduction();
+  updateUI();
+  saveGame();
+  updateDevKitUI();
+  showToast(`DevKit : APS +${amount.toString()}`);
+}
+
+function resetDevKitAutoBonus() {
+  if (getDevKitAutoFlatBonus().isZero()) {
+    showToast('Aucun bonus APS à réinitialiser.');
+    return;
+  }
+  setDevKitAutoFlatBonus(LayeredNumber.zero());
+  recalcProduction();
+  updateUI();
+  saveGame();
+  updateDevKitUI();
+  showToast('DevKit : bonus APS remis à zéro');
+}
+
+function handleDevKitTicketSubmission(value) {
+  const numeric = parseDevKitInteger(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    showToast('Nombre de tickets invalide.');
+    return;
+  }
+  const gained = gainGachaTickets(numeric);
+  updateUI();
+  saveGame();
+  showToast(gained === 1
+    ? 'DevKit : 1 ticket de tirage ajouté'
+    : `DevKit : ${gained} tickets de tirage ajoutés`);
+}
+
+function devkitUnlockAllTrophies() {
+  const unlockedSet = getUnlockedTrophySet();
+  let newlyUnlocked = 0;
+  TROPHY_DEFS.forEach(def => {
+    if (!unlockedSet.has(def.id)) {
+      unlockedSet.add(def.id);
+      newlyUnlocked += 1;
+    }
+  });
+  if (newlyUnlocked > 0) {
+    recalcProduction();
+    updateUI();
+    updateGoalsUI();
+    saveGame();
+    showToast(`DevKit : ${newlyUnlocked} succès débloqués !`);
+  } else {
+    showToast('Tous les succès sont déjà débloqués.');
+  }
+}
+
+function devkitUnlockAllElements() {
+  let newlyOwned = 0;
+  const baseCollection = createInitialElementCollection();
+  periodicElements.forEach(def => {
+    if (!def || !def.id) return;
+    let entry = gameState.elements?.[def.id];
+    if (!entry) {
+      const baseEntry = baseCollection?.[def.id];
+      entry = baseEntry
+        ? {
+            ...baseEntry,
+            effects: Array.isArray(baseEntry.effects) ? [...baseEntry.effects] : [],
+            bonuses: Array.isArray(baseEntry.bonuses) ? [...baseEntry.bonuses] : []
+          }
+        : {
+            id: def.id,
+            gachaId: def.gachaId ?? def.id,
+            rarity: elementRarityIndex.get(def.id) || null,
+            effects: [],
+            bonuses: []
+          };
+      entry.owned = true;
+      entry.count = 1;
+      gameState.elements[def.id] = entry;
+      newlyOwned += 1;
+      return;
+    }
+    const previouslyOwned = Boolean(entry.owned) || (Number(entry.count) || 0) > 0;
+    if (!previouslyOwned) {
+      newlyOwned += 1;
+    }
+    entry.count = Math.max(1, Math.floor(Number(entry.count) || 0));
+    entry.owned = true;
+    if (!entry.rarity) {
+      entry.rarity = elementRarityIndex.get(def.id) || entry.rarity || null;
+    }
+  });
+  recalcProduction();
+  updateUI();
+  saveGame();
+  updateDevKitUI();
+  showToast(newlyOwned > 0
+    ? `DevKit : ${newlyOwned} éléments ajoutés à la collection !`
+    : 'La collection était déjà complète.');
+}
+
+function toggleDevKitCheat(key) {
+  if (!(key in DEVKIT_STATE.cheats)) {
+    return;
+  }
+  DEVKIT_STATE.cheats[key] = !DEVKIT_STATE.cheats[key];
+  updateDevKitUI();
+  if (key === 'freeShop') {
+    updateShopAffordability();
+    showToast(DEVKIT_STATE.cheats[key]
+      ? 'DevKit : magasin gratuit activé'
+      : 'DevKit : magasin gratuit désactivé');
+  } else if (key === 'freeGacha') {
+    updateGachaUI();
+    showToast(DEVKIT_STATE.cheats[key]
+      ? 'DevKit : tirages gratuits activés'
+      : 'DevKit : tirages gratuits désactivés');
+  }
+}
 
 const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
@@ -3226,14 +3543,17 @@ function updateGachaUI() {
     elements.gachaTicketCounter.textContent = formatTicketLabel(available);
   }
   if (elements.gachaSunButton) {
-    const affordable = available >= GACHA_TICKET_COST;
+    const gachaFree = isDevKitGachaFree();
+    const affordable = gachaFree || available >= GACHA_TICKET_COST;
     const busy = gachaAnimationInProgress;
-    const costLabel = formatTicketLabel(GACHA_TICKET_COST);
+    const costLabel = gachaFree ? 'Gratuit' : formatTicketLabel(GACHA_TICKET_COST);
     const label = busy
       ? 'Tirage cosmique en cours'
-      : affordable
-        ? 'Déclencher un tirage cosmique'
-        : 'Tickets insuffisants';
+      : gachaFree
+        ? 'Déclencher un tirage cosmique (gratuit)'
+        : affordable
+          ? 'Déclencher un tirage cosmique'
+          : 'Tickets insuffisants';
     elements.gachaSunButton.classList.toggle('is-locked', !affordable || busy);
     elements.gachaSunButton.setAttribute('aria-disabled', !affordable || busy ? 'true' : 'false');
     elements.gachaSunButton.setAttribute('aria-label', label);
@@ -3248,7 +3568,8 @@ function updateGachaUI() {
 
 function performGachaRoll() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
-  if (available < GACHA_TICKET_COST) {
+  const gachaFree = isDevKitGachaFree();
+  if (!gachaFree && available < GACHA_TICKET_COST) {
     showToast('Pas assez de tickets de tirage.');
     return null;
   }
@@ -3265,7 +3586,9 @@ function performGachaRoll() {
     return null;
   }
 
-  gameState.gachaTickets = available - GACHA_TICKET_COST;
+  if (!gachaFree) {
+    gameState.gachaTickets = available - GACHA_TICKET_COST;
+  }
 
   let entry = gameState.elements[elementDef.id];
   if (!entry) {
@@ -4335,6 +4658,110 @@ if (initiallyActivePage) {
   document.body.classList.remove('view-game');
 }
 
+if (elements.devkitOverlay) {
+  elements.devkitOverlay.addEventListener('click', event => {
+    if (event.target === elements.devkitOverlay) {
+      closeDevKit();
+    }
+  });
+}
+
+if (elements.devkitPanel) {
+  elements.devkitPanel.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDevKit();
+    }
+  });
+}
+
+if (elements.devkitClose) {
+  elements.devkitClose.addEventListener('click', event => {
+    event.preventDefault();
+    closeDevKit();
+  });
+}
+
+if (elements.devkitAtomsForm) {
+  elements.devkitAtomsForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const value = elements.devkitAtomsInput ? elements.devkitAtomsInput.value : '';
+    handleDevKitAtomsSubmission(value);
+    if (elements.devkitAtomsInput) {
+      elements.devkitAtomsInput.value = '';
+    }
+  });
+}
+
+if (elements.devkitAutoForm) {
+  elements.devkitAutoForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const value = elements.devkitAutoInput ? elements.devkitAutoInput.value : '';
+    handleDevKitAutoSubmission(value);
+    if (elements.devkitAutoInput) {
+      elements.devkitAutoInput.value = '';
+    }
+  });
+}
+
+if (elements.devkitAutoReset) {
+  elements.devkitAutoReset.addEventListener('click', event => {
+    event.preventDefault();
+    resetDevKitAutoBonus();
+  });
+}
+
+if (elements.devkitTicketsForm) {
+  elements.devkitTicketsForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const value = elements.devkitTicketsInput ? elements.devkitTicketsInput.value : '';
+    handleDevKitTicketSubmission(value);
+    if (elements.devkitTicketsInput) {
+      elements.devkitTicketsInput.value = '';
+    }
+  });
+}
+
+if (elements.devkitUnlockTrophies) {
+  elements.devkitUnlockTrophies.addEventListener('click', event => {
+    event.preventDefault();
+    devkitUnlockAllTrophies();
+  });
+}
+
+if (elements.devkitUnlockElements) {
+  elements.devkitUnlockElements.addEventListener('click', event => {
+    event.preventDefault();
+    devkitUnlockAllElements();
+  });
+}
+
+if (elements.devkitToggleShop) {
+  elements.devkitToggleShop.addEventListener('click', event => {
+    event.preventDefault();
+    toggleDevKitCheat('freeShop');
+  });
+}
+
+if (elements.devkitToggleGacha) {
+  elements.devkitToggleGacha.addEventListener('click', event => {
+    event.preventDefault();
+    toggleDevKitCheat('freeGacha');
+  });
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'F9') {
+    event.preventDefault();
+    toggleDevKit();
+  } else if (event.key === 'Escape' && DEVKIT_STATE.isOpen) {
+    event.preventDefault();
+    closeDevKit();
+  }
+});
+
+updateDevKitUI();
+
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.target));
 });
@@ -4409,6 +4836,9 @@ function computeGlobalCostModifier(defId) {
 }
 
 function computeUpgradeCost(def, quantity = 1) {
+  if (isDevKitShopFree()) {
+    return LayeredNumber.zero();
+  }
   const level = getUpgradeLevel(gameState.upgrades, def.id);
   const baseScale = def.costScale ?? 1;
   const modifier = computeGlobalCostModifier(def.id);
@@ -4698,6 +5128,18 @@ function recalcProduction() {
   autoDetails.sources.flats.shopFlat = autoShopAddition.clone();
   clickDetails.sources.flats.elementFlat = clickElementAddition.clone();
   autoDetails.sources.flats.elementFlat = autoElementAddition.clone();
+  const devkitAutoFlat = getDevKitAutoFlatBonus();
+  if (devkitAutoFlat instanceof LayeredNumber && !devkitAutoFlat.isZero()) {
+    autoDetails.sources.flats.devkitFlat = devkitAutoFlat.clone();
+    autoDetails.additions.push({
+      id: 'devkit-auto-flat',
+      label: DEVKIT_AUTO_LABEL,
+      value: devkitAutoFlat.clone(),
+      source: 'devkit'
+    });
+  } else {
+    autoDetails.sources.flats.devkitFlat = LayeredNumber.zero();
+  }
 
   clickDetails.sources.multipliers.shopBonus1 = clickMultiplierSlots.shopBonus1.clone();
   clickDetails.sources.multipliers.shopBonus2 = clickMultiplierSlots.shopBonus2.clone();
@@ -4715,7 +5157,10 @@ function recalcProduction() {
   const autoRarityProduct = computeRarityMultiplierProduct(autoRarityMultipliers);
 
   const clickTotalAddition = clickShopAddition.add(clickElementAddition);
-  const autoTotalAddition = autoShopAddition.add(autoElementAddition);
+  let autoTotalAddition = autoShopAddition.add(autoElementAddition);
+  if (devkitAutoFlat instanceof LayeredNumber && !devkitAutoFlat.isZero()) {
+    autoTotalAddition = autoTotalAddition.add(devkitAutoFlat);
+  }
 
   clickDetails.totalAddition = clickTotalAddition.clone();
   autoDetails.totalAddition = autoTotalAddition.clone();
@@ -4739,7 +5184,8 @@ function recalcProduction() {
     .add(clickDetails.sources.flats.elementFlat);
   const autoFlatBase = autoDetails.sources.flats.baseFlat
     .add(autoDetails.sources.flats.shopFlat)
-    .add(autoDetails.sources.flats.elementFlat);
+    .add(autoDetails.sources.flats.elementFlat)
+    .add(autoDetails.sources.flats.devkitFlat || LayeredNumber.zero());
 
   let perClick = clickFlatBase.clone();
   perClick = perClick.multiply(clickShopBonus1);
@@ -4836,20 +5282,23 @@ function updateShopAffordability() {
     row.level.textContent = `Niveau ${level}`;
     let anyAffordable = false;
     const actionLabel = level > 0 ? 'Améliorer' : 'Acheter';
+    const shopFree = isDevKitShopFree();
 
     SHOP_PURCHASE_AMOUNTS.forEach(quantity => {
       const entry = row.buttons.get(quantity);
       if (!entry) return;
       const cost = computeUpgradeCost(def, quantity);
-      const affordable = gameState.atoms.compare(cost) >= 0;
-      entry.price.textContent = formatShopCost(cost);
+      const affordable = shopFree || gameState.atoms.compare(cost) >= 0;
+      entry.price.textContent = shopFree ? 'Gratuit' : formatShopCost(cost);
       entry.button.disabled = !affordable;
       entry.button.classList.toggle('is-ready', affordable);
       if (affordable) {
         anyAffordable = true;
       }
       const ariaLabel = affordable
-        ? `${actionLabel} ${def.name} ×${quantity} (coût ${cost.toString()} atomes)`
+        ? shopFree
+          ? `${actionLabel} ${def.name} ×${quantity} (gratuit)`
+          : `${actionLabel} ${def.name} ×${quantity} (coût ${cost.toString()} atomes)`
         : `${actionLabel} ${def.name} ×${quantity} (atomes insuffisants)`;
       entry.button.setAttribute('aria-label', ariaLabel);
       entry.button.title = ariaLabel;
@@ -4951,15 +5400,20 @@ function renderGoals() {
 function attemptPurchase(def, quantity = 1) {
   const buyAmount = Math.max(1, Math.floor(Number(quantity) || 0));
   const cost = computeUpgradeCost(def, buyAmount);
-  if (gameState.atoms.compare(cost) < 0) {
+  const shopFree = isDevKitShopFree();
+  if (!shopFree && gameState.atoms.compare(cost) < 0) {
     showToast('Pas assez d’atomes.');
     return;
   }
-  gameState.atoms = gameState.atoms.subtract(cost);
+  if (!shopFree) {
+    gameState.atoms = gameState.atoms.subtract(cost);
+  }
   gameState.upgrades[def.id] = (gameState.upgrades[def.id] || 0) + buyAmount;
   recalcProduction();
   updateUI();
-  showToast(`Amélioration "${def.name}" x${buyAmount} achetée !`);
+  showToast(shopFree
+    ? `DevKit : "${def.name}" ×${buyAmount} débloqué gratuitement !`
+    : `Amélioration "${def.name}" x${buyAmount} achetée !`);
 }
 
 function updateMilestone() {
