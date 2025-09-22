@@ -5265,12 +5265,20 @@ let targetClickStrength = 0;
 let displayedClickStrength = 0;
 
 const atomAnimationState = {
-  drive: 0,
-  velocity: 0,
-  twist: 0,
-  twistVelocity: 0,
-  swirlPhase: Math.random() * Math.PI * 2,
-  jitterPhase: Math.random() * Math.PI * 2,
+  intensity: 0,
+  posX: 0,
+  posY: 0,
+  velX: 0,
+  velY: 0,
+  tilt: 0,
+  tiltVelocity: 0,
+  squash: 0,
+  squashVelocity: 0,
+  spinPhase: Math.random() * Math.PI * 2,
+  noisePhase: Math.random() * Math.PI * 2,
+  noiseOffset: Math.random() * Math.PI * 2,
+  impulseTimer: 0,
+  lastInputIntensity: 0,
   lastTime: null
 };
 
@@ -5347,13 +5355,6 @@ function applyClickStrength(strength) {
   }
 }
 
-function easeOutCubic(value) {
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  const inv = 1 - value;
-  return 1 - inv * inv * inv;
-}
-
 function updateAtomSpring(now = performance.now(), drive = 0) {
   if (!elements.atomVisual) return;
   const state = atomAnimationState;
@@ -5368,75 +5369,130 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   delta = Math.min(delta, 0.05);
   state.lastTime = now;
 
-  const clampedDrive = Math.max(0, Math.min(1, drive));
-  const easedDrive = easeOutCubic(clampedDrive);
-  const target = Math.min(1.35, easedDrive * 0.55 + clampedDrive * 0.9);
+  const input = Math.max(0, Math.min(1, drive));
+  state.intensity += (input - state.intensity) * Math.min(1, delta * 9);
+  const intensity = state.intensity;
+  const energy = Math.pow(intensity, 0.65);
 
-  const springK = 32;
-  const springDamping = 12.5;
-  const displacement = state.drive - target;
-  const accel = (-springK * displacement) - (springDamping * state.velocity);
+  const rangeX = 6 + energy * 34 + intensity * 6;
+  const rangeY = 7 + energy * 40 + intensity * 8;
+  const centerPull = 10 + energy * 24;
+  const damping = 4.8 + energy * 16;
+  const maxSpeed = 120 + energy * 420;
 
-  state.velocity += accel * delta;
-  state.drive += state.velocity * delta;
+  state.velX -= (state.posX / Math.max(rangeX, 1)) * centerPull * delta;
+  state.velY -= (state.posY / Math.max(rangeY, 1)) * centerPull * delta;
 
-  if (!Number.isFinite(state.drive)) state.drive = 0;
-  if (!Number.isFinite(state.velocity)) state.velocity = 0;
+  state.velX -= state.velX * damping * delta;
+  state.velY -= state.velY * damping * delta;
 
-  if (state.drive < 0) {
-    state.drive = 0;
-    if (state.velocity < 0) {
-      state.velocity = 0;
-    }
-  } else if (state.drive > 1.8) {
-    state.drive = 1.8;
+  state.noisePhase += delta * (1.2 + energy * 6.4);
+  const noiseX =
+    Math.sin(state.noisePhase * 1.35 + state.noiseOffset) * (0.34 + energy * 0.9) +
+    Math.cos(state.noisePhase * 2.35 + state.noiseOffset * 1.7) * (0.22 + energy * 0.55);
+  const noiseY =
+    Math.cos(state.noisePhase * 1.55 + state.noiseOffset * 0.4) * (0.32 + energy * 0.82) +
+    Math.sin(state.noisePhase * 2.1 + state.noiseOffset) * (0.2 + energy * 0.5);
+  const noiseStrength = 12 + energy * 210 + intensity * 30;
+  state.velX += noiseX * noiseStrength * delta;
+  state.velY += noiseY * noiseStrength * delta;
+
+  state.impulseTimer -= delta;
+  const impulseDelay = Math.max(0.085, 0.42 - energy * 0.32 - intensity * 0.1);
+  if (state.impulseTimer <= 0) {
+    const burstAngle = Math.random() * Math.PI * 2;
+    const burstStrength = 16 + energy * 240 + intensity * 120;
+    state.velX += Math.cos(burstAngle) * burstStrength;
+    state.velY += Math.sin(burstAngle) * burstStrength;
+    state.impulseTimer = impulseDelay;
   }
 
-  const energyFromVelocity = Math.min(0.95, Math.abs(state.velocity) * 0.22);
-  const energy = Math.min(1.5, Math.max(target, state.drive + energyFromVelocity));
+  const gain = Math.max(0, input - state.lastInputIntensity);
+  if (gain > 0.001) {
+    const gainAngle = Math.random() * Math.PI * 2;
+    const gainStrength = 38 + gain * 480 + intensity * 140;
+    state.velX += Math.cos(gainAngle) * gainStrength;
+    state.velY += Math.sin(gainAngle) * gainStrength;
+  }
+  state.lastInputIntensity = input;
 
-  state.swirlPhase += delta * (5 + 20 * Math.pow(energy, 0.9));
-  state.jitterPhase += delta * (16 + 42 * Math.pow(energy, 1.1));
+  state.posX += state.velX * delta;
+  state.posY += state.velY * delta;
 
-  if (!Number.isFinite(state.swirlPhase)) state.swirlPhase = 0;
-  if (!Number.isFinite(state.jitterPhase)) state.jitterPhase = 0;
-  if (state.swirlPhase > Math.PI * 1000) state.swirlPhase %= Math.PI * 2;
-  if (state.jitterPhase > Math.PI * 1000) state.jitterPhase %= Math.PI * 2;
+  const restitution = 0.46 + energy * 0.42;
+  if (state.posX > rangeX) {
+    state.posX = rangeX;
+    state.velX = -Math.abs(state.velX) * restitution;
+  } else if (state.posX < -rangeX) {
+    state.posX = -rangeX;
+    state.velX = Math.abs(state.velX) * restitution;
+  }
+  if (state.posY > rangeY) {
+    state.posY = rangeY;
+    state.velY = -Math.abs(state.velY) * restitution;
+  } else if (state.posY < -rangeY) {
+    state.posY = -rangeY;
+    state.velY = Math.abs(state.velY) * restitution;
+  }
 
-  const rotationTarget = state.velocity * 0.65;
-  const twistK = 24;
-  const twistDamping = 9.5;
-  const twistDisplacement = state.twist - rotationTarget;
-  const twistAccel = (-twistK * twistDisplacement) - (twistDamping * state.twistVelocity);
-  state.twistVelocity += twistAccel * delta;
-  state.twist += state.twistVelocity * delta;
+  const speed = Math.hypot(state.velX, state.velY);
+  if (speed > maxSpeed) {
+    const scale = maxSpeed / speed;
+    state.velX *= scale;
+    state.velY *= scale;
+  }
 
-  if (!Number.isFinite(state.twist)) state.twist = 0;
-  if (!Number.isFinite(state.twistVelocity)) state.twistVelocity = 0;
-  state.twist = Math.max(-1.3, Math.min(1.3, state.twist));
+  state.spinPhase += delta * (2.4 + energy * 14.5);
+  if (!Number.isFinite(state.spinPhase)) state.spinPhase = 0;
+  if (!Number.isFinite(state.noisePhase)) state.noisePhase = 0;
+  if (state.spinPhase > Math.PI * 1000) state.spinPhase %= Math.PI * 2;
+  if (state.noisePhase > Math.PI * 1000) state.noisePhase %= Math.PI * 2;
 
-  const swirlRadius = 6 + Math.pow(energy, 1.3) * 32;
-  const jitterX = Math.sin(state.jitterPhase * 1.7) * (4 + energy * 12);
-  const jitterY = Math.cos(state.jitterPhase * 2.3) * (5 + energy * 16);
-  const offsetX = Math.cos(state.swirlPhase) * swirlRadius + jitterX;
-  const offsetY = Math.sin(state.swirlPhase * 1.35 + 0.4) * (swirlRadius * (0.7 + energy * 0.25)) + jitterY;
+  const spin = Math.sin(state.spinPhase) * (4 + energy * 28);
 
-  const rotationFromTwist = state.twist * (18 + energy * 34);
-  const rotationNoise = Math.sin(state.swirlPhase * 2.2) * (4 + energy * 12);
-  const rotation = rotationFromTwist + rotationNoise;
+  const tiltTarget =
+    (state.posX / Math.max(rangeX, 1)) * (10 + energy * 18) +
+    (state.velX / Math.max(maxSpeed, 1)) * (34 + energy * 30);
+  const tiltSpring = 24 + energy * 32;
+  const tiltDamping = 7 + energy * 14;
+  state.tiltVelocity += (tiltTarget - state.tilt) * tiltSpring * delta;
+  state.tiltVelocity -= state.tiltVelocity * tiltDamping * delta;
+  state.tilt += state.tiltVelocity * delta;
 
-  const velocitySquash = Math.max(-0.85, Math.min(0.85, state.velocity * 0.9));
-  const jitterSquash = Math.sin(state.jitterPhase * 2.8) * energy * 0.25;
-  let scaleY = 1 + velocitySquash * 0.7 + jitterSquash;
-  let scaleX = 1 - velocitySquash * 0.5 - jitterSquash * 0.85;
+  const verticalMomentum = state.velY / Math.max(maxSpeed, 1);
+  const squashTarget = Math.max(-1, Math.min(1, -verticalMomentum * (1.6 + energy * 1.25)));
+  const squashSpring = 22 + energy * 28;
+  const squashDamping = 9 + energy * 12;
+  state.squashVelocity += (squashTarget - state.squash) * squashSpring * delta;
+  state.squashVelocity -= state.squashVelocity * squashDamping * delta;
+  state.squash += state.squashVelocity * delta;
 
-  scaleX = Math.min(1.55, Math.max(0.55, scaleX));
-  scaleY = Math.min(1.55, Math.max(0.55, scaleY));
+  if (!Number.isFinite(state.posX)) state.posX = 0;
+  if (!Number.isFinite(state.posY)) state.posY = 0;
+  if (!Number.isFinite(state.velX)) state.velX = 0;
+  if (!Number.isFinite(state.velY)) state.velY = 0;
+  if (!Number.isFinite(state.tilt)) state.tilt = 0;
+  if (!Number.isFinite(state.tiltVelocity)) state.tiltVelocity = 0;
+  if (!Number.isFinite(state.squash)) state.squash = 0;
+  if (!Number.isFinite(state.squashVelocity)) state.squashVelocity = 0;
+
+  if (Math.abs(state.posX) < 0.0005) state.posX = 0;
+  if (Math.abs(state.posY) < 0.0005) state.posY = 0;
+  if (Math.abs(state.velX) < 0.0005) state.velX = 0;
+  if (Math.abs(state.velY) < 0.0005) state.velY = 0;
+  if (Math.abs(state.tilt) < 0.0005) state.tilt = 0;
+  if (Math.abs(state.squash) < 0.0005) state.squash = 0;
+
+  const offsetX = state.posX;
+  const offsetY = state.posY;
+  const squash = Math.max(-0.75, Math.min(0.75, state.squash));
+  const scaleY = Math.max(0.6, Math.min(1.48, 1 + squash * 0.82 + intensity * 0.06));
+  const scaleX = Math.max(0.6, Math.min(1.48, 1 - squash * 0.55 - intensity * 0.04));
 
   const visual = elements.atomVisual;
   visual.style.setProperty('--shake-x', `${offsetX.toFixed(2)}px`);
   visual.style.setProperty('--shake-y', `${offsetY.toFixed(2)}px`);
-  visual.style.setProperty('--shake-rot', `${rotation.toFixed(2)}deg`);
+  visual.style.setProperty('--shake-rot', `${(state.tilt + spin).toFixed(2)}deg`);
   visual.style.setProperty('--shake-scale-x', scaleX.toFixed(4));
   visual.style.setProperty('--shake-scale-y', scaleY.toFixed(4));
 }
