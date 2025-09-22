@@ -3324,10 +3324,10 @@ function populateGachaAnimationStars() {
     const star = document.createElement('span');
     star.className = 'gacha-star';
     star.style.left = `${Math.random() * 100}%`;
-    star.style.height = `${60 + Math.random() * 90}px`;
-    star.style.opacity = (0.3 + Math.random() * 0.6).toFixed(2);
-    star.style.animationDuration = `${0.7 + Math.random() * 1.2}s`;
-    star.style.animationDelay = `${Math.random()}s`;
+    star.style.height = `${60 + Math.random() * 70}px`;
+    star.style.opacity = (0.35 + Math.random() * 0.5).toFixed(2);
+    star.style.animationDuration = `${0.6 + Math.random() * 0.9}s`;
+    star.style.animationDelay = `${Math.random() * 0.6}s`;
     star.style.setProperty('--star-rotation', `${Math.random() * 40 - 20}deg`);
     fragment.appendChild(star);
   }
@@ -3376,16 +3376,24 @@ async function playGachaAnimation(outcome) {
   const layer = elements.gachaAnimation;
   const stars = elements.gachaAnimationStars;
   const warp = elements.gachaWarp;
-  const hint = elements.gachaContinueHint;
-  const color = outcome.rarity?.color || '#ffd56a';
+  const rarityClassName = outcome.rarity?.id
+    ? `gacha-warp--${outcome.rarity.id}`
+    : '';
 
   layer.hidden = false;
   layer.setAttribute('aria-hidden', 'false');
   layer.classList.remove('show-result');
   layer.classList.add('is-active');
-  layer.style.setProperty('--gacha-color', color);
   if (warp) {
-    warp.style.background = `radial-gradient(circle, ${color} 0%, transparent 70%)`;
+    const previousClass = warp.dataset.activeRarityClass;
+    if (previousClass) {
+      warp.classList.remove(previousClass);
+      delete warp.dataset.activeRarityClass;
+    }
+    if (rarityClassName) {
+      warp.classList.add(rarityClassName);
+      warp.dataset.activeRarityClass = rarityClassName;
+    }
   }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
@@ -3409,9 +3417,12 @@ async function playGachaAnimation(outcome) {
     stars.innerHTML = '';
   }
   if (warp) {
-    warp.style.removeProperty('background');
+    const previousClass = warp.dataset.activeRarityClass;
+    if (previousClass) {
+      warp.classList.remove(previousClass);
+      delete warp.dataset.activeRarityClass;
+    }
   }
-  layer.style.removeProperty('--gacha-color');
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
     elements.gachaResult.style.removeProperty('--rarity-color');
