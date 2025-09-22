@@ -3295,6 +3295,8 @@ const elements = {
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
+  statusCrit: document.getElementById('statusCrit'),
+  statusCritValue: document.getElementById('statusCritValue'),
   statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
@@ -5611,6 +5613,108 @@ function createCritConfettiNode() {
   return confetti;
 }
 
+const critBannerState = {
+  fadeTimeoutId: null,
+  hideTimeoutId: null
+};
+
+function clearCritBannerTimers() {
+  if (critBannerState.fadeTimeoutId != null) {
+    clearTimeout(critBannerState.fadeTimeoutId);
+    critBannerState.fadeTimeoutId = null;
+  }
+  if (critBannerState.hideTimeoutId != null) {
+    clearTimeout(critBannerState.hideTimeoutId);
+    critBannerState.hideTimeoutId = null;
+  }
+}
+
+function hideCritBanner(immediate = false) {
+  const display = elements.statusCrit;
+  const valueElement = elements.statusCritValue;
+  if (!display || !valueElement) return;
+  clearCritBannerTimers();
+  if (immediate) {
+    display.hidden = true;
+    display.classList.remove('is-active', 'is-fading');
+    valueElement.classList.remove('status-crit-value--smash');
+    valueElement.removeAttribute('data-multiplier');
+    display.removeAttribute('aria-label');
+    display.removeAttribute('title');
+    return;
+  }
+  display.classList.add('is-fading');
+  critBannerState.hideTimeoutId = setTimeout(() => {
+    display.hidden = true;
+    display.classList.remove('is-active', 'is-fading');
+    valueElement.classList.remove('status-crit-value--smash');
+    valueElement.removeAttribute('data-multiplier');
+    display.removeAttribute('aria-label');
+    display.removeAttribute('title');
+    critBannerState.hideTimeoutId = null;
+  }, 360);
+}
+
+function showCritBanner(bonusAmount, multiplier) {
+  if (!elements.statusCrit || !elements.statusCritValue) return;
+  const display = elements.statusCrit;
+  const valueElement = elements.statusCritValue;
+  const layeredBonus = toLayeredNumber(bonusAmount, 0);
+  if (layeredBonus.sign <= 0) {
+    hideCritBanner(true);
+    return;
+  }
+
+  const displayText = `+${layeredBonus.toString()}`;
+  valueElement.textContent = displayText;
+
+  const numericMultiplier = Number(multiplier);
+  const safeMultiplier = Number.isFinite(numericMultiplier) ? Math.max(1, numericMultiplier) : 1;
+  if (safeMultiplier > 1) {
+    const multiplierOptions = safeMultiplier >= 10
+      ? { maximumFractionDigits: 0 }
+      : { maximumFractionDigits: 2 };
+    const multiplierText = `×${safeMultiplier.toLocaleString('fr-FR', multiplierOptions)}`;
+    valueElement.dataset.multiplier = multiplierText;
+  } else {
+    valueElement.removeAttribute('data-multiplier');
+  }
+
+  display.hidden = false;
+  display.classList.remove('is-fading');
+  display.classList.add('is-active');
+
+  valueElement.classList.remove('status-crit-value--smash');
+  void valueElement.offsetWidth; // force reflow to restart the impact animation
+  valueElement.classList.add('status-crit-value--smash');
+
+  const ariaParts = [`Coup critique : ${displayText} atomes`];
+  if (safeMultiplier > 1 && valueElement.dataset.multiplier) {
+    ariaParts.push(`multiplicateur ${valueElement.dataset.multiplier}`);
+  }
+  display.setAttribute('aria-label', ariaParts.join(' · '));
+  if (safeMultiplier > 1 && valueElement.dataset.multiplier) {
+    display.title = `Bonus critique ${displayText} (${valueElement.dataset.multiplier})`;
+  } else {
+    display.title = `Bonus critique ${displayText}`;
+  }
+
+  clearCritBannerTimers();
+  critBannerState.fadeTimeoutId = setTimeout(() => {
+    display.classList.add('is-fading');
+    critBannerState.fadeTimeoutId = null;
+    critBannerState.hideTimeoutId = setTimeout(() => {
+      display.hidden = true;
+      display.classList.remove('is-active', 'is-fading');
+      valueElement.classList.remove('status-crit-value--smash');
+      valueElement.removeAttribute('data-multiplier');
+      display.removeAttribute('aria-label');
+      display.removeAttribute('title');
+      critBannerState.hideTimeoutId = null;
+    }, 360);
+  }, 3000);
+}
+
 function showCriticalIndicator(multiplier) {
   const layer = ensureCritConfettiLayer();
   if (!layer) return;
@@ -5664,6 +5768,8 @@ function handleManualAtomClick() {
       at: Date.now(),
       multiplier: critResult.multiplier
     };
+    const critBonus = critResult.amount.subtract(baseAmount);
+    showCritBanner(critBonus, critResult.multiplier);
   }
   animateAtomPress({ critical: critResult.isCritical, multiplier: critResult.multiplier });
 }
