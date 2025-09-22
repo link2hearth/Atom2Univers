@@ -119,6 +119,11 @@ body.theme-neon .app-header {
   align-items: flex-end;
 }
 
+.status-value-group--left {
+  align-items: flex-start;
+  text-align: left;
+}
+
 .status-label {
   font-size: clamp(0.65rem, 1vw, 0.8rem);
   letter-spacing: 0.12em;
@@ -850,6 +855,46 @@ body.theme-neon .page--void {
   position: absolute;
   inset: 0;
   z-index: 3;
+  pointer-events: none;
+}
+
+.ticket-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ticket-star {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--ticket-star-size, clamp(52px, 9vw, 96px));
+  height: var(--ticket-star-size, clamp(52px, 9vw, 96px));
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(0, 0);
+  transition: transform 0.18s ease, filter 0.18s ease;
+  will-change: transform;
+  pointer-events: auto;
+}
+
+.ticket-star:hover {
+  filter: drop-shadow(0 0 12px rgba(255, 210, 120, 0.65));
+}
+
+.ticket-star:focus-visible {
+  outline: 2px solid rgba(255, 230, 150, 0.9);
+  outline-offset: 4px;
+}
+
+.ticket-star img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
   pointer-events: none;
 }
 

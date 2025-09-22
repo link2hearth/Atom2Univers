@@ -580,7 +580,7 @@ const GAME_CONFIG = {
   ],
 
   gacha: {
-    cost: 100,
+    ticketCost: 1, // Nombre de tickets requis par tirage
     rarities: [
       {
         id: 'commun',
@@ -625,6 +625,20 @@ const GAME_CONFIG = {
         color: '#a579ff'
       }
     ]
+  },
+
+  /**
+   * Apparition de l'étoile à tickets sur la page principale.
+   * - averageSpawnIntervalSeconds : intervalle moyen entre deux apparitions.
+   * - speedPixelsPerSecond : vitesse de déplacement de l'icône.
+   * - size : taille (en pixels) du sprite.
+   * - rewardTickets : nombre de tickets octroyés par clic.
+   */
+  ticketStar: {
+    averageSpawnIntervalSeconds: 60,
+    speedPixelsPerSecond: 90,
+    size: 72,
+    rewardTickets: 1
   },
 
   elements: [

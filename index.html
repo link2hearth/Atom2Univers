@@ -26,7 +26,10 @@
     <div class="status-bar" aria-live="polite">
       <div class="status-item status-item--left">
         <span class="status-label">APC</span>
-        <span class="status-value" id="statusApc">1</span>
+        <div class="status-value-group status-value-group--left">
+          <span class="status-value" id="statusApc">1</span>
+          <span class="status-frenzy-indicator" id="statusApcFrenzy" hidden></span>
+        </div>
       </div>
       <div class="status-item status-item--center">
         <span class="status-label">Atoms</span>
@@ -51,6 +54,7 @@
           <img src="Assets/Image/Atom.png" alt="Illustration d'un atome vibrant" class="atom-image" draggable="false" />
         </span>
       </button>
+      <div class="ticket-layer" id="ticketLayer" aria-hidden="true"></div>
       <div class="frenzy-layer" id="frenzyLayer" aria-hidden="true"></div>
     </section>
 
@@ -66,9 +70,9 @@
           <header class="gacha-card__header">
             <h2 id="gacha-title">Gacha</h2>
           </header>
-          <p class="gacha-wallet" id="gachaWallet">Solde : 0 atomes</p>
-          <p class="gacha-cost">Coût d'une synthèse : <span id="gachaCostValue">100</span> atomes</p>
-          <button class="gacha-roll-button" id="gachaRollButton" type="button">Lancer une synthèse</button>
+          <p class="gacha-wallet" id="gachaWallet">Solde : 0 ticket</p>
+          <p class="gacha-cost">Coût d'un tirage : <span id="gachaCostValue">1 ticket</span></p>
+          <button class="gacha-roll-button" id="gachaRollButton" type="button">Lancer un tirage</button>
           <p class="gacha-result" id="gachaResult" aria-live="polite">En attente de la prochaine transmutation.</p>
         </article>
 

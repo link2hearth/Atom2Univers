@@ -594,7 +594,7 @@ function toLayeredNumber(value, fallback = 0) {
   return new LayeredNumber(fallback);
 }
 
-const DEFAULT_GACHA_COST = 100;
+const DEFAULT_GACHA_TICKET_COST = 1;
 
 const DEFAULT_GACHA_RARITIES = [
   {
@@ -673,7 +673,16 @@ const rawGachaConfig = CONFIG.gacha && typeof CONFIG.gacha === 'object'
   ? CONFIG.gacha
   : {};
 
-const GACHA_COST = toLayeredNumber(rawGachaConfig.cost ?? DEFAULT_GACHA_COST, DEFAULT_GACHA_COST);
+const GACHA_TICKET_COST = Math.max(
+  1,
+  Math.floor(
+    Number(
+      rawGachaConfig.ticketCost
+        ?? rawGachaConfig.cost
+        ?? DEFAULT_GACHA_TICKET_COST
+    ) || DEFAULT_GACHA_TICKET_COST
+  )
+);
 
 const GACHA_RARITIES = sanitizeGachaRarities(rawGachaConfig.rarities).map(entry => ({
   ...entry,
@@ -694,6 +703,38 @@ configuredRarityIds.forEach(id => {
 
 const RARITY_IDS = GACHA_RARITIES.map(entry => entry.id);
 const RARITY_LABEL_MAP = new Map(GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
+
+const rawTicketStarConfig = CONFIG.ticketStar && typeof CONFIG.ticketStar === 'object'
+  ? CONFIG.ticketStar
+  : {};
+
+const TICKET_STAR_CONFIG = {
+  averageSpawnIntervalMs: (() => {
+    const raw = Number(
+      rawTicketStarConfig.averageSpawnIntervalSeconds
+        ?? rawTicketStarConfig.averageIntervalSeconds
+        ?? 60
+    );
+    const seconds = Number.isFinite(raw) && raw > 0 ? raw : 60;
+    return seconds * 1000;
+  })(),
+  speed: (() => {
+    const raw = Number(
+      rawTicketStarConfig.speedPixelsPerSecond
+        ?? rawTicketStarConfig.speed
+        ?? 90
+    );
+    return Number.isFinite(raw) && raw > 0 ? raw : 90;
+  })(),
+  size: (() => {
+    const raw = Number(rawTicketStarConfig.size ?? rawTicketStarConfig.spriteSize ?? 72);
+    return Number.isFinite(raw) && raw > 0 ? raw : 72;
+  })(),
+  rewardTickets: (() => {
+    const raw = Number(rawTicketStarConfig.rewardTickets ?? rawTicketStarConfig.tickets ?? 1);
+    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 1;
+  })()
+};
 
 const PRODUCTION_STEP_DEFINITIONS = new Map();
 
@@ -1835,6 +1876,7 @@ const DEFAULT_STATE = {
   perSecond: BASE_PER_SECOND.clone(),
   basePerClick: BASE_PER_CLICK.clone(),
   basePerSecond: BASE_PER_SECOND.clone(),
+  gachaTickets: 0,
   upgrades: {},
   elements: createInitialElementCollection(),
   lastSave: Date.now(),
@@ -1852,6 +1894,7 @@ const gameState = {
   perSecond: BASE_PER_SECOND.clone(),
   basePerClick: BASE_PER_CLICK.clone(),
   basePerSecond: BASE_PER_SECOND.clone(),
+  gachaTickets: 0,
   upgrades: {},
   elements: createInitialElementCollection(),
   theme: DEFAULT_THEME,
@@ -2131,10 +2174,12 @@ const elements = {
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
   statusAps: document.getElementById('statusAps'),
+  statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
   atomVisual: document.querySelector('.atom-visual'),
   frenzyLayer: document.getElementById('frenzyLayer'),
+  ticketLayer: document.getElementById('ticketLayer'),
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
@@ -2637,26 +2682,36 @@ function setGachaResult(rarityDef, elementDef, isNew) {
   }
 }
 
+function formatTicketLabel(count) {
+  const numeric = Math.max(0, Math.floor(Number(count) || 0));
+  const formatted = numeric.toLocaleString('fr-FR');
+  const unit = numeric === 1 ? 'ticket' : 'tickets';
+  return `${formatted} ${unit}`;
+}
+
 function updateGachaUI() {
   if (elements.gachaCostValue) {
-    elements.gachaCostValue.textContent = GACHA_COST.toString();
+    elements.gachaCostValue.textContent = formatTicketLabel(GACHA_TICKET_COST);
   }
   if (elements.gachaWallet) {
-    elements.gachaWallet.textContent = `Solde : ${gameState.atoms.toString()} atomes`;
+    elements.gachaWallet.textContent = `Solde : ${formatTicketLabel(gameState.gachaTickets || 0)}`;
   }
   if (elements.gachaRollButton) {
-    const affordable = gameState.atoms.compare(GACHA_COST) >= 0;
+    const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+    const affordable = available >= GACHA_TICKET_COST;
+    const label = affordable ? 'Lancer un tirage' : 'Tickets insuffisants';
     elements.gachaRollButton.disabled = !affordable;
-    const label = affordable ? 'Lancer une synthèse' : 'Atomes insuffisants';
-    elements.gachaRollButton.setAttribute('aria-label', `${label} (${GACHA_COST.toString()} atomes)`);
-    elements.gachaRollButton.title = `${label} (${GACHA_COST.toString()} atomes)`;
+    const costLabel = formatTicketLabel(GACHA_TICKET_COST);
+    elements.gachaRollButton.setAttribute('aria-label', `${label} (${costLabel})`);
+    elements.gachaRollButton.title = `${label} (${costLabel})`;
     elements.gachaRollButton.setAttribute('aria-disabled', affordable ? 'false' : 'true');
   }
 }
 
 function handleGachaRoll() {
-  if (gameState.atoms.compare(GACHA_COST) < 0) {
-    showToast('Pas assez d’atomes pour lancer la synthèse.');
+  const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+  if (available < GACHA_TICKET_COST) {
+    showToast('Pas assez de tickets de tirage.');
     return;
   }
 
@@ -2672,7 +2727,7 @@ function handleGachaRoll() {
     return;
   }
 
-  gameState.atoms = gameState.atoms.subtract(GACHA_COST);
+  gameState.gachaTickets = available - GACHA_TICKET_COST;
 
   let entry = gameState.elements[elementDef.id];
   if (!entry) {
@@ -2706,6 +2761,177 @@ function handleGachaRoll() {
     ? `Nouvel élément obtenu : ${elementDef.name} !`
     : `${elementDef.name} rejoint à nouveau votre collection.`);
   saveGame();
+}
+
+function gainGachaTickets(amount = 1) {
+  const gain = Math.max(1, Math.floor(Number(amount) || 0));
+  const current = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+  gameState.gachaTickets = current + gain;
+  updateGachaUI();
+  return gain;
+}
+
+function computeTicketStarDelay() {
+  const average = Math.max(1000, TICKET_STAR_CONFIG.averageSpawnIntervalMs);
+  const jitter = 0.5 + Math.random();
+  return average * jitter;
+}
+
+const ticketStarState = {
+  element: null,
+  active: false,
+  position: { x: 0, y: 0 },
+  velocity: { x: 0, y: 0 },
+  width: 0,
+  height: 0,
+  nextSpawnTime: performance.now() + computeTicketStarDelay()
+};
+
+function resetTicketStarState(options = {}) {
+  if (ticketStarState.element && ticketStarState.element.parentNode) {
+    ticketStarState.element.remove();
+  }
+  ticketStarState.element = null;
+  ticketStarState.active = false;
+  ticketStarState.position.x = 0;
+  ticketStarState.position.y = 0;
+  ticketStarState.velocity.x = 0;
+  ticketStarState.velocity.y = 0;
+  ticketStarState.width = 0;
+  ticketStarState.height = 0;
+  const now = performance.now();
+  if (options.reschedule) {
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+  } else if (!Number.isFinite(ticketStarState.nextSpawnTime) || ticketStarState.nextSpawnTime <= now) {
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+  }
+}
+
+function collectTicketStar(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!ticketStarState.active) {
+    return;
+  }
+  const gained = gainGachaTickets(TICKET_STAR_CONFIG.rewardTickets);
+  showToast(gained === 1 ? 'Ticket de tirage obtenu !' : `+${gained} tickets de tirage !`);
+  if (ticketStarState.element && ticketStarState.element.parentNode) {
+    ticketStarState.element.remove();
+  }
+  ticketStarState.element = null;
+  ticketStarState.active = false;
+  ticketStarState.width = 0;
+  ticketStarState.height = 0;
+  ticketStarState.velocity.x = 0;
+  ticketStarState.velocity.y = 0;
+  ticketStarState.position.x = 0;
+  ticketStarState.position.y = 0;
+  ticketStarState.nextSpawnTime = performance.now() + computeTicketStarDelay();
+  saveGame();
+}
+
+function spawnTicketStar(now = performance.now()) {
+  if (!elements.ticketLayer) {
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+    return;
+  }
+  const layer = elements.ticketLayer;
+  const layerWidth = layer.clientWidth;
+  const layerHeight = layer.clientHeight;
+  if (layerWidth <= 0 || layerHeight <= 0) {
+    ticketStarState.nextSpawnTime = now + 2000;
+    return;
+  }
+
+  if (ticketStarState.element && ticketStarState.element.parentNode) {
+    ticketStarState.element.remove();
+  }
+
+  const star = document.createElement('button');
+  star.type = 'button';
+  star.className = 'ticket-star';
+  star.setAttribute('aria-label', 'Collecter un ticket de tirage');
+  star.style.setProperty('--ticket-star-size', `${TICKET_STAR_CONFIG.size}px`);
+  star.innerHTML = '<img src="Assets/Image/star.png" alt="Étoile bonus" draggable="false" />';
+  star.addEventListener('click', collectTicketStar);
+  star.addEventListener('dragstart', event => event.preventDefault());
+
+  layer.appendChild(star);
+
+  const starWidth = star.offsetWidth || TICKET_STAR_CONFIG.size;
+  const starHeight = star.offsetHeight || TICKET_STAR_CONFIG.size;
+  const maxX = Math.max(0, layerWidth - starWidth);
+  const maxY = Math.max(0, layerHeight - starHeight);
+  const startX = Math.random() * maxX;
+  const startY = Math.random() * maxY;
+
+  ticketStarState.element = star;
+  ticketStarState.active = true;
+  ticketStarState.position.x = startX;
+  ticketStarState.position.y = startY;
+  ticketStarState.width = starWidth;
+  ticketStarState.height = starHeight;
+  const angle = Math.random() * Math.PI * 2;
+  const speed = TICKET_STAR_CONFIG.speed;
+  ticketStarState.velocity.x = Math.cos(angle) * speed;
+  ticketStarState.velocity.y = Math.sin(angle) * speed;
+  ticketStarState.nextSpawnTime = Number.POSITIVE_INFINITY;
+
+  star.style.transform = `translate(${startX}px, ${startY}px)`;
+}
+
+function updateTicketStar(deltaSeconds, now = performance.now()) {
+  if (!elements.ticketLayer) {
+    return;
+  }
+  if (!ticketStarState.active) {
+    if (now >= ticketStarState.nextSpawnTime) {
+      spawnTicketStar(now);
+    }
+    return;
+  }
+  const star = ticketStarState.element;
+  if (!star) {
+    ticketStarState.active = false;
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+    return;
+  }
+  const layer = elements.ticketLayer;
+  const width = layer.clientWidth;
+  const height = layer.clientHeight;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const starWidth = star.offsetWidth || ticketStarState.width || TICKET_STAR_CONFIG.size;
+  const starHeight = star.offsetHeight || ticketStarState.height || TICKET_STAR_CONFIG.size;
+  const maxX = Math.max(0, width - starWidth);
+  const maxY = Math.max(0, height - starHeight);
+  let nextX = ticketStarState.position.x + ticketStarState.velocity.x * deltaSeconds;
+  let nextY = ticketStarState.position.y + ticketStarState.velocity.y * deltaSeconds;
+
+  if (nextX <= 0) {
+    nextX = 0;
+    ticketStarState.velocity.x = Math.abs(ticketStarState.velocity.x);
+  } else if (nextX >= maxX) {
+    nextX = maxX;
+    ticketStarState.velocity.x = -Math.abs(ticketStarState.velocity.x);
+  }
+
+  if (nextY <= 0) {
+    nextY = 0;
+    ticketStarState.velocity.y = Math.abs(ticketStarState.velocity.y);
+  } else if (nextY >= maxY) {
+    nextY = maxY;
+    ticketStarState.velocity.y = -Math.abs(ticketStarState.velocity.y);
+  }
+
+  ticketStarState.position.x = nextX;
+  ticketStarState.position.y = nextY;
+  ticketStarState.width = starWidth;
+  ticketStarState.height = starHeight;
+  star.style.transform = `translate(${nextX}px, ${nextY}px)`;
 }
 
 function toLayeredValue(value, fallback = 0) {
@@ -3709,21 +3935,25 @@ function updateGoalsUI() {
   });
 }
 
-function updateFrenzyIndicator(now = performance.now()) {
-  if (!elements.statusApsFrenzy) return;
-  const entry = frenzyState.perSecond;
+function updateFrenzyIndicatorFor(type, targetElement, now) {
+  if (!targetElement) return;
+  const entry = frenzyState[type];
   if (!entry) {
-    elements.statusApsFrenzy.hidden = true;
+    targetElement.hidden = true;
+    targetElement.textContent = '';
+    delete targetElement.dataset.stacks;
     return;
   }
   pruneFrenzyEffects(entry, now);
-  const stacks = getFrenzyStackCount('perSecond', now);
-  if (stacks <= 0 || entry.effectUntil <= now) {
-    elements.statusApsFrenzy.hidden = true;
-    elements.statusApsFrenzy.textContent = '';
+  const stacks = getFrenzyStackCount(type, now);
+  const effectUntil = Number(entry.effectUntil) || 0;
+  if (stacks <= 0 || effectUntil <= now) {
+    targetElement.hidden = true;
+    targetElement.textContent = '';
+    delete targetElement.dataset.stacks;
     return;
   }
-  const remaining = Math.max(0, entry.effectUntil - now);
+  const remaining = Math.max(0, effectUntil - now);
   const seconds = remaining / 1000;
   const precision = seconds < 10 ? 1 : 0;
   const multiplier = Math.pow(FRENZY_CONFIG.multiplier, stacks);
@@ -3732,9 +3962,14 @@ function updateFrenzyIndicator(now = performance.now()) {
     minimumFractionDigits: precision,
     maximumFractionDigits: precision
   });
-  elements.statusApsFrenzy.textContent = `⚡ ×${multiplierText} · ${timeText}s`;
-  elements.statusApsFrenzy.hidden = false;
-  elements.statusApsFrenzy.dataset.stacks = stacks;
+  targetElement.textContent = `⚡ ×${multiplierText} · ${timeText}s`;
+  targetElement.hidden = false;
+  targetElement.dataset.stacks = stacks;
+}
+
+function updateFrenzyIndicators(now = performance.now()) {
+  updateFrenzyIndicatorFor('perSecond', elements.statusApsFrenzy, now);
+  updateFrenzyIndicatorFor('perClick', elements.statusApcFrenzy, now);
 }
 
 function updateUI() {
@@ -3747,7 +3982,7 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
-  updateFrenzyIndicator();
+  updateFrenzyIndicators();
   updateGachaUI();
   updateCollectionDisplay();
   updateShopAffordability();
@@ -3815,6 +4050,9 @@ function serializeState() {
     lifetime: gameState.lifetime.toJSON(),
     perClick: gameState.perClick.toJSON(),
     perSecond: gameState.perSecond.toJSON(),
+    gachaTickets: Number.isFinite(Number(gameState.gachaTickets))
+      ? Math.max(0, Math.floor(Number(gameState.gachaTickets)))
+      : 0,
     upgrades: gameState.upgrades,
     elements: gameState.elements,
     theme: gameState.theme,
@@ -3862,6 +4100,7 @@ function resetGame() {
     perSecond: BASE_PER_SECOND.clone(),
     basePerClick: BASE_PER_CLICK.clone(),
     basePerSecond: BASE_PER_SECOND.clone(),
+    gachaTickets: 0,
     upgrades: {},
     elements: createInitialElementCollection(),
     theme: DEFAULT_THEME,
@@ -3871,6 +4110,7 @@ function resetGame() {
     trophies: new Set()
   });
   resetFrenzyState({ skipApply: true });
+  resetTicketStarState({ reschedule: true });
   applyTheme(DEFAULT_THEME);
   recalcProduction();
   renderShop();
@@ -3881,6 +4121,7 @@ function resetGame() {
 function loadGame() {
   try {
     resetFrenzyState({ skipApply: true });
+    resetTicketStarState({ reschedule: true });
     const raw = localStorage.getItem('atom2univers');
     if (!raw) {
       gameState.theme = DEFAULT_THEME;
@@ -3896,6 +4137,8 @@ function loadGame() {
     gameState.lifetime = LayeredNumber.fromJSON(data.lifetime);
     gameState.perClick = LayeredNumber.fromJSON(data.perClick);
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
+    const tickets = Number(data.gachaTickets);
+    gameState.gachaTickets = Number.isFinite(tickets) && tickets > 0 ? Math.floor(tickets) : 0;
     gameState.upgrades = data.upgrades || {};
     gameState.stats = parseStats(data.stats);
     gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
@@ -3964,6 +4207,7 @@ function loop(now) {
   updateClickVisuals(now);
   updatePlaytime(delta);
   updateFrenzies(delta, now);
+  updateTicketStar(delta, now);
 
   if (now - lastUIUpdate > 250) {
     updateUI();
