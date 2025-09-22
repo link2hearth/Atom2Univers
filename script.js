@@ -2944,6 +2944,7 @@ const DEFAULT_STATE = {
   basePerSecond: BASE_PER_SECOND.clone(),
   gachaTickets: 0,
   upgrades: {},
+  shopUnlocks: [],
   elements: createInitialElementCollection(),
   lastSave: Date.now(),
   theme: DEFAULT_THEME,
@@ -2969,6 +2970,7 @@ const gameState = {
   basePerSecond: BASE_PER_SECOND.clone(),
   gachaTickets: 0,
   upgrades: {},
+  shopUnlocks: new Set(),
   elements: createInitialElementCollection(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
@@ -3667,6 +3669,32 @@ const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
 const periodicCells = new Map();
 let selectedElementId = null;
+
+function getShopUnlockSet() {
+  if (gameState.shopUnlocks instanceof Set) {
+    const unlocks = gameState.shopUnlocks;
+    UPGRADE_DEFS.forEach(def => {
+      if (getUpgradeLevel(gameState.upgrades, def.id) > 0) {
+        unlocks.add(def.id);
+      }
+    });
+    return unlocks;
+  }
+  let stored = [];
+  if (Array.isArray(gameState.shopUnlocks)) {
+    stored = gameState.shopUnlocks;
+  } else if (gameState.shopUnlocks && typeof gameState.shopUnlocks === 'object') {
+    stored = Object.keys(gameState.shopUnlocks);
+  }
+  const unlocks = new Set(stored);
+  UPGRADE_DEFS.forEach(def => {
+    if (getUpgradeLevel(gameState.upgrades, def.id) > 0) {
+      unlocks.add(def.id);
+    }
+  });
+  gameState.shopUnlocks = unlocks;
+  return unlocks;
+}
 
 function formatAtomicMass(value) {
   if (value == null) return '';
@@ -7002,10 +7030,31 @@ function buildShopItem(def) {
   return { root: item, level, description: desc, buttons: buttonMap };
 }
 
+function getShopUnlockThreshold(def) {
+  if (!def) {
+    return LayeredNumber.zero();
+  }
+  if (def.unlockCost instanceof LayeredNumber) {
+    return def.unlockCost.clone();
+  }
+  if (def.unlockCost != null) {
+    return toLayeredNumber(def.unlockCost, def.baseCost ?? 0);
+  }
+  if (def.baseCost instanceof LayeredNumber) {
+    return def.baseCost.clone();
+  }
+  const base = Number(def.baseCost);
+  if (Number.isFinite(base)) {
+    return new LayeredNumber(base);
+  }
+  return LayeredNumber.zero();
+}
+
 function updateShopVisibility() {
   if (!shopRows.size) return;
   const shopFree = isDevKitShopFree();
-  let highestVisibleCost = null;
+  const unlocks = getShopUnlockSet();
+  let highestUnlockCost = null;
   let canRevealNext = true;
 
   UPGRADE_DEFS.forEach((def, index) => {
@@ -7015,23 +7064,16 @@ function updateShopVisibility() {
     if (shopFree) {
       row.root.hidden = false;
       row.root.classList.remove('shop-item--locked');
+      unlocks.add(def.id);
       return;
     }
 
-    if (index === 0) {
-      row.root.hidden = false;
-      row.root.classList.remove('shop-item--locked');
-      const cost = computeUpgradeCost(def, 1);
-      if (cost instanceof LayeredNumber) {
-        highestVisibleCost = cost.clone();
-      } else {
-        highestVisibleCost = new LayeredNumber(cost);
-      }
-      canRevealNext = gameState.atoms.compare(highestVisibleCost) >= 0;
-      return;
-    }
+    const unlockCost = getShopUnlockThreshold(def);
+    const level = getUpgradeLevel(gameState.upgrades, def.id);
+    const isUnlocked = unlocks.has(def.id) || level > 0;
+    const shouldReveal = index === 0 || isUnlocked || canRevealNext;
 
-    if (!canRevealNext) {
+    if (!shouldReveal) {
       row.root.hidden = true;
       row.root.classList.add('shop-item--locked');
       return;
@@ -7039,18 +7081,19 @@ function updateShopVisibility() {
 
     row.root.hidden = false;
     row.root.classList.remove('shop-item--locked');
-    const cost = computeUpgradeCost(def, 1);
-    if (cost instanceof LayeredNumber) {
-      if (!highestVisibleCost || cost.compare(highestVisibleCost) > 0) {
-        highestVisibleCost = cost.clone();
-      }
-    } else {
-      const numericCost = new LayeredNumber(cost);
-      if (!highestVisibleCost || numericCost.compare(highestVisibleCost) > 0) {
-        highestVisibleCost = numericCost;
-      }
+    if (!isUnlocked) {
+      unlocks.add(def.id);
     }
-    canRevealNext = gameState.atoms.compare(highestVisibleCost) >= 0;
+
+    if (!highestUnlockCost || unlockCost.compare(highestUnlockCost) > 0) {
+      highestUnlockCost = unlockCost.clone();
+    }
+
+    if (!highestUnlockCost) {
+      canRevealNext = true;
+    } else {
+      canRevealNext = gameState.atoms.compare(highestUnlockCost) >= 0;
+    }
   });
 }
 
@@ -7346,6 +7389,7 @@ function serializeState() {
       ? Math.max(0, Math.floor(Number(gameState.gachaTickets)))
       : 0,
     upgrades: gameState.upgrades,
+    shopUnlocks: Array.from(getShopUnlockSet()),
     elements: gameState.elements,
     theme: gameState.theme,
     stats: {
@@ -7412,6 +7456,7 @@ function resetGame() {
     basePerSecond: BASE_PER_SECOND.clone(),
     gachaTickets: 0,
     upgrades: {},
+    shopUnlocks: new Set(),
     elements: createInitialElementCollection(),
     theme: DEFAULT_THEME,
     stats: createInitialStats(),
@@ -7448,6 +7493,7 @@ function loadGame() {
     if (!raw) {
       gameState.theme = DEFAULT_THEME;
       gameState.stats = createInitialStats();
+      gameState.shopUnlocks = new Set();
       applyTheme(DEFAULT_THEME);
       recalcProduction();
       renderShop();
@@ -7462,6 +7508,14 @@ function loadGame() {
     const tickets = Number(data.gachaTickets);
     gameState.gachaTickets = Number.isFinite(tickets) && tickets > 0 ? Math.floor(tickets) : 0;
     gameState.upgrades = data.upgrades || {};
+    const storedShopUnlocks = data.shopUnlocks;
+    if (Array.isArray(storedShopUnlocks)) {
+      gameState.shopUnlocks = new Set(storedShopUnlocks);
+    } else if (storedShopUnlocks && typeof storedShopUnlocks === 'object') {
+      gameState.shopUnlocks = new Set(Object.keys(storedShopUnlocks));
+    } else {
+      gameState.shopUnlocks = new Set();
+    }
     gameState.stats = parseStats(data.stats);
     gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
     const storedOffline = Number(data.offlineGainMultiplier);
@@ -7514,6 +7568,7 @@ function loadGame() {
     }
     gameState.elements = baseCollection;
     gameState.theme = data.theme || DEFAULT_THEME;
+    getShopUnlockSet();
     applyTheme(gameState.theme);
     recalcProduction();
     renderShop();
