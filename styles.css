@@ -702,6 +702,11 @@ body.theme-neon .gacha-ticket-counter {
   --category-strong: rgba(255, 255, 255, 0.08);
   --category-weak: rgba(255, 255, 255, 0.02);
   --category-border: rgba(255, 255, 255, 0.1);
+  --rarity-color: transparent;
+  --rarity-strong: var(--category-strong);
+  --rarity-weak: var(--category-weak);
+  --rarity-border: var(--category-border);
+  --rarity-divider: rgba(0, 0, 0, 0.35);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -718,6 +723,60 @@ body.theme-neon .gacha-ticket-counter {
   min-height: var(--cell-height);
   text-align: center;
   text-decoration: none;
+  overflow: hidden;
+}
+
+.periodic-element > * {
+  position: relative;
+  z-index: 2;
+}
+
+.periodic-element::before,
+.periodic-element::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.periodic-element::after {
+  background: linear-gradient(160deg, var(--rarity-strong), var(--rarity-weak));
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  z-index: 0;
+}
+
+.periodic-element::before {
+  background: linear-gradient(135deg, transparent 48%, var(--rarity-divider) 50%, transparent 52%);
+  z-index: 1;
+  mix-blend-mode: soft-light;
+}
+
+.periodic-element[data-rarity]::before,
+.periodic-element[data-rarity]::after {
+  opacity: 1;
+}
+
+.periodic-element[data-rarity] {
+  --rarity-strong: var(--rarity-color, rgba(255, 255, 255, 0.16));
+  --rarity-weak: var(--rarity-color, rgba(255, 255, 255, 0.08));
+  --rarity-border: var(--rarity-color, rgba(255, 255, 255, 0.18));
+  border-color: var(--rarity-border);
+}
+
+@supports (color-mix(in srgb, black 50%, white)) {
+  .periodic-element[data-rarity] {
+    --rarity-strong: color-mix(in srgb, var(--rarity-color, transparent) 70%, rgba(255, 255, 255, 0.14));
+    --rarity-weak: color-mix(in srgb, var(--rarity-color, transparent) 45%, rgba(0, 0, 0, 0.22));
+    --rarity-border: color-mix(in srgb, var(--rarity-color, transparent) 55%, rgba(255, 255, 255, 0.2));
+    --rarity-divider: color-mix(in srgb, var(--rarity-color, transparent) 35%, rgba(0, 0, 0, 0.55));
+  }
+
+  .periodic-element[data-rarity] {
+    border-color: color-mix(in srgb, var(--category-border) 55%, var(--rarity-border) 45%);
+  }
 }
 
 .periodic-element:hover,
