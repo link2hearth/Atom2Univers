@@ -2610,6 +2610,44 @@ const elements = {
   critConfettiLayer: null
 };
 
+const soundEffects = (() => {
+  const createSilentPool = () => ({ play: () => {} });
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+    return { pop: createSilentPool(), crit: createSilentPool() };
+  }
+
+  const createSoundPool = (src, poolSize = 4) => {
+    const size = Math.max(1, Math.floor(poolSize) || 1);
+    const pool = Array.from({ length: size }, () => {
+      const audio = new Audio(src);
+      audio.preload = 'auto';
+      audio.setAttribute('preload', 'auto');
+      return audio;
+    });
+    let index = 0;
+    return {
+      play() {
+        const audio = pool[index];
+        index = (index + 1) % pool.length;
+        try {
+          audio.currentTime = 0;
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {});
+          }
+        } catch (error) {
+          // Ignore playback issues (e.g. autoplay restrictions)
+        }
+      }
+    };
+  };
+
+  return {
+    pop: createSoundPool('Assets/Sounds/pop.mp3', 6),
+    crit: createSoundPool('Assets/Sounds/crit.mp3', 3)
+  };
+})();
+
 const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
 const periodicCells = new Map();
@@ -3792,6 +3830,7 @@ function animateAtomPress(options = {}) {
   const button = elements.atomButton;
   button.classList.add('is-pressed');
   if (critical) {
+    soundEffects.crit.play();
     button.classList.add('is-critical');
     showCriticalIndicator(multiplier);
     clearTimeout(animateAtomPress.criticalTimeout);
@@ -3955,6 +3994,7 @@ function handleManualAtomClick() {
   const critResult = applyCriticalHit(baseAmount);
   gainAtoms(critResult.amount, true);
   registerManualClick();
+  soundEffects.pop.play();
   if (critResult.isCritical) {
     gameState.lastCritical = {
       at: Date.now(),
