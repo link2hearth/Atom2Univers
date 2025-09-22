@@ -5638,7 +5638,6 @@ function hideCritBanner(immediate = false) {
     display.hidden = true;
     display.classList.remove('is-active', 'is-fading');
     valueElement.classList.remove('status-crit-value--smash');
-    valueElement.removeAttribute('data-multiplier');
     display.removeAttribute('aria-label');
     display.removeAttribute('title');
     return;
@@ -5648,14 +5647,13 @@ function hideCritBanner(immediate = false) {
     display.hidden = true;
     display.classList.remove('is-active', 'is-fading');
     valueElement.classList.remove('status-crit-value--smash');
-    valueElement.removeAttribute('data-multiplier');
     display.removeAttribute('aria-label');
     display.removeAttribute('title');
     critBannerState.hideTimeoutId = null;
   }, 360);
 }
 
-function showCritBanner(bonusAmount, multiplier) {
+function showCritBanner(bonusAmount) {
   if (!elements.statusCrit || !elements.statusCritValue) return;
   const display = elements.statusCrit;
   const valueElement = elements.statusCritValue;
@@ -5668,18 +5666,6 @@ function showCritBanner(bonusAmount, multiplier) {
   const displayText = `+${layeredBonus.toString()}`;
   valueElement.textContent = displayText;
 
-  const numericMultiplier = Number(multiplier);
-  const safeMultiplier = Number.isFinite(numericMultiplier) ? Math.max(1, numericMultiplier) : 1;
-  if (safeMultiplier > 1) {
-    const multiplierOptions = safeMultiplier >= 10
-      ? { maximumFractionDigits: 0 }
-      : { maximumFractionDigits: 2 };
-    const multiplierText = `×${safeMultiplier.toLocaleString('fr-FR', multiplierOptions)}`;
-    valueElement.dataset.multiplier = multiplierText;
-  } else {
-    valueElement.removeAttribute('data-multiplier');
-  }
-
   display.hidden = false;
   display.classList.remove('is-fading');
   display.classList.add('is-active');
@@ -5688,16 +5674,9 @@ function showCritBanner(bonusAmount, multiplier) {
   void valueElement.offsetWidth; // force reflow to restart the impact animation
   valueElement.classList.add('status-crit-value--smash');
 
-  const ariaParts = [`Coup critique : ${displayText} atomes`];
-  if (safeMultiplier > 1 && valueElement.dataset.multiplier) {
-    ariaParts.push(`multiplicateur ${valueElement.dataset.multiplier}`);
-  }
-  display.setAttribute('aria-label', ariaParts.join(' · '));
-  if (safeMultiplier > 1 && valueElement.dataset.multiplier) {
-    display.title = `Bonus critique ${displayText} (${valueElement.dataset.multiplier})`;
-  } else {
-    display.title = `Bonus critique ${displayText}`;
-  }
+  const ariaText = `Coup critique : ${displayText} atomes`;
+  display.setAttribute('aria-label', ariaText);
+  display.title = `Bonus critique ${displayText}`;
 
   clearCritBannerTimers();
   critBannerState.fadeTimeoutId = setTimeout(() => {
@@ -5707,7 +5686,6 @@ function showCritBanner(bonusAmount, multiplier) {
       display.hidden = true;
       display.classList.remove('is-active', 'is-fading');
       valueElement.classList.remove('status-crit-value--smash');
-      valueElement.removeAttribute('data-multiplier');
       display.removeAttribute('aria-label');
       display.removeAttribute('title');
       critBannerState.hideTimeoutId = null;
@@ -5769,7 +5747,7 @@ function handleManualAtomClick() {
       multiplier: critResult.multiplier
     };
     const critBonus = critResult.amount.subtract(baseAmount);
-    showCritBanner(critBonus, critResult.multiplier);
+    showCritBanner(critBonus);
   }
   animateAtomPress({ critical: critResult.isCritical, multiplier: critResult.multiplier });
 }
