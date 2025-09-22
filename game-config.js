@@ -70,7 +70,7 @@ function createShopBuildingDefinitions() {
       name: 'Laboratoire de Physique',
       description: 'Des équipes de chercheurs boostent votre production atomique.',
       effectSummary:
-        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Palier 200 : Réacteurs +20 %.',
+        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Accélérateur ≥200 : Labos +20 % APS.',
       category: 'auto',
       baseCost: 100,
       costScale: 1.15,
@@ -95,7 +95,7 @@ function createShopBuildingDefinitions() {
       name: 'Réacteur nucléaire',
       description: 'Des réacteurs contrôlés libèrent une énergie colossale.',
       effectSummary:
-        'Production passive : +10 APS par niveau (bonifiée par Électrons et Labos). Palier 150 : APC global ×2. Synergie : +1 % APS des Réacteurs par 50 Électrons.',
+        'Production passive : +10 APS par niveau (+1 % par 50 Électrons, +20 % si Labos ≥200). Palier 150 : APC global ×2.',
       category: 'auto',
       baseCost: 1000,
       costScale: 1.15,
@@ -217,7 +217,7 @@ function createShopBuildingDefinitions() {
       name: 'Forgeron d’étoiles',
       description: 'Façonnez des étoiles et dopez votre APC.',
       effectSummary:
-        'Production passive : +500 000 APS par niveau (boostée par Stations). Palier 150 : +25 % APC global.',
+        'Production passive : +500 000 APS par niveau (+2 % APS par Station). Palier 150 : +25 % APC global.',
       category: 'hybrid',
       baseCost: 5e10,
       costScale: 1.15,
@@ -343,7 +343,7 @@ function createShopBuildingDefinitions() {
       name: 'Univers parallèle',
       description: 'Expérimentez des réalités alternatives à haut rendement.',
       effectSummary:
-        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4). Synergie : +50 % APS/APC à chaque renaissance.',
+        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4).',
       category: 'auto',
       baseCost: 1e30,
       costScale: 1.15,
