@@ -741,6 +741,14 @@ const GAME_CONFIG = {
           multiplier: 'Singularité minérale · densité extrême'
         }
       },
+      mythique: {
+        labels: {
+          setBonus: 'Mythe quantique · convergence ultime',
+          ticketBonus: 'Mythe quantique · étoile compressée',
+          offlineBonus: 'Mythe quantique · collecte persistante',
+          duplicateOverflow: 'Mythe quantique · surcharge fractale'
+        }
+      },
       irreel: {
         crit: {
           perUnique: {
