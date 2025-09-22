@@ -580,7 +580,8 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
       autoAdd: 0,
       minCopies: defaultMinCopies,
       minUnique: defaultMinUnique,
-      requireAllUnique: defaultRequireAllUnique
+      requireAllUnique: defaultRequireAllUnique,
+      label: null
     };
   }
   if (typeof raw === 'string') {
@@ -593,7 +594,8 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
       autoAdd: 0,
       minCopies: defaultMinCopies,
       minUnique: defaultMinUnique,
-      requireAllUnique: defaultRequireAllUnique
+      requireAllUnique: defaultRequireAllUnique,
+      label: null
     };
   }
   if (typeof raw !== 'object') {
@@ -642,7 +644,22 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
   const requireAllUnique = requireAllUniqueCandidate != null
     ? requireAllUniqueCandidate
     : defaultRequireAllUnique;
-  return { clickAdd, autoAdd, minCopies, minUnique, requireAllUnique };
+  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  return { clickAdd, autoAdd, minCopies, minUnique, requireAllUnique, label };
+}
+
+function normalizeElementGroupAddConfigList(raw, options = {}) {
+  if (raw == null) {
+    return null;
+  }
+  if (Array.isArray(raw)) {
+    const normalized = raw
+      .map(entry => normalizeElementGroupAddConfig(entry, options))
+      .filter(entry => entry);
+    return normalized.length ? normalized : null;
+  }
+  const single = normalizeElementGroupAddConfig(raw, options);
+  return single ? [single] : null;
 }
 
 function normalizeElementGroupMultiplier(raw) {
@@ -967,7 +984,7 @@ function normalizeElementGroupBonus(raw) {
     raw.perCopy ?? raw.perElement ?? raw.perCopyBonus ?? raw.perElementBonus ?? raw.perCollect,
     { defaultMinCopies: 1 }
   );
-  const setBonus = normalizeElementGroupAddConfig(
+  const setBonuses = normalizeElementGroupAddConfigList(
     raw.setBonus ?? raw.groupBonus ?? raw.set ?? raw.group ?? raw.setReward ?? raw.bonusDeGroupe,
     { defaultRequireAllUnique: true }
   );
@@ -1000,12 +1017,13 @@ function normalizeElementGroupBonus(raw) {
     }
   }
   const hasLabels = Object.keys(labels).length > 0;
-  if (!perCopy && !setBonus && !multiplier && !crit && !rarityMultiplierBonus) {
+  if (!perCopy && (!setBonuses || setBonuses.length === 0) && !multiplier && !crit && !rarityMultiplierBonus) {
     return null;
   }
   return {
     perCopy,
-    setBonus,
+    setBonus: setBonuses ? setBonuses[0] : null,
+    setBonuses,
     multiplier,
     crit,
     rarityMultiplierBonus,
@@ -5353,42 +5371,51 @@ function recalcProduction() {
       }
     }
 
-    if (uniqueCount > 0 && groupConfig.setBonus) {
-      const {
-        clickAdd,
-        autoAdd,
-        minCopies = 0,
-        minUnique = 0,
-        requireAllUnique = false
-      } = groupConfig.setBonus;
-      const requiredCopies = Math.max(0, minCopies);
-      let requiredUnique = Math.max(0, minUnique);
-      if (requireAllUnique) {
-        const poolSize = getRarityPoolSize(rarityId);
-        if (poolSize > 0) {
-          requiredUnique = Math.max(requiredUnique, poolSize);
-        } else if (requiredUnique === 0) {
-          requiredUnique = uniqueCount;
+    const setBonuses = Array.isArray(groupConfig.setBonuses)
+      ? groupConfig.setBonuses
+      : (groupConfig.setBonus ? [groupConfig.setBonus] : []);
+    if (uniqueCount > 0 && setBonuses.length) {
+      setBonuses.forEach((setBonusEntry, index) => {
+        if (!setBonusEntry) return;
+        const {
+          clickAdd,
+          autoAdd,
+          minCopies = 0,
+          minUnique = 0,
+          requireAllUnique = false,
+          label: entryLabel
+        } = setBonusEntry;
+        const requiredCopies = Math.max(0, minCopies);
+        let requiredUnique = Math.max(0, minUnique);
+        if (requireAllUnique) {
+          const poolSize = getRarityPoolSize(rarityId);
+          if (poolSize > 0) {
+            requiredUnique = Math.max(requiredUnique, poolSize);
+          } else if (requiredUnique === 0) {
+            requiredUnique = uniqueCount;
+          }
         }
-      }
-      const meetsCopyRequirement = copyCount >= requiredCopies;
-      const meetsUniqueRequirement = requiredUnique > 0
-        ? uniqueCount >= requiredUnique
-        : uniqueCount > 0;
-      if (meetsCopyRequirement && meetsUniqueRequirement) {
+        const meetsCopyRequirement = copyCount >= requiredCopies;
+        const meetsUniqueRequirement = requiredUnique > 0
+          ? uniqueCount >= requiredUnique
+          : uniqueCount > 0;
+        if (!meetsCopyRequirement || !meetsUniqueRequirement) {
+          return;
+        }
+        const resolvedLabel = entryLabel || setBonusLabel;
         if (clickAdd) {
           addClickElementFlat(clickAdd, {
-            id: `elements:${rarityId}:groupFlat`,
-            label: setBonusLabel
+            id: `elements:${rarityId}:groupFlat:${index}`,
+            label: resolvedLabel
           });
         }
         if (autoAdd) {
           addAutoElementFlat(autoAdd, {
-            id: `elements:${rarityId}:groupFlat`,
-            label: setBonusLabel
+            id: `elements:${rarityId}:groupFlat:${index}`,
+            label: resolvedLabel
           });
         }
-      }
+      });
     }
 
     if (groupConfig.multiplier) {

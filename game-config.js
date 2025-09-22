@@ -675,6 +675,26 @@ const GAME_CONFIG = {
           targets: ['perClick', 'perSecond']
         }
       },
+      essentiel: {
+        setBonus: [
+          {
+            clickAdd: 10,
+            minUnique: 1,
+            requireAllUnique: false,
+            label: 'Essentiel planétaire · première découverte'
+          },
+          {
+            clickAdd: 1000,
+            requireAllUnique: true,
+            label: 'Essentiel planétaire · collection complète'
+          }
+        ],
+        rarityMultiplierBonus: {
+          copyThreshold: 50,
+          amount: 1,
+          label: 'Essentiel planétaire · synergie orbitale'
+        }
+      },
       irreel: {
         crit: {
           perUnique: {
