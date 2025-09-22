@@ -63,24 +63,30 @@
     </section>
 
     <section id="gacha" class="page page--gacha" aria-labelledby="gacha-title">
-      <div class="gacha-layout">
-        <article class="gacha-card gacha-card--primary" aria-labelledby="gacha-title">
-          <header class="gacha-card__header">
-            <h2 id="gacha-title">Gacha</h2>
-          </header>
-          <p class="gacha-wallet" id="gachaWallet">Solde : 0 ticket</p>
-          <p class="gacha-cost">Coût d'un tirage : <span id="gachaCostValue">1 ticket</span></p>
-          <button class="gacha-roll-button" id="gachaRollButton" type="button">Lancer un tirage</button>
-          <p class="gacha-result" id="gachaResult" aria-live="polite">En attente de la prochaine transmutation.</p>
-        </article>
-
-        <aside class="gacha-card gacha-card--rarities" aria-labelledby="gacha-rarity-title">
-          <h3 id="gacha-rarity-title">Raretés et probabilités</h3>
-          <p class="gacha-card__intro">Probabilités configurables.</p>
-          <ul class="gacha-rarity-list" id="gachaRarityList" aria-live="polite"></ul>
-        </aside>
+      <h2 id="gacha-title" class="visually-hidden">Portail de tirage cosmique</h2>
+      <div class="gacha-ticket-counter" id="gachaTicketCounter" aria-live="polite">0 ticket</div>
+      <button
+        class="gacha-sun-button"
+        id="gachaSunButton"
+        type="button"
+        aria-label="Déclencher un tirage cosmique"
+        aria-describedby="gachaTicketCounter"
+      >
+        <img src="Assets/Image/Sun.png" alt="Soleil cosmique" draggable="false" />
+      </button>
+      <div
+        class="gacha-animation-layer"
+        id="gachaAnimation"
+        aria-hidden="true"
+        hidden
+        tabindex="0"
+      >
+        <div class="gacha-warp" id="gachaWarp" aria-hidden="true"></div>
+        <div class="gacha-stars" id="gachaAnimationStars" aria-hidden="true"></div>
+        <div class="gacha-overlay" aria-hidden="true"></div>
+        <div class="gacha-result" id="gachaResult" role="status" aria-live="assertive"></div>
+        <p class="gacha-continue-hint" id="gachaContinueHint">Cliquer pour continuer</p>
       </div>
-      <p class="gacha-collection" id="gachaOwnedSummary">Collection en préparation.</p>
     </section>
 
     <section id="tableau" class="page page--table" aria-label="Tableau périodique des éléments">
