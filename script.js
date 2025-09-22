@@ -3276,6 +3276,7 @@ function handleGachaRoll() {
 
   const isNew = previousCount === 0;
 
+  recalcProduction();
   updateUI();
   setGachaResult(rarity, elementDef, isNew);
   showToast(isNew
