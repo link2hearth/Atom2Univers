@@ -2161,12 +2161,13 @@ const FALLBACK_TROPHIES = [
 ];
 
 function createInitialStats() {
+  const now = Date.now();
   return {
     session: {
       atomsGained: LayeredNumber.zero(),
       manualClicks: 0,
       onlineTimeMs: 0,
-      startedAt: Date.now(),
+      startedAt: now,
       frenzyTriggers: {
         perClick: 0,
         perSecond: 0,
@@ -2176,6 +2177,7 @@ function createInitialStats() {
     global: {
       manualClicks: 0,
       playTimeMs: 0,
+      startedAt: null,
       frenzyTriggers: {
         perClick: 0,
         perSecond: 0,
@@ -2631,20 +2633,40 @@ function parseStats(saved) {
   if (!saved || typeof saved !== 'object') {
     return stats;
   }
-  if (saved.session) {
-    stats.session.atomsGained = LayeredNumber.fromJSON(saved.session.atomsGained);
-    stats.session.manualClicks = Number(saved.session.manualClicks) || 0;
-    stats.session.onlineTimeMs = Number(saved.session.onlineTimeMs) || 0;
-    stats.session.startedAt = typeof saved.session.startedAt === 'number'
-      ? saved.session.startedAt
-      : Date.now();
-    stats.session.frenzyTriggers = normalizeFrenzyStats(saved.session.frenzyTriggers);
+
+  let legacySessionStart = null;
+  if (saved.session && typeof saved.session.startedAt === 'number') {
+    const candidate = Number(saved.session.startedAt);
+    if (Number.isFinite(candidate) && candidate > 0) {
+      legacySessionStart = candidate;
+    }
   }
+
   if (saved.global) {
     stats.global.manualClicks = Number(saved.global.manualClicks) || 0;
     stats.global.playTimeMs = Number(saved.global.playTimeMs) || 0;
     stats.global.frenzyTriggers = normalizeFrenzyStats(saved.global.frenzyTriggers);
+    const globalStart = typeof saved.global.startedAt === 'number'
+      ? Number(saved.global.startedAt)
+      : null;
+    if (Number.isFinite(globalStart) && globalStart > 0) {
+      stats.global.startedAt = globalStart;
+    } else if (legacySessionStart != null) {
+      stats.global.startedAt = legacySessionStart;
+    }
+  } else if (legacySessionStart != null) {
+    stats.global.startedAt = legacySessionStart;
   }
+
+  // Always start a fresh session when the game is (re)loaded.
+  stats.session = {
+    atomsGained: LayeredNumber.zero(),
+    manualClicks: 0,
+    onlineTimeMs: 0,
+    startedAt: Date.now(),
+    frenzyTriggers: { perClick: 0, perSecond: 0, total: 0 }
+  };
+
   return stats;
 }
 
@@ -4744,8 +4766,20 @@ function registerManualClick() {
   clickHistory.push(now);
   updateClickVisuals(now);
   if (gameState.stats) {
-    gameState.stats.session.manualClicks += 1;
-    gameState.stats.global.manualClicks += 1;
+    const session = gameState.stats.session;
+    const global = gameState.stats.global;
+    if (session) {
+      if (!Number.isFinite(session.startedAt)) {
+        session.startedAt = Date.now();
+      }
+      session.manualClicks += 1;
+    }
+    if (global) {
+      if (!Number.isFinite(global.startedAt)) {
+        global.startedAt = Date.now();
+      }
+      global.manualClicks += 1;
+    }
   }
 }
 
@@ -5947,6 +5981,7 @@ function serializeState() {
       global: {
         manualClicks: stats.global.manualClicks,
         playTimeMs: stats.global.playTimeMs,
+        startedAt: stats.global.startedAt,
         frenzyTriggers: {
           perClick: stats.global.frenzyTriggers?.perClick || 0,
           perSecond: stats.global.frenzyTriggers?.perSecond || 0,
