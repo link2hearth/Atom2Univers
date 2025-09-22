@@ -674,6 +674,21 @@ const GAME_CONFIG = {
           cap: 100,
           targets: ['perClick', 'perSecond']
         }
+      },
+      irreel: {
+        crit: {
+          perUnique: {
+            chanceAdd: 0.01
+          },
+          perDuplicate: {
+            multiplierAdd: 0.01
+          }
+        },
+        rarityMultiplierBonus: {
+          uniqueThreshold: 5,
+          amount: 1,
+          label: 'Irréel · catalyseur dimensionnel'
+        }
       }
     }
   },

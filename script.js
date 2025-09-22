@@ -715,6 +715,250 @@ function normalizeElementGroupMultiplier(raw) {
   };
 }
 
+function normalizeCritBonusEffect(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw === 0) {
+      return null;
+    }
+    return { chanceAdd: raw };
+  }
+  if (typeof raw === 'string') {
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      return null;
+    }
+    return { chanceAdd: numeric };
+  }
+  if (typeof raw !== 'object') {
+    return null;
+  }
+  const effectSource = raw.effect && typeof raw.effect === 'object' ? raw.effect : raw;
+  const effect = {};
+
+  const chanceSet = readNumberProperty(effectSource, [
+    'chanceSet',
+    'chanceBase',
+    'setChance',
+    'critChanceSet',
+    'critChance'
+  ]);
+  if (Number.isFinite(chanceSet)) {
+    effect.chanceSet = Math.max(0, chanceSet);
+  }
+
+  const chanceAdd = readNumberProperty(effectSource, [
+    'chanceAdd',
+    'chanceBonus',
+    'critChanceAdd',
+    'bonusChance',
+    'addChance'
+  ]);
+  if (Number.isFinite(chanceAdd) && chanceAdd !== 0) {
+    effect.chanceAdd = chanceAdd;
+  }
+
+  const chanceMult = readNumberProperty(effectSource, [
+    'chanceMult',
+    'chanceMultiplier',
+    'critChanceMult',
+    'multChance'
+  ]);
+  if (Number.isFinite(chanceMult) && chanceMult > 0 && chanceMult !== 1) {
+    effect.chanceMult = chanceMult;
+  }
+
+  const multiplierSet = readNumberProperty(effectSource, [
+    'multiplierSet',
+    'setMultiplier',
+    'critMultiplierSet',
+    'critMultiplier'
+  ]);
+  if (Number.isFinite(multiplierSet)) {
+    effect.multiplierSet = Math.max(0, multiplierSet);
+  }
+
+  const multiplierAdd = readNumberProperty(effectSource, [
+    'multiplierAdd',
+    'damageAdd',
+    'critMultiplierAdd',
+    'bonusMultiplier',
+    'bonusDamage'
+  ]);
+  if (Number.isFinite(multiplierAdd) && multiplierAdd !== 0) {
+    effect.multiplierAdd = multiplierAdd;
+  }
+
+  const multiplierMult = readNumberProperty(effectSource, [
+    'multiplierMult',
+    'multiplierMultiplier',
+    'critMultiplierMult',
+    'damageMult'
+  ]);
+  if (Number.isFinite(multiplierMult) && multiplierMult > 0 && multiplierMult !== 1) {
+    effect.multiplierMult = multiplierMult;
+  }
+
+  const maxMultiplierSet = readNumberProperty(effectSource, [
+    'maxMultiplierSet',
+    'capSet',
+    'critMaxMultiplierSet',
+    'maxMultiplier'
+  ]);
+  if (Number.isFinite(maxMultiplierSet)) {
+    effect.maxMultiplierSet = Math.max(0, maxMultiplierSet);
+  }
+
+  const maxMultiplierAdd = readNumberProperty(effectSource, [
+    'maxMultiplierAdd',
+    'capAdd',
+    'critMaxMultiplierAdd'
+  ]);
+  if (Number.isFinite(maxMultiplierAdd) && maxMultiplierAdd !== 0) {
+    effect.maxMultiplierAdd = maxMultiplierAdd;
+  }
+
+  const maxMultiplierMult = readNumberProperty(effectSource, [
+    'maxMultiplierMult',
+    'capMult',
+    'critMaxMultiplierMult'
+  ]);
+  if (Number.isFinite(maxMultiplierMult) && maxMultiplierMult > 0 && maxMultiplierMult !== 1) {
+    effect.maxMultiplierMult = maxMultiplierMult;
+  }
+
+  return Object.keys(effect).length ? effect : null;
+}
+
+function normalizeElementGroupCritConfig(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'number' || typeof raw === 'string') {
+    const effect = normalizeCritBonusEffect(raw);
+    return effect ? { perUnique: effect, perDuplicate: null, labels: null } : null;
+  }
+  if (typeof raw !== 'object') {
+    return null;
+  }
+  const perUnique = normalizeCritBonusEffect(
+    raw.perUnique
+      ?? raw.perUniqueCopy
+      ?? raw.unique
+      ?? raw.first
+      ?? raw.perUniqueElement
+      ?? raw.perNew
+  );
+  const perDuplicate = normalizeCritBonusEffect(
+    raw.perDuplicate
+      ?? raw.perCopyBeyondFirst
+      ?? raw.duplicate
+      ?? raw.extra
+      ?? raw.dupe
+      ?? raw.perAdditional
+  );
+  const labels = {};
+  if (raw.labels && typeof raw.labels === 'object') {
+    if (typeof raw.labels.perUnique === 'string' && raw.labels.perUnique.trim()) {
+      labels.perUnique = raw.labels.perUnique.trim();
+    }
+    if (typeof raw.labels.perDuplicate === 'string' && raw.labels.perDuplicate.trim()) {
+      labels.perDuplicate = raw.labels.perDuplicate.trim();
+    }
+  }
+  const hasLabels = Object.keys(labels).length > 0;
+  if (!perUnique && !perDuplicate) {
+    return null;
+  }
+  return {
+    perUnique,
+    perDuplicate,
+    labels: hasLabels ? labels : null
+  };
+}
+
+function normalizeRarityMultiplierBonus(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw === 0) {
+      return null;
+    }
+    return {
+      amount: raw,
+      uniqueThreshold: 0,
+      copyThreshold: 0,
+      targets: new Set(['perClick', 'perSecond']),
+      label: null
+    };
+  }
+  if (typeof raw !== 'object') {
+    return null;
+  }
+  const amountCandidate = readNumberProperty(raw, ['amount', 'value', 'add', 'increase', 'bonus']);
+  const amount = Number.isFinite(amountCandidate) ? amountCandidate : 0;
+  if (amount === 0) {
+    return null;
+  }
+  const uniqueThresholdCandidate = readNumberProperty(raw, [
+    'uniqueThreshold',
+    'minUnique',
+    'minimumUnique',
+    'requiredUnique',
+    'requiresUnique',
+    'unique',
+    'threshold',
+    'count'
+  ]);
+  const copyThresholdCandidate = readNumberProperty(raw, [
+    'copyThreshold',
+    'minCopies',
+    'minimumCopies',
+    'requiredCopies',
+    'requiresCopies',
+    'copies'
+  ]);
+  const uniqueThreshold = Number.isFinite(uniqueThresholdCandidate) && uniqueThresholdCandidate > 0
+    ? Math.floor(uniqueThresholdCandidate)
+    : 0;
+  const copyThreshold = Number.isFinite(copyThresholdCandidate) && copyThresholdCandidate > 0
+    ? Math.floor(copyThresholdCandidate)
+    : 0;
+  const rawTargets = raw.targets ?? raw.appliesTo ?? raw.scope ?? raw.types;
+  const targets = new Set();
+  const registerTarget = target => {
+    if (typeof target !== 'string') return;
+    const normalized = target.trim().toLowerCase();
+    if (!normalized) return;
+    if (['perclick', 'click', 'manual', 'apc', 'manualclick'].includes(normalized)) {
+      targets.add('perClick');
+    }
+    if (['persecond', 'auto', 'automatic', 'aps', 'persec'].includes(normalized)) {
+      targets.add('perSecond');
+    }
+  };
+  if (Array.isArray(rawTargets)) {
+    rawTargets.forEach(registerTarget);
+  } else if (typeof rawTargets === 'string') {
+    registerTarget(rawTargets);
+  }
+  if (targets.size === 0) {
+    targets.add('perClick');
+    targets.add('perSecond');
+  }
+  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  return {
+    amount,
+    uniqueThreshold,
+    copyThreshold,
+    targets,
+    label
+  };
+}
+
 function normalizeElementGroupBonus(raw) {
   if (!raw || typeof raw !== 'object') {
     return null;
@@ -730,6 +974,16 @@ function normalizeElementGroupBonus(raw) {
   const multiplier = normalizeElementGroupMultiplier(
     raw.multiplier ?? raw.groupMultiplier ?? raw.multiplicateur ?? raw.multiplierConfig
   );
+  const crit = normalizeElementGroupCritConfig(
+    raw.crit ?? raw.critBonus ?? raw.critBonuses ?? raw.critics ?? raw.critical
+  );
+  const rarityMultiplierBonus = normalizeRarityMultiplierBonus(
+    raw.rarityMultiplierBonus
+      ?? raw.rarityBonus
+      ?? raw.multiplierBonus
+      ?? raw.rarityMultiplierBoost
+      ?? raw.rarityBoost
+  );
   const labels = {};
   if (raw.labels && typeof raw.labels === 'object') {
     if (typeof raw.labels.perCopy === 'string' && raw.labels.perCopy.trim()) {
@@ -741,15 +995,20 @@ function normalizeElementGroupBonus(raw) {
     if (typeof raw.labels.multiplier === 'string' && raw.labels.multiplier.trim()) {
       labels.multiplier = raw.labels.multiplier.trim();
     }
+    if (typeof raw.labels.rarityMultiplier === 'string' && raw.labels.rarityMultiplier.trim()) {
+      labels.rarityMultiplier = raw.labels.rarityMultiplier.trim();
+    }
   }
   const hasLabels = Object.keys(labels).length > 0;
-  if (!perCopy && !setBonus && !multiplier) {
+  if (!perCopy && !setBonus && !multiplier && !crit && !rarityMultiplierBonus) {
     return null;
   }
   return {
     perCopy,
     setBonus,
     multiplier,
+    crit,
+    rarityMultiplierBonus,
     labels: hasLabels ? labels : null
   };
 }
@@ -1275,6 +1534,54 @@ function applyCritModifiersFromEffect(accumulator, effect) {
   if (maxMultiplierMult != null) {
     accumulator.maxMultiplierMult *= Math.max(0, maxMultiplierMult);
   }
+}
+
+function applyRepeatedCritEffect(accumulator, effectConfig, repetitions) {
+  if (!accumulator || !effectConfig) {
+    return;
+  }
+  const times = Math.max(0, Math.floor(Number(repetitions) || 0));
+  if (times <= 0) {
+    return;
+  }
+  const effect = {};
+  if (effectConfig.chanceSet != null) {
+    effect.critChanceSet = Math.max(0, effectConfig.chanceSet);
+  }
+  if (effectConfig.chanceAdd) {
+    effect.critChanceAdd = effectConfig.chanceAdd * times;
+  }
+  if (effectConfig.chanceMult != null) {
+    const base = effectConfig.chanceMult;
+    if (base > 0 && base !== 1) {
+      effect.critChanceMult = Math.pow(base, times);
+    }
+  }
+  if (effectConfig.multiplierSet != null) {
+    effect.critMultiplierSet = Math.max(0, effectConfig.multiplierSet);
+  }
+  if (effectConfig.multiplierAdd) {
+    effect.critMultiplierAdd = effectConfig.multiplierAdd * times;
+  }
+  if (effectConfig.multiplierMult != null) {
+    const base = effectConfig.multiplierMult;
+    if (base > 0 && base !== 1) {
+      effect.critMultiplierMult = Math.pow(base, times);
+    }
+  }
+  if (effectConfig.maxMultiplierSet != null) {
+    effect.critMaxMultiplierSet = Math.max(0, effectConfig.maxMultiplierSet);
+  }
+  if (effectConfig.maxMultiplierAdd) {
+    effect.critMaxMultiplierAdd = effectConfig.maxMultiplierAdd * times;
+  }
+  if (effectConfig.maxMultiplierMult != null) {
+    const base = effectConfig.maxMultiplierMult;
+    if (base > 0 && base !== 1) {
+      effect.critMaxMultiplierMult = Math.pow(base, times);
+    }
+  }
+  applyCritModifiersFromEffect(accumulator, effect);
 }
 
 function finalizeCritEffect(accumulator) {
@@ -4956,11 +5263,43 @@ function recalcProduction() {
     });
   };
 
+  const updateRarityMultiplierDetail = (details, detailId, label, value) => {
+    if (!details) return;
+    const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
+    const isNeutral = isLayeredOne(layeredValue);
+    const index = details.findIndex(entry => entry.id === detailId);
+    if (isNeutral) {
+      if (index >= 0) {
+        details.splice(index, 1);
+      }
+      return;
+    }
+    if (index >= 0) {
+      details[index].value = layeredValue.clone();
+      if (label) {
+        details[index].label = label;
+      }
+    } else {
+      details.push({
+        id: detailId,
+        label: label || detailId,
+        value: layeredValue.clone(),
+        source: 'elements'
+      });
+    }
+  };
+
   ELEMENT_GROUP_BONUS_CONFIG.forEach((groupConfig, rarityId) => {
     const { copies: copyCount = 0, unique: uniqueCount = 0 } = elementCountsByRarity.get(rarityId) || {};
     const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || rarityId;
     const copyLabel = groupConfig.labels?.perCopy || `${rarityLabel} · copies`;
     const setBonusLabel = groupConfig.labels?.setBonus || `${rarityLabel} · bonus de groupe`;
+    const multiplierDetailId = `elements:${rarityId}:multiplier`;
+    const multiplierLabel = groupConfig.labels?.multiplier || rarityLabel;
+    const rarityMultiplierLabel = groupConfig.rarityMultiplierBonus?.label
+      || groupConfig.labels?.rarityMultiplier
+      || multiplierLabel;
+    const duplicateCount = Math.max(0, copyCount - uniqueCount);
 
     if (copyCount > 0 && groupConfig.perCopy) {
       const { clickAdd, autoAdd, minCopies = 0, minUnique = 0 } = groupConfig.perCopy;
@@ -5033,36 +5372,55 @@ function recalcProduction() {
       if (!Number.isFinite(finalMultiplier) || finalMultiplier <= 0) {
         finalMultiplier = 1;
       }
-      const multiplierLabel = multiplierLabelOverride || groupConfig.labels?.multiplier || rarityLabel;
-      const detailId = `elements:${rarityId}:multiplier`;
-      let multiplierLayered = null;
-      if (copyCount > 0 && finalMultiplier !== 1 && (targets.has('perClick') || targets.has('perSecond'))) {
-        multiplierLayered = new LayeredNumber(finalMultiplier);
-      }
+      const multiplierLabelResolved = multiplierLabelOverride || multiplierLabel;
       if (targets.has('perClick')) {
         clickRarityMultipliers.set(rarityId, finalMultiplier);
-        if (multiplierLayered) {
-          clickDetails.multipliers.push({
-            id: detailId,
-            label: multiplierLabel,
-            value: multiplierLayered.clone(),
-            source: 'elements'
-          });
-        }
+        updateRarityMultiplierDetail(clickDetails.multipliers, multiplierDetailId, multiplierLabelResolved, finalMultiplier);
       }
       if (targets.has('perSecond')) {
         autoRarityMultipliers.set(rarityId, finalMultiplier);
-        if (multiplierLayered) {
-          autoDetails.multipliers.push({
-            id: detailId,
-            label: multiplierLabel,
-            value: multiplierLayered.clone(),
-            source: 'elements'
-          });
+        updateRarityMultiplierDetail(autoDetails.multipliers, multiplierDetailId, multiplierLabelResolved, finalMultiplier);
+      }
+    }
+
+    if (groupConfig.crit) {
+      if (groupConfig.crit.perUnique) {
+        applyRepeatedCritEffect(critAccumulator, groupConfig.crit.perUnique, uniqueCount);
+      }
+      if (groupConfig.crit.perDuplicate) {
+        applyRepeatedCritEffect(critAccumulator, groupConfig.crit.perDuplicate, duplicateCount);
+      }
+    }
+
+    if (groupConfig.rarityMultiplierBonus) {
+      const {
+        amount = 0,
+        uniqueThreshold = 0,
+        copyThreshold = 0,
+        targets,
+        label: bonusLabel
+      } = groupConfig.rarityMultiplierBonus;
+      if (amount !== 0) {
+        const meetsUnique = uniqueThreshold > 0 ? uniqueCount >= uniqueThreshold : true;
+        const meetsCopies = copyThreshold > 0 ? copyCount >= copyThreshold : true;
+        if (meetsUnique && meetsCopies) {
+          const resolvedLabel = bonusLabel || rarityMultiplierLabel;
+          if (targets.has('perClick')) {
+            const current = Number(clickRarityMultipliers.get(rarityId)) || 1;
+            const updated = Math.max(0, current + amount);
+            clickRarityMultipliers.set(rarityId, updated);
+            updateRarityMultiplierDetail(clickDetails.multipliers, multiplierDetailId, resolvedLabel, updated);
+          }
+          if (targets.has('perSecond')) {
+            const current = Number(autoRarityMultipliers.get(rarityId)) || 1;
+            const updated = Math.max(0, current + amount);
+            autoRarityMultipliers.set(rarityId, updated);
+            updateRarityMultiplierDetail(autoDetails.multipliers, multiplierDetailId, resolvedLabel, updated);
+          }
         }
       }
-      }
-    });
+    }
+  });
 
   const trophyEffects = computeTrophyEffects();
   const clickTrophyMultiplier = trophyEffects.clickMultiplier instanceof LayeredNumber
