@@ -535,7 +535,39 @@ function readNumberProperty(source, candidates) {
   return undefined;
 }
 
-function normalizeElementGroupAddConfig(raw) {
+function readBooleanProperty(source, candidates) {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  for (const key of candidates) {
+    if (!(key in source)) continue;
+    const rawValue = source[key];
+    if (typeof rawValue === 'boolean') {
+      return rawValue;
+    }
+    if (typeof rawValue === 'number') {
+      return rawValue !== 0;
+    }
+    if (typeof rawValue === 'string') {
+      const normalized = rawValue.trim().toLowerCase();
+      if (!normalized) continue;
+      if (['true', '1', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+      if (['false', '0', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+    }
+  }
+  return undefined;
+}
+
+function normalizeElementGroupAddConfig(raw, options = {}) {
+  const {
+    defaultMinCopies = 0,
+    defaultMinUnique = 0,
+    defaultRequireAllUnique = false
+  } = options;
   if (raw == null) {
     return null;
   }
@@ -543,14 +575,26 @@ function normalizeElementGroupAddConfig(raw) {
     if (!Number.isFinite(raw) || raw === 0) {
       return null;
     }
-    return { clickAdd: raw, autoAdd: 0 };
+    return {
+      clickAdd: raw,
+      autoAdd: 0,
+      minCopies: defaultMinCopies,
+      minUnique: defaultMinUnique,
+      requireAllUnique: defaultRequireAllUnique
+    };
   }
   if (typeof raw === 'string') {
     const numeric = Number(raw);
     if (!Number.isFinite(numeric) || numeric === 0) {
       return null;
     }
-    return { clickAdd: numeric, autoAdd: 0 };
+    return {
+      clickAdd: numeric,
+      autoAdd: 0,
+      minCopies: defaultMinCopies,
+      minUnique: defaultMinUnique,
+      requireAllUnique: defaultRequireAllUnique
+    };
   }
   if (typeof raw !== 'object') {
     return null;
@@ -562,7 +606,43 @@ function normalizeElementGroupAddConfig(raw) {
   if (clickAdd === 0 && autoAdd === 0) {
     return null;
   }
-  return { clickAdd, autoAdd };
+  const minCopiesCandidate = readNumberProperty(raw, [
+    'minCopies',
+    'minimumCopies',
+    'requireCopies',
+    'requiredCopies',
+    'requiresCopies'
+  ]);
+  const minUniqueCandidate = readNumberProperty(raw, [
+    'minUnique',
+    'minimumUnique',
+    'requireUnique',
+    'requiredUnique',
+    'requiresUnique',
+    'minOwned',
+    'minimumOwned',
+    'requireOwned',
+    'requiredOwned',
+    'requiresOwned'
+  ]);
+  const requireAllUniqueCandidate = readBooleanProperty(raw, [
+    'requireAllUnique',
+    'requireAll',
+    'requireFullSet',
+    'requiresFullSet',
+    'fullSet',
+    'completeSet'
+  ]);
+  const minCopies = Number.isFinite(minCopiesCandidate) && minCopiesCandidate > 0
+    ? Math.floor(minCopiesCandidate)
+    : defaultMinCopies;
+  const minUnique = Number.isFinite(minUniqueCandidate) && minUniqueCandidate > 0
+    ? Math.floor(minUniqueCandidate)
+    : defaultMinUnique;
+  const requireAllUnique = requireAllUniqueCandidate != null
+    ? requireAllUniqueCandidate
+    : defaultRequireAllUnique;
+  return { clickAdd, autoAdd, minCopies, minUnique, requireAllUnique };
 }
 
 function normalizeElementGroupMultiplier(raw) {
@@ -640,10 +720,12 @@ function normalizeElementGroupBonus(raw) {
     return null;
   }
   const perCopy = normalizeElementGroupAddConfig(
-    raw.perCopy ?? raw.perElement ?? raw.perCopyBonus ?? raw.perElementBonus ?? raw.perCollect
+    raw.perCopy ?? raw.perElement ?? raw.perCopyBonus ?? raw.perElementBonus ?? raw.perCollect,
+    { defaultMinCopies: 1 }
   );
   const setBonus = normalizeElementGroupAddConfig(
-    raw.setBonus ?? raw.groupBonus ?? raw.set ?? raw.group ?? raw.setReward ?? raw.bonusDeGroupe
+    raw.setBonus ?? raw.groupBonus ?? raw.set ?? raw.group ?? raw.setReward ?? raw.bonusDeGroupe,
+    { defaultRequireAllUnique: true }
   );
   const multiplier = normalizeElementGroupMultiplier(
     raw.multiplier ?? raw.groupMultiplier ?? raw.multiplicateur ?? raw.multiplierConfig
@@ -1039,6 +1121,11 @@ function rebuildGachaPools() {
 }
 
 rebuildGachaPools();
+
+function getRarityPoolSize(rarityId) {
+  const pool = gachaPools.get(rarityId);
+  return Array.isArray(pool) ? pool.length : 0;
+}
 
 LayeredNumber.LAYER1_THRESHOLD = CONFIG.numbers?.layer1Threshold ?? 1e6;
 LayeredNumber.LAYER1_DOWN = CONFIG.numbers?.layer1Downshift ?? 5;
@@ -4159,10 +4246,14 @@ function recalcProduction() {
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
 
   const elementCountsByRarity = new Map();
-  const registerRarityCount = (rarityId, amount = 0) => {
-    if (!rarityId) return;
-    const previous = elementCountsByRarity.get(rarityId) || 0;
-    elementCountsByRarity.set(rarityId, previous + amount);
+  const getRarityCounter = rarityId => {
+    if (!rarityId) return null;
+    let counter = elementCountsByRarity.get(rarityId);
+    if (!counter) {
+      counter = { copies: 0, unique: 0 };
+      elementCountsByRarity.set(rarityId, counter);
+    }
+    return counter;
   };
 
   const elementEntries = Object.values(gameState.elements || {});
@@ -4175,7 +4266,10 @@ function recalcProduction() {
       ? Math.floor(rawCount)
       : (entry.owned ? 1 : 0);
     if (normalizedCount <= 0) return;
-    registerRarityCount(rarityId, normalizedCount);
+    const counter = getRarityCounter(rarityId);
+    if (!counter) return;
+    counter.copies += normalizedCount;
+    counter.unique += 1;
   });
 
   const addClickElementFlat = (value, { id, label }) => {
@@ -4205,46 +4299,72 @@ function recalcProduction() {
   };
 
   ELEMENT_GROUP_BONUS_CONFIG.forEach((groupConfig, rarityId) => {
-    const count = elementCountsByRarity.get(rarityId) || 0;
+    const { copies: copyCount = 0, unique: uniqueCount = 0 } = elementCountsByRarity.get(rarityId) || {};
     const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || rarityId;
     const copyLabel = groupConfig.labels?.perCopy || `${rarityLabel} · copies`;
     const setBonusLabel = groupConfig.labels?.setBonus || `${rarityLabel} · bonus de groupe`;
 
-    if (count > 0 && groupConfig.perCopy) {
-      if (groupConfig.perCopy.clickAdd) {
-        addClickElementFlat(groupConfig.perCopy.clickAdd * count, {
+    if (copyCount > 0 && groupConfig.perCopy) {
+      const { clickAdd, autoAdd, minCopies = 0, minUnique = 0 } = groupConfig.perCopy;
+      const meetsCopyRequirement = copyCount >= Math.max(1, minCopies);
+      const meetsUniqueRequirement = uniqueCount >= Math.max(0, minUnique);
+      if (meetsCopyRequirement && meetsUniqueRequirement && clickAdd) {
+        addClickElementFlat(clickAdd * copyCount, {
           id: `elements:${rarityId}:copies`,
           label: copyLabel
         });
       }
-      if (groupConfig.perCopy.autoAdd) {
-        addAutoElementFlat(groupConfig.perCopy.autoAdd * count, {
+      if (meetsCopyRequirement && meetsUniqueRequirement && autoAdd) {
+        addAutoElementFlat(autoAdd * copyCount, {
           id: `elements:${rarityId}:copies`,
           label: copyLabel
         });
       }
     }
 
-    if (count > 0 && groupConfig.setBonus) {
-      if (groupConfig.setBonus.clickAdd) {
-        addClickElementFlat(groupConfig.setBonus.clickAdd, {
-          id: `elements:${rarityId}:groupFlat`,
-          label: setBonusLabel
-        });
+    if (uniqueCount > 0 && groupConfig.setBonus) {
+      const {
+        clickAdd,
+        autoAdd,
+        minCopies = 0,
+        minUnique = 0,
+        requireAllUnique = false
+      } = groupConfig.setBonus;
+      const requiredCopies = Math.max(0, minCopies);
+      let requiredUnique = Math.max(0, minUnique);
+      if (requireAllUnique) {
+        const poolSize = getRarityPoolSize(rarityId);
+        if (poolSize > 0) {
+          requiredUnique = Math.max(requiredUnique, poolSize);
+        } else if (requiredUnique === 0) {
+          requiredUnique = uniqueCount;
+        }
       }
-      if (groupConfig.setBonus.autoAdd) {
-        addAutoElementFlat(groupConfig.setBonus.autoAdd, {
-          id: `elements:${rarityId}:groupFlat`,
-          label: setBonusLabel
-        });
+      const meetsCopyRequirement = copyCount >= requiredCopies;
+      const meetsUniqueRequirement = requiredUnique > 0
+        ? uniqueCount >= requiredUnique
+        : uniqueCount > 0;
+      if (meetsCopyRequirement && meetsUniqueRequirement) {
+        if (clickAdd) {
+          addClickElementFlat(clickAdd, {
+            id: `elements:${rarityId}:groupFlat`,
+            label: setBonusLabel
+          });
+        }
+        if (autoAdd) {
+          addAutoElementFlat(autoAdd, {
+            id: `elements:${rarityId}:groupFlat`,
+            label: setBonusLabel
+          });
+        }
       }
     }
 
     if (groupConfig.multiplier) {
       const { base, every, increment, cap, targets, label: multiplierLabelOverride } = groupConfig.multiplier;
       let finalMultiplier = Number.isFinite(base) && base > 0 ? base : 1;
-      if (count > 0 && every > 0 && increment !== 0) {
-        const steps = Math.floor(count / every);
+      if (copyCount > 0 && every > 0 && increment !== 0) {
+        const steps = Math.floor(copyCount / every);
         if (steps > 0) {
           finalMultiplier += steps * increment;
         }
@@ -4258,7 +4378,7 @@ function recalcProduction() {
       const multiplierLabel = multiplierLabelOverride || groupConfig.labels?.multiplier || rarityLabel;
       const detailId = `elements:${rarityId}:multiplier`;
       let multiplierLayered = null;
-      if (count > 0 && finalMultiplier !== 1 && (targets.has('perClick') || targets.has('perSecond'))) {
+      if (copyCount > 0 && finalMultiplier !== 1 && (targets.has('perClick') || targets.has('perSecond'))) {
         multiplierLayered = new LayeredNumber(finalMultiplier);
       }
       if (targets.has('perClick')) {
@@ -4283,8 +4403,8 @@ function recalcProduction() {
           });
         }
       }
-    }
-  });
+      }
+    });
 
   const trophyEffects = computeTrophyEffects();
   const clickTrophyMultiplier = trophyEffects.clickMultiplier instanceof LayeredNumber
