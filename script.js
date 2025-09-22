@@ -3276,6 +3276,14 @@ function renderPeriodicTable() {
     const rarityId = elementRarityIndex.get(def.id);
     if (rarityId) {
       cell.dataset.rarity = rarityId;
+      const rarityDef = GACHA_RARITY_MAP.get(rarityId);
+      if (rarityDef?.color) {
+        cell.style.setProperty('--rarity-color', rarityDef.color);
+      } else {
+        cell.style.removeProperty('--rarity-color');
+      }
+    } else {
+      cell.style.removeProperty('--rarity-color');
     }
     const { row, column } = def.position || {};
     if (column) {
