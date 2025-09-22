@@ -5653,18 +5653,47 @@ function hideCritBanner(immediate = false) {
   }, 360);
 }
 
-function showCritBanner(bonusAmount) {
-  if (!elements.statusCrit || !elements.statusCritValue) return;
+function showCritBanner(input) {
   const display = elements.statusCrit;
   const valueElement = elements.statusCritValue;
-  const layeredBonus = toLayeredNumber(bonusAmount, 0);
-  if (layeredBonus.sign <= 0) {
+  if (!display || !valueElement) return;
+
+  const options = input instanceof LayeredNumber || typeof input === 'number'
+    ? { bonusAmount: input }
+    : (input ?? {});
+
+  const layeredBonus = options.bonusAmount != null
+    ? toLayeredNumber(options.bonusAmount, 0)
+    : LayeredNumber.zero();
+  const layeredBase = options.baseAmount != null
+    ? toLayeredNumber(options.baseAmount, 0)
+    : null;
+
+  let layeredTotal;
+  if (options.totalAmount != null) {
+    layeredTotal = toLayeredNumber(options.totalAmount, 0);
+  } else if (layeredBase) {
+    layeredTotal = layeredBase.add(layeredBonus);
+  } else {
+    layeredTotal = layeredBonus.clone();
+  }
+
+  if (!layeredTotal || layeredTotal.sign <= 0) {
     hideCritBanner(true);
     return;
   }
 
-  const displayText = `+${layeredBonus.toString()}`;
-  valueElement.textContent = displayText;
+  const totalText = `+${layeredTotal.toString()}`;
+
+  const multiplierValue = Number(options.multiplier ?? options.multiplierValue);
+  const hasMultiplier = Number.isFinite(multiplierValue) && multiplierValue > 1;
+  const multiplierText = hasMultiplier
+    ? `×${multiplierValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`
+    : '';
+
+  valueElement.textContent = hasMultiplier
+    ? `${totalText} ${multiplierText}`
+    : totalText;
 
   display.hidden = false;
   display.classList.remove('is-fading');
@@ -5674,9 +5703,22 @@ function showCritBanner(bonusAmount) {
   void valueElement.offsetWidth; // force reflow to restart the impact animation
   valueElement.classList.add('status-crit-value--smash');
 
-  const ariaText = `Coup critique : ${displayText} atomes`;
+  const ariaText = hasMultiplier
+    ? `Coup critique ${multiplierText} : ${totalText} atomes`
+    : `Coup critique : ${totalText} atomes`;
   display.setAttribute('aria-label', ariaText);
-  display.title = `Bonus critique ${displayText}`;
+
+  const details = [];
+  if (layeredBase && layeredBase.sign > 0) {
+    details.push(`base ${layeredBase.toString()}`);
+  }
+  if (layeredBonus && layeredBonus.sign > 0 && (!layeredBase || layeredBonus.compare(layeredTotal) !== 0)) {
+    details.push(`bonus +${layeredBonus.toString()}`);
+  }
+  const detailText = details.length ? ` — ${details.join(' · ')}` : '';
+  display.title = hasMultiplier
+    ? `Bonus critique ${totalText} (${multiplierText})${detailText}`
+    : `Bonus critique ${totalText}${detailText}`;
 
   clearCritBannerTimers();
   critBannerState.fadeTimeoutId = setTimeout(() => {
@@ -5747,7 +5789,12 @@ function handleManualAtomClick() {
       multiplier: critResult.multiplier
     };
     const critBonus = critResult.amount.subtract(baseAmount);
-    showCritBanner(critBonus);
+    showCritBanner({
+      bonusAmount: critBonus,
+      totalAmount: critResult.amount,
+      baseAmount,
+      multiplier: critResult.multiplier
+    });
   }
   animateAtomPress({ critical: critResult.isCritical, multiplier: critResult.multiplier });
 }
