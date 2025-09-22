@@ -676,13 +676,12 @@ const GAME_CONFIG = {
         }
       },
       essentiel: {
+        perCopy: {
+          uniqueClickAdd: 10,
+          duplicateClickAdd: 10,
+          label: 'Essentiel planétaire · récoltes essentielles'
+        },
         setBonus: [
-          {
-            clickAdd: 10,
-            minUnique: 1,
-            requireAllUnique: false,
-            label: 'Essentiel planétaire · première découverte'
-          },
           {
             clickAdd: 1000,
             requireAllUnique: true,
