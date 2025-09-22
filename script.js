@@ -3215,7 +3215,10 @@ function formatTicketLabel(count) {
 
 const GACHA_ANIMATION_STAR_COUNT = 90;
 const GACHA_ANIMATION_REVEAL_DELAY = 2600;
+const GACHA_WARP_BASE_CLASS = 'gacha-warp--commun';
+const GACHA_WARP_COLOR_TRANSITION_DELAY = 1500;
 let gachaAnimationInProgress = false;
+let gachaWarpColorTimeout = null;
 
 function updateGachaUI() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
@@ -3323,12 +3326,19 @@ function populateGachaAnimationStars() {
   for (let i = 0; i < GACHA_ANIMATION_STAR_COUNT; i += 1) {
     const star = document.createElement('span');
     star.className = 'gacha-star';
-    star.style.left = `${Math.random() * 100}%`;
-    star.style.height = `${60 + Math.random() * 70}px`;
-    star.style.opacity = (0.35 + Math.random() * 0.5).toFixed(2);
-    star.style.animationDuration = `${0.6 + Math.random() * 0.9}s`;
-    star.style.animationDelay = `${Math.random() * 0.6}s`;
-    star.style.setProperty('--star-rotation', `${Math.random() * 40 - 20}deg`);
+    const height = 80 + Math.random() * 120;
+    const distance = 240 + Math.random() * 320;
+    const angle = Math.random() * 360;
+    const duration = 0.8 + Math.random() * 1.1;
+    const delay = Math.random() * 0.6;
+    const peakOpacity = 0.55 + Math.random() * 0.4;
+    star.style.height = `${height}px`;
+    star.style.setProperty('--star-distance', `${distance}px`);
+    star.style.setProperty('--star-angle', `${angle}deg`);
+    star.style.setProperty('--star-scale', (0.9 + Math.random() * 0.5).toFixed(2));
+    star.style.setProperty('--star-peak-opacity', peakOpacity.toFixed(2));
+    star.style.animationDuration = `${duration}s`;
+    star.style.animationDelay = `${delay}s`;
     fragment.appendChild(star);
   }
   container.appendChild(fragment);
@@ -3385,14 +3395,34 @@ async function playGachaAnimation(outcome) {
   layer.classList.remove('show-result');
   layer.classList.add('is-active');
   if (warp) {
-    const previousClass = warp.dataset.activeRarityClass;
-    if (previousClass) {
-      warp.classList.remove(previousClass);
-      delete warp.dataset.activeRarityClass;
+    if (gachaWarpColorTimeout) {
+      clearTimeout(gachaWarpColorTimeout);
+      gachaWarpColorTimeout = null;
+    }
+    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
+    previousClasses.forEach(cls => {
+      if (cls) {
+        warp.classList.remove(cls);
+      }
+    });
+    delete warp.dataset.activeRarityClass;
+    delete warp.dataset.baseRarityClass;
+    if (GACHA_WARP_BASE_CLASS) {
+      warp.classList.add(GACHA_WARP_BASE_CLASS);
+      warp.dataset.baseRarityClass = GACHA_WARP_BASE_CLASS;
     }
     if (rarityClassName) {
-      warp.classList.add(rarityClassName);
-      warp.dataset.activeRarityClass = rarityClassName;
+      if (rarityClassName === GACHA_WARP_BASE_CLASS) {
+        warp.dataset.activeRarityClass = GACHA_WARP_BASE_CLASS;
+      } else {
+        gachaWarpColorTimeout = setTimeout(() => {
+          warp.classList.remove(GACHA_WARP_BASE_CLASS);
+          delete warp.dataset.baseRarityClass;
+          warp.classList.add(rarityClassName);
+          warp.dataset.activeRarityClass = rarityClassName;
+          gachaWarpColorTimeout = null;
+        }, GACHA_WARP_COLOR_TRANSITION_DELAY);
+      }
     }
   }
   if (elements.gachaResult) {
@@ -3417,11 +3447,18 @@ async function playGachaAnimation(outcome) {
     stars.innerHTML = '';
   }
   if (warp) {
-    const previousClass = warp.dataset.activeRarityClass;
-    if (previousClass) {
-      warp.classList.remove(previousClass);
-      delete warp.dataset.activeRarityClass;
+    if (gachaWarpColorTimeout) {
+      clearTimeout(gachaWarpColorTimeout);
+      gachaWarpColorTimeout = null;
     }
+    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
+    previousClasses.forEach(cls => {
+      if (cls) {
+        warp.classList.remove(cls);
+      }
+    });
+    delete warp.dataset.activeRarityClass;
+    delete warp.dataset.baseRarityClass;
   }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
