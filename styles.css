@@ -1064,34 +1064,87 @@ body.theme-neon .page--void {
   --critical-flash: 1;
 }
 
-.atom-button__crit {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -20%) scale(0.9);
-  font-family: 'Orbitron', sans-serif;
-  font-size: clamp(0.95rem, 2.3vw, 1.4rem);
-  color: #ffecc2;
-  text-shadow:
-    0 0 12px rgba(255, 214, 134, 0.85),
-    0 0 26px rgba(255, 120, 54, 0.6);
-  opacity: 0;
+.crit-confetti-layer {
+  position: fixed;
+  inset: 0;
   pointer-events: none;
-  white-space: nowrap;
-  animation: atom-critical-pop 0.6s ease-out forwards;
+  overflow: hidden;
+  z-index: 40;
 }
 
-@keyframes atom-critical-pop {
+.crit-confetti {
+  position: absolute;
+  display: block;
+  transform: translate(-50%, -50%) scale(var(--confetti-scale, 1)) rotate(var(--confetti-rotation, 0deg));
+  opacity: 0;
+  border-radius: 0.35rem;
+  background-size: 140% 140%;
+  background-position: center;
+  animation: crit-confetti-float var(--confetti-duration, 3s) ease-in-out forwards;
+  animation-delay: var(--confetti-delay, 0s);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.crit-confetti--circle {
+  border-radius: 50%;
+}
+
+.crit-confetti--oval {
+  border-radius: 48% / 70%;
+}
+
+.crit-confetti--heart {
+  border-radius: 0;
+  clip-path: polygon(50% 14%, 61% 0, 78% 0, 93% 14%, 100% 32%, 95% 52%, 78% 74%, 50% 100%, 22% 74%, 5% 52%, 0 32%, 7% 14%, 22% 0, 39% 0);
+}
+
+.crit-confetti--star {
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 62% 35%, 100% 38%, 70% 60%, 82% 100%, 50% 78%, 18% 100%, 30% 60%, 0% 38%, 38% 35%);
+}
+
+.crit-confetti--square {
+  border-radius: 0.2rem;
+}
+
+.crit-confetti--triangle {
+  border-radius: 0;
+  clip-path: polygon(50% 6%, 0% 100%, 100% 100%);
+}
+
+.crit-confetti--rectangle {
+  border-radius: 0.45rem;
+}
+
+.crit-confetti--hexagon {
+  border-radius: 0;
+  clip-path: polygon(25% 6.5%, 75% 6.5%, 100% 50%, 75% 93.5%, 25% 93.5%, 0% 50%);
+}
+
+@keyframes crit-confetti-float {
   0% {
-    transform: translate(-50%, -10%) scale(0.8);
     opacity: 0;
+    transform: translate(-50%, -50%) scale(var(--confetti-scale, 1)) rotate(var(--confetti-rotation, 0deg));
   }
-  20% {
+  12% {
     opacity: 1;
   }
+  68% {
+    opacity: 1;
+    transform: translate(
+      calc(-50% + var(--confetti-drift-x, 0px)),
+      calc(-50% + var(--confetti-drift-y, 0px))
+    ) scale(var(--confetti-scale, 1)) rotate(var(--confetti-end-rotation, 0deg));
+  }
   100% {
-    transform: translate(-50%, -140%) scale(1.08);
     opacity: 0;
+    transform: translate(
+      calc(-50% + var(--confetti-end-x, 0px)),
+      calc(-50% + var(--confetti-end-y, 0px))
+    ) scale(var(--confetti-scale, 1)) rotate(
+      calc(var(--confetti-end-rotation, 0deg) + var(--confetti-spin, 90deg))
+    );
   }
 }
 
