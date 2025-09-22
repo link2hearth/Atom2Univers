@@ -84,7 +84,7 @@ body.theme-neon .app-header {
 
 .status-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   padding: var(--status-padding-y) var(--header-padding-x);
   gap: clamp(0.4rem, 0.8vw, 0.8rem);
@@ -108,9 +108,9 @@ body.theme-neon .app-header {
 }
 
 .status-item--crit {
-  text-align: center;
-  align-items: center;
-  justify-self: center;
+  text-align: left;
+  align-items: flex-start;
+  justify-self: flex-start;
   min-width: 0;
 }
 
@@ -118,14 +118,14 @@ body.theme-neon .app-header {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: clamp(0.35rem, 0.8vw, 0.55rem);
+  gap: 0;
   padding: clamp(0.18rem, 0.5vw, 0.35rem) clamp(0.55rem, 1vw, 0.8rem);
   border-radius: 999px;
   background: linear-gradient(120deg, rgba(255, 118, 45, 0.22), rgba(255, 182, 82, 0.32));
   box-shadow: 0 0.4rem 1.4rem rgba(255, 126, 45, 0.18);
   color: #ffdcbc;
   font-family: 'Orbitron', monospace;
-  font-size: clamp(0.82rem, 1.5vw, 1.1rem);
+  font-size: clamp(1.066rem, 1.95vw, 1.43rem);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-shadow: 0 0.16rem 0.45rem rgba(0, 0, 0, 0.35);
@@ -160,31 +160,6 @@ body.theme-neon .app-header {
   transform: translateY(12%) scale(0.9);
 }
 
-.status-crit-flame {
-  position: relative;
-  width: clamp(0.48rem, 0.8vw, 0.66rem);
-  height: clamp(1.05rem, 1.8vw, 1.5rem);
-  flex: 0 0 auto;
-  filter: drop-shadow(0 0.35rem 0.6rem rgba(255, 150, 40, 0.45));
-  animation: crit-flame-flicker 0.62s ease-in-out infinite alternate;
-}
-
-.status-crit-flame::before,
-.status-crit-flame::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 48% 52% 60% 60% / 70% 70% 30% 30%;
-  background: radial-gradient(55% 70% at 50% 65%, rgba(255, 240, 205, 0.96) 0%, rgba(255, 165, 65, 0.85) 55%, rgba(255, 95, 25, 0.55) 100%);
-}
-
-.status-crit-flame::after {
-  inset: 25% 28% -16% 28%;
-  border-radius: 46% 54% 56% 56% / 75% 75% 25% 25%;
-  background: radial-gradient(50% 70% at 50% 68%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 193, 120, 0.8) 55%, rgba(255, 140, 40, 0.4) 100%);
-  animation: crit-flame-core 0.72s ease-in-out infinite alternate;
-}
-
 .status-crit-value {
   position: relative;
   display: inline-flex;
@@ -195,52 +170,12 @@ body.theme-neon .app-header {
   white-space: nowrap;
 }
 
-.status-crit-value::after {
-  content: attr(data-multiplier);
-  font-size: 0.68em;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  opacity: 0.9;
-  transform-origin: bottom left;
-  transform: translateY(-0.12em);
-}
-
 .status-crit-value--smash {
   animation: crit-value-smash 0.58s cubic-bezier(0.17, 0.86, 0.36, 1.1);
 }
 
 .status-crit-display.is-fading .status-crit-value--smash {
   animation: none;
-}
-
-@keyframes crit-flame-flicker {
-  0% {
-    transform: translateY(0) scale(1);
-    filter: drop-shadow(0 0.28rem 0.55rem rgba(255, 148, 48, 0.55));
-  }
-  50% {
-    transform: translateY(-6%) scale(1.08);
-    filter: drop-shadow(0 0.45rem 0.85rem rgba(255, 170, 60, 0.58));
-  }
-  100% {
-    transform: translateY(2%) scale(0.95);
-    filter: drop-shadow(0 0.2rem 0.35rem rgba(255, 120, 32, 0.5));
-  }
-}
-
-@keyframes crit-flame-core {
-  0% {
-    opacity: 0.8;
-    transform: translateY(0) scale(0.94) rotate(-4deg);
-  }
-  50% {
-    opacity: 1;
-    transform: translateY(-4%) scale(1.05) rotate(3deg);
-  }
-  100% {
-    opacity: 0.85;
-    transform: translateY(2%) scale(0.98) rotate(-2deg);
-  }
 }
 
 @keyframes crit-value-smash {
