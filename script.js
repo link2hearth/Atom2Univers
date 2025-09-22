@@ -518,6 +518,185 @@ periodicElements.forEach(def => {
 
 const configuredRarityIds = new Set(elementRarityIndex.values());
 
+function readNumberProperty(source, candidates) {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  for (const key of candidates) {
+    if (!(key in source)) continue;
+    const rawValue = source[key];
+    const numeric = typeof rawValue === 'number'
+      ? rawValue
+      : (typeof rawValue === 'string' ? Number(rawValue) : Number.NaN);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+  return undefined;
+}
+
+function normalizeElementGroupAddConfig(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw === 0) {
+      return null;
+    }
+    return { clickAdd: raw, autoAdd: 0 };
+  }
+  if (typeof raw === 'string') {
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      return null;
+    }
+    return { clickAdd: numeric, autoAdd: 0 };
+  }
+  if (typeof raw !== 'object') {
+    return null;
+  }
+  const click = readNumberProperty(raw, ['clickAdd', 'apc', 'perClick', 'manual', 'click']);
+  const auto = readNumberProperty(raw, ['autoAdd', 'aps', 'perSecond', 'auto', 'automatic']);
+  const clickAdd = Number.isFinite(click) ? click : 0;
+  const autoAdd = Number.isFinite(auto) ? auto : 0;
+  if (clickAdd === 0 && autoAdd === 0) {
+    return null;
+  }
+  return { clickAdd, autoAdd };
+}
+
+function normalizeElementGroupMultiplier(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return null;
+    }
+    const base = raw;
+    return {
+      base,
+      every: 0,
+      increment: 0,
+      cap: base,
+      targets: new Set(['perClick', 'perSecond']),
+      label: null
+    };
+  }
+  if (typeof raw !== 'object') {
+    return null;
+  }
+  const baseCandidate = readNumberProperty(raw, ['base', 'start', 'initial', 'value']);
+  const base = Number.isFinite(baseCandidate) && baseCandidate > 0 ? baseCandidate : 1;
+  const everyCandidate = readNumberProperty(raw, ['every', 'each', 'per', 'step', 'threshold', 'interval']);
+  const every = Number.isFinite(everyCandidate) && everyCandidate > 0
+    ? Math.floor(everyCandidate)
+    : 0;
+  const incrementCandidate = readNumberProperty(raw, ['increment', 'gain', 'stepValue', 'bonus', 'amount', 'increase']);
+  const increment = Number.isFinite(incrementCandidate) ? incrementCandidate : 0;
+  const capCandidate = readNumberProperty(raw, ['cap', 'max', 'maximum', 'limit']);
+  let cap = Number.isFinite(capCandidate) && capCandidate > 0 ? capCandidate : Number.POSITIVE_INFINITY;
+  if (Number.isFinite(cap)) {
+    cap = Math.max(cap, base);
+  }
+  const rawTargets = raw.targets ?? raw.appliesTo ?? raw.affects ?? raw.types ?? raw.scope;
+  const targets = new Set();
+  const registerTarget = target => {
+    if (typeof target !== 'string') return;
+    const normalized = target.trim().toLowerCase();
+    if (!normalized) return;
+    if (['perclick', 'click', 'manual', 'apc', 'manualclick'].includes(normalized)) {
+      targets.add('perClick');
+    }
+    if (['persecond', 'auto', 'automatic', 'aps', 'persec'].includes(normalized)) {
+      targets.add('perSecond');
+    }
+  };
+  if (Array.isArray(rawTargets)) {
+    rawTargets.forEach(registerTarget);
+  } else if (typeof rawTargets === 'string') {
+    registerTarget(rawTargets);
+  }
+  if (targets.size === 0) {
+    targets.add('perClick');
+    targets.add('perSecond');
+  }
+  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  if (increment === 0 && every === 0 && base === 1) {
+    return null;
+  }
+  return {
+    base,
+    every,
+    increment,
+    cap,
+    targets,
+    label
+  };
+}
+
+function normalizeElementGroupBonus(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const perCopy = normalizeElementGroupAddConfig(
+    raw.perCopy ?? raw.perElement ?? raw.perCopyBonus ?? raw.perElementBonus ?? raw.perCollect
+  );
+  const setBonus = normalizeElementGroupAddConfig(
+    raw.setBonus ?? raw.groupBonus ?? raw.set ?? raw.group ?? raw.setReward ?? raw.bonusDeGroupe
+  );
+  const multiplier = normalizeElementGroupMultiplier(
+    raw.multiplier ?? raw.groupMultiplier ?? raw.multiplicateur ?? raw.multiplierConfig
+  );
+  const labels = {};
+  if (raw.labels && typeof raw.labels === 'object') {
+    if (typeof raw.labels.perCopy === 'string' && raw.labels.perCopy.trim()) {
+      labels.perCopy = raw.labels.perCopy.trim();
+    }
+    if (typeof raw.labels.setBonus === 'string' && raw.labels.setBonus.trim()) {
+      labels.setBonus = raw.labels.setBonus.trim();
+    }
+    if (typeof raw.labels.multiplier === 'string' && raw.labels.multiplier.trim()) {
+      labels.multiplier = raw.labels.multiplier.trim();
+    }
+  }
+  const hasLabels = Object.keys(labels).length > 0;
+  if (!perCopy && !setBonus && !multiplier) {
+    return null;
+  }
+  return {
+    perCopy,
+    setBonus,
+    multiplier,
+    labels: hasLabels ? labels : null
+  };
+}
+
+const ELEMENT_GROUP_BONUS_CONFIG = (() => {
+  const result = new Map();
+  const rawConfig = CONFIG.elementBonuses ?? CONFIG.elementBonus ?? null;
+  if (!rawConfig || typeof rawConfig !== 'object') {
+    return result;
+  }
+  const rawGroups = rawConfig.groups
+    ?? rawConfig.byRarity
+    ?? rawConfig.rarity
+    ?? rawConfig.groupsByRarity
+    ?? rawConfig;
+  if (!rawGroups || typeof rawGroups !== 'object') {
+    return result;
+  }
+  Object.entries(rawGroups).forEach(([rarityId, rawValue]) => {
+    if (!rarityId) return;
+    const normalizedRarityId = String(rarityId).trim();
+    if (!normalizedRarityId) return;
+    const normalizedConfig = normalizeElementGroupBonus(rawValue);
+    if (!normalizedConfig) return;
+    result.set(normalizedRarityId, normalizedConfig);
+  });
+  return result;
+})();
+
 const CATEGORY_LABELS = {
   'alkali-metal': 'métal alcalin',
   'alkaline-earth-metal': 'métal alcalino-terreux',
@@ -3938,6 +4117,134 @@ function recalcProduction() {
 
   const clickRarityMultipliers = clickDetails.sources.multipliers.rarityMultipliers;
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
+
+  const elementCountsByRarity = new Map();
+  const registerRarityCount = (rarityId, amount = 0) => {
+    if (!rarityId) return;
+    const previous = elementCountsByRarity.get(rarityId) || 0;
+    elementCountsByRarity.set(rarityId, previous + amount);
+  };
+
+  const elementEntries = Object.values(gameState.elements || {});
+  elementEntries.forEach(entry => {
+    if (!entry) return;
+    const rarityId = entry.rarity || elementRarityIndex.get(entry.id);
+    if (!rarityId) return;
+    const rawCount = Number(entry.count);
+    const normalizedCount = Number.isFinite(rawCount) && rawCount > 0
+      ? Math.floor(rawCount)
+      : (entry.owned ? 1 : 0);
+    if (normalizedCount <= 0) return;
+    registerRarityCount(rarityId, normalizedCount);
+  });
+
+  const addClickElementFlat = (value, { id, label }) => {
+    if (value == null) return;
+    const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
+    if (layeredValue.isZero()) return;
+    clickElementAddition = clickElementAddition.add(layeredValue);
+    clickDetails.additions.push({
+      id,
+      label,
+      value: layeredValue.clone(),
+      source: 'elements'
+    });
+  };
+
+  const addAutoElementFlat = (value, { id, label }) => {
+    if (value == null) return;
+    const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
+    if (layeredValue.isZero()) return;
+    autoElementAddition = autoElementAddition.add(layeredValue);
+    autoDetails.additions.push({
+      id,
+      label,
+      value: layeredValue.clone(),
+      source: 'elements'
+    });
+  };
+
+  ELEMENT_GROUP_BONUS_CONFIG.forEach((groupConfig, rarityId) => {
+    const count = elementCountsByRarity.get(rarityId) || 0;
+    const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || rarityId;
+    const copyLabel = groupConfig.labels?.perCopy || `${rarityLabel} · copies`;
+    const setBonusLabel = groupConfig.labels?.setBonus || `${rarityLabel} · bonus de groupe`;
+
+    if (count > 0 && groupConfig.perCopy) {
+      if (groupConfig.perCopy.clickAdd) {
+        addClickElementFlat(groupConfig.perCopy.clickAdd * count, {
+          id: `elements:${rarityId}:copies`,
+          label: copyLabel
+        });
+      }
+      if (groupConfig.perCopy.autoAdd) {
+        addAutoElementFlat(groupConfig.perCopy.autoAdd * count, {
+          id: `elements:${rarityId}:copies`,
+          label: copyLabel
+        });
+      }
+    }
+
+    if (count > 0 && groupConfig.setBonus) {
+      if (groupConfig.setBonus.clickAdd) {
+        addClickElementFlat(groupConfig.setBonus.clickAdd, {
+          id: `elements:${rarityId}:groupFlat`,
+          label: setBonusLabel
+        });
+      }
+      if (groupConfig.setBonus.autoAdd) {
+        addAutoElementFlat(groupConfig.setBonus.autoAdd, {
+          id: `elements:${rarityId}:groupFlat`,
+          label: setBonusLabel
+        });
+      }
+    }
+
+    if (groupConfig.multiplier) {
+      const { base, every, increment, cap, targets, label: multiplierLabelOverride } = groupConfig.multiplier;
+      let finalMultiplier = Number.isFinite(base) && base > 0 ? base : 1;
+      if (count > 0 && every > 0 && increment !== 0) {
+        const steps = Math.floor(count / every);
+        if (steps > 0) {
+          finalMultiplier += steps * increment;
+        }
+      }
+      if (Number.isFinite(cap)) {
+        finalMultiplier = Math.min(finalMultiplier, cap);
+      }
+      if (!Number.isFinite(finalMultiplier) || finalMultiplier <= 0) {
+        finalMultiplier = 1;
+      }
+      const multiplierLabel = multiplierLabelOverride || groupConfig.labels?.multiplier || rarityLabel;
+      const detailId = `elements:${rarityId}:multiplier`;
+      let multiplierLayered = null;
+      if (count > 0 && finalMultiplier !== 1 && (targets.has('perClick') || targets.has('perSecond'))) {
+        multiplierLayered = new LayeredNumber(finalMultiplier);
+      }
+      if (targets.has('perClick')) {
+        clickRarityMultipliers.set(rarityId, finalMultiplier);
+        if (multiplierLayered) {
+          clickDetails.multipliers.push({
+            id: detailId,
+            label: multiplierLabel,
+            value: multiplierLayered.clone(),
+            source: 'elements'
+          });
+        }
+      }
+      if (targets.has('perSecond')) {
+        autoRarityMultipliers.set(rarityId, finalMultiplier);
+        if (multiplierLayered) {
+          autoDetails.multipliers.push({
+            id: detailId,
+            label: multiplierLabel,
+            value: multiplierLayered.clone(),
+            source: 'elements'
+          });
+        }
+      }
+    }
+  });
 
   const trophyEffects = computeTrophyEffects();
   const clickTrophyMultiplier = trophyEffects.clickMultiplier instanceof LayeredNumber
