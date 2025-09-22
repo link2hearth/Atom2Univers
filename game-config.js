@@ -647,6 +647,17 @@ const GAME_CONFIG = {
     rewardTickets: 1
   },
 
+  /**
+   * Bonus appliqués en fonction de la rareté des éléments de la collection.
+   * Chaque groupe permet de configurer :
+   * - perCopy : bonus plats ajoutés pour chaque copie possédée. Options :
+   *   - clickAdd / autoAdd : valeurs ajoutées à l'APC / APS.
+   *   - minCopies / minUnique : quantités minimales avant d'activer le bonus.
+   * - setBonus : bonus uniques débloqués une fois le groupe complété. Options :
+   *   - requireAllUnique (par défaut true) : exige d'avoir tous les éléments de la rareté.
+   *   - minCopies / minUnique : seuils supplémentaires pour déclencher le bonus.
+   * - multiplier : multiplicateur progressif basé sur le nombre de copies.
+   */
   elementBonuses: {
     groups: {
       commun: {
@@ -654,7 +665,8 @@ const GAME_CONFIG = {
           clickAdd: 1
         },
         setBonus: {
-          clickAdd: 500
+          clickAdd: 500,
+          requireAllUnique: true
         },
         multiplier: {
           every: 50,
