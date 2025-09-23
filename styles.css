@@ -425,6 +425,9 @@ main {
   position: absolute;
   top: clamp(1rem, 3vw, 2rem);
   right: clamp(1rem, 3vw, 2rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
   font-size: 0.85rem;
@@ -435,6 +438,18 @@ main {
   color: rgba(255, 255, 255, 0.86);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(6px);
+}
+
+.gacha-ticket-counter__icon {
+  width: clamp(1.2rem, 3vw, 1.6rem);
+  height: auto;
+  filter: drop-shadow(0 0 6px rgba(255, 215, 120, 0.5));
+  pointer-events: none;
+  user-select: none;
+}
+
+.gacha-ticket-counter__value {
+  white-space: nowrap;
 }
 
 body.theme-light .gacha-ticket-counter {
