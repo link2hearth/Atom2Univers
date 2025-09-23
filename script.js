@@ -5111,6 +5111,124 @@ function stripBonusLabelPrefix(label, rarityLabel) {
   return trimmed;
 }
 
+function enableElementBonusTagTooltip(tag) {
+  if (!tag || typeof tag !== 'object') {
+    return;
+  }
+  if (tag.dataset.tooltipHold === 'true') {
+    return;
+  }
+  tag.dataset.tooltipHold = 'true';
+
+  let activePointerId = null;
+  let keyboardActive = false;
+
+  function showTooltip() {
+    tag.classList.add('is-tooltip-active');
+  }
+
+  const pointerRoot = typeof window !== 'undefined' ? window : null;
+
+  function onWindowPointerUp(event) {
+    if (activePointerId == null) {
+      return;
+    }
+    if (event && event.pointerId != null && event.pointerId !== activePointerId) {
+      return;
+    }
+    hideTooltip();
+  }
+
+  function onWindowPointerCancel() {
+    hideTooltip();
+  }
+
+  function removeWindowPointerListeners() {
+    if (!pointerRoot) {
+      return;
+    }
+    pointerRoot.removeEventListener('pointerup', onWindowPointerUp, true);
+    pointerRoot.removeEventListener('pointercancel', onWindowPointerCancel, true);
+  }
+
+  function hideTooltip() {
+    tag.classList.remove('is-tooltip-active');
+    activePointerId = null;
+    keyboardActive = false;
+    removeWindowPointerListeners();
+  }
+
+  function addWindowPointerListeners() {
+    if (!pointerRoot) {
+      return;
+    }
+    pointerRoot.addEventListener('pointerup', onWindowPointerUp, true);
+    pointerRoot.addEventListener('pointercancel', onWindowPointerCancel, true);
+  }
+
+  tag.addEventListener('pointerdown', event => {
+    if (event.button !== 0) {
+      return;
+    }
+    activePointerId = event.pointerId;
+    if (typeof tag.focus === 'function') {
+      try {
+        tag.focus({ preventScroll: true });
+      } catch (err) {
+        tag.focus();
+      }
+    }
+    showTooltip();
+    try {
+      tag.setPointerCapture(event.pointerId);
+    } catch (err) {
+      // Ignore capture errors (e.g., unsupported elements)
+    }
+    addWindowPointerListeners();
+    event.preventDefault();
+  });
+
+  const releasePointer = event => {
+    if (activePointerId == null || (event && event.pointerId !== activePointerId)) {
+      return;
+    }
+    hideTooltip();
+  };
+
+  tag.addEventListener('pointerup', releasePointer);
+  tag.addEventListener('pointercancel', () => {
+    hideTooltip();
+  });
+  tag.addEventListener('lostpointercapture', () => {
+    hideTooltip();
+  });
+  tag.addEventListener('pointerleave', event => {
+    if (event.buttons === 0 && activePointerId == null) {
+      hideTooltip();
+    }
+  });
+  tag.addEventListener('blur', () => {
+    hideTooltip();
+  });
+
+  tag.addEventListener('keydown', event => {
+    if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
+      showTooltip();
+      keyboardActive = true;
+      event.preventDefault();
+    }
+  });
+
+  tag.addEventListener('keyup', event => {
+    if (!keyboardActive) {
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
+      hideTooltip();
+    }
+  });
+}
+
 function renderElementBonuses() {
   const container = elements.infoElementBonuses;
   if (!container) return;
@@ -5382,6 +5500,7 @@ function renderElementBonuses() {
           tag.dataset.tooltip = entry.description;
           tag.setAttribute('tabindex', '0');
           tag.setAttribute('aria-label', `${entry.label} : ${entry.description}`);
+          enableElementBonusTagTooltip(tag);
         }
         tags.appendChild(tag);
       });
@@ -6810,12 +6929,80 @@ function recalcProduction() {
       }
       return activeLabelDetails.get(key);
     };
+    const describeLabelEffect = (label, effectText) => {
+      if (!effectText) {
+        return null;
+      }
+      const rawText = String(effectText).trim();
+      if (!rawText) {
+        return null;
+      }
+      const normalized = rawText.replace(/\s+/g, ' ');
+      const ensureSigned = value => {
+        if (!value) {
+          return value;
+        }
+        const trimmed = value.trim().replace(/^−/, '-');
+        if (/^[+\-]/.test(trimmed)) {
+          return trimmed;
+        }
+        return `+${trimmed}`;
+      };
+      const ensureMultiplierPrefix = value => {
+        if (!value) {
+          return value;
+        }
+        const trimmed = value.trim();
+        if (trimmed.startsWith('×')) {
+          return trimmed;
+        }
+        return `×${trimmed}`;
+      };
+      let match = normalized.match(/^(APC|APS) \+(.+)$/i);
+      if (match) {
+        const stat = match[1].toUpperCase() === 'APC'
+          ? 'production par clic du groupe'
+          : 'production automatique du groupe';
+        const amount = ensureSigned(match[2]);
+        return `Ajoute ${amount} à la ${stat}`;
+      }
+      match = normalized.match(/^(APC|APS) ×?(.+)$/i);
+      if (match) {
+        const stat = match[1].toUpperCase() === 'APC'
+          ? 'production par clic du groupe'
+          : 'production automatique du groupe';
+        const amount = ensureMultiplierPrefix(match[2]);
+        return `Multiplie la ${stat} par ${amount}`;
+      }
+      match = normalized.match(/^Chance \+(.+)$/i);
+      if (match) {
+        const amount = ensureSigned(match[1]);
+        return `Augmente la chance de critique du groupe de ${amount}`;
+      }
+      match = normalized.match(/^Multiplicateur \+(.+)$/i);
+      if (match) {
+        const amount = ensureSigned(match[1]);
+        return `Augmente le multiplicateur de critique du groupe de ${amount}`;
+      }
+      match = normalized.match(/^Collecte hors ligne (.+)$/i);
+      if (match) {
+        const multiplier = ensureMultiplierPrefix(match[1]);
+        return `Multiplie la collecte hors ligne du groupe par ${multiplier}`;
+      }
+      match = normalized.match(/^Chance de frénésie (.+)$/i);
+      if (match) {
+        const multiplier = ensureMultiplierPrefix(match[1]);
+        return `Multiplie la chance de frénésie du groupe par ${multiplier}`;
+      }
+      return null;
+    };
     const addLabelEffect = (label, effectText) => {
       if (!effectText) return;
       const entry = ensureActiveLabel(label);
       if (!entry) return;
-      if (!entry.effects.includes(effectText)) {
-        entry.effects.push(effectText);
+      const description = describeLabelEffect(label, effectText) || effectText;
+      if (!entry.effects.includes(description)) {
+        entry.effects.push(description);
       }
     };
     const addLabelNote = (label, noteText) => {
@@ -7252,6 +7439,20 @@ function recalcProduction() {
         label: bonusLabel
       } = groupConfig.rarityMultiplierBonus;
       if (amount !== 0) {
+        const formatSignedAmount = value => {
+          if (!Number.isFinite(value)) {
+            return value;
+          }
+          const abs = Math.abs(value);
+          const options = abs >= 10
+            ? { maximumFractionDigits: 0 }
+            : abs >= 1
+              ? { maximumFractionDigits: 1 }
+              : { maximumFractionDigits: 2 };
+          const magnitude = abs.toLocaleString('fr-FR', options);
+          const sign = value >= 0 ? '+' : '-';
+          return `${sign}${magnitude}`;
+        };
         const meetsUnique = uniqueThreshold > 0 ? uniqueCount >= uniqueThreshold : true;
         const meetsCopies = copyThreshold > 0 ? copyCount >= copyThreshold : true;
         if (meetsUnique && meetsCopies) {
@@ -7265,7 +7466,11 @@ function recalcProduction() {
             clickMultiplierValue = updated;
             const display = formatMultiplierTooltip(updated);
             if (display) {
-              addLabelEffect(resolvedLabel, `Multiplicateur de rareté APC ${display}`);
+              const signedAmount = formatSignedAmount(amount);
+              addLabelEffect(
+                resolvedLabel,
+                `Ajoute ${signedAmount} au multiplicateur de groupe (APC) — total ${display}`
+              );
               labelApplied = true;
             }
           }
@@ -7277,7 +7482,11 @@ function recalcProduction() {
             autoMultiplierValue = updated;
             const display = formatMultiplierTooltip(updated);
             if (display) {
-              addLabelEffect(resolvedLabel, `Multiplicateur de rareté APS ${display}`);
+              const signedAmount = formatSignedAmount(amount);
+              addLabelEffect(
+                resolvedLabel,
+                `Ajoute ${signedAmount} au multiplicateur de groupe (APS) — total ${display}`
+              );
               labelApplied = true;
             }
           }

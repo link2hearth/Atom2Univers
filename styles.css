@@ -2125,7 +2125,7 @@ body.theme-light .element-bonus-tag {
 
 .element-bonus-tag[data-tooltip] {
   position: relative;
-  cursor: help;
+  cursor: pointer;
   outline: none;
 }
 
@@ -2164,16 +2164,12 @@ body.theme-light .element-bonus-tag {
   z-index: 19;
 }
 
-.element-bonus-tag[data-tooltip]:hover::after,
-.element-bonus-tag[data-tooltip]:focus::after,
-.element-bonus-tag[data-tooltip]:focus-visible::after {
+.element-bonus-tag[data-tooltip].is-tooltip-active::after {
   opacity: 1;
   transform: translate(-50%, 0);
 }
 
-.element-bonus-tag[data-tooltip]:hover::before,
-.element-bonus-tag[data-tooltip]:focus::before,
-.element-bonus-tag[data-tooltip]:focus-visible::before {
+.element-bonus-tag[data-tooltip].is-tooltip-active::before {
   opacity: 1;
   transform: translateX(-50%) scale(1);
 }
