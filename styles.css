@@ -556,27 +556,27 @@ body.theme-neon .gacha-ticket-counter {
 }
 
 .gacha-warp--commun {
-  background: radial-gradient(circle, rgba(179, 229, 252, 0.9) 12%, transparent 72%);
+  background: radial-gradient(circle, rgba(26, 188, 156, 0.88) 14%, transparent 72%);
 }
 
 .gacha-warp--essentiel {
-  background: radial-gradient(circle, rgba(156, 255, 156, 0.9) 14%, transparent 72%);
+  background: radial-gradient(circle, rgba(52, 152, 219, 0.88) 14%, transparent 72%);
 }
 
 .gacha-warp--stellaire {
-  background: radial-gradient(circle, rgba(75, 0, 130, 0.85) 12%, transparent 72%);
+  background: radial-gradient(circle, rgba(155, 89, 182, 0.88) 12%, transparent 72%);
 }
 
 .gacha-warp--singulier {
-  background: radial-gradient(circle, rgba(255, 87, 34, 0.9) 14%, transparent 72%);
+  background: radial-gradient(circle, rgba(205, 97, 85, 0.9) 14%, transparent 72%);
 }
 
 .gacha-warp--mythique {
-  background: radial-gradient(circle, rgba(255, 235, 59, 0.85) 6%, rgba(255, 128, 171, 0.7) 32%, transparent 72%);
+  background: radial-gradient(circle, rgba(244, 208, 63, 0.85) 8%, rgba(244, 208, 63, 0.4) 34%, transparent 72%);
 }
 
 .gacha-warp--irreel {
-  background: radial-gradient(circle, rgba(255, 235, 59, 0.8) 8%, rgba(165, 121, 255, 0.8) 36%, transparent 72%);
+  background: radial-gradient(circle, rgba(127, 140, 141, 0.82) 12%, rgba(127, 140, 141, 0.32) 42%, transparent 72%);
 }
 
 .gacha-warp--irreel::after {
@@ -1034,72 +1034,72 @@ body.theme-neon .gacha-ticket-counter {
 
 .periodic-element[data-category='alkali-metal'],
 .element-info-panel[data-category='alkali-metal'] {
-  --category-strong: rgba(255, 146, 70, 0.38);
-  --category-weak: rgba(255, 146, 70, 0.12);
-  --category-border: rgba(255, 146, 70, 0.4);
+  --category-strong: rgba(7, 70, 50, 0.38);
+  --category-weak: rgba(7, 70, 50, 0.12);
+  --category-border: rgba(7, 70, 50, 0.4);
 }
 
 .periodic-element[data-category='alkaline-earth-metal'],
 .element-info-panel[data-category='alkaline-earth-metal'] {
-  --category-strong: rgba(255, 211, 95, 0.36);
-  --category-weak: rgba(255, 211, 95, 0.12);
-  --category-border: rgba(255, 211, 95, 0.36);
+  --category-strong: rgba(90, 101, 37, 0.36);
+  --category-weak: rgba(90, 101, 37, 0.12);
+  --category-border: rgba(90, 101, 37, 0.36);
 }
 
 .periodic-element[data-category='transition-metal'],
 .element-info-panel[data-category='transition-metal'] {
-  --category-strong: rgba(82, 200, 235, 0.36);
-  --category-weak: rgba(82, 200, 235, 0.12);
-  --category-border: rgba(82, 200, 235, 0.36);
+  --category-strong: rgba(188, 116, 58, 0.36);
+  --category-weak: rgba(188, 116, 58, 0.12);
+  --category-border: rgba(188, 116, 58, 0.36);
 }
 
 .periodic-element[data-category='post-transition-metal'],
 .element-info-panel[data-category='post-transition-metal'] {
-  --category-strong: rgba(200, 150, 255, 0.36);
-  --category-weak: rgba(200, 150, 255, 0.12);
-  --category-border: rgba(200, 150, 255, 0.36);
+  --category-strong: rgba(201, 150, 77, 0.36);
+  --category-weak: rgba(201, 150, 77, 0.12);
+  --category-border: rgba(201, 150, 77, 0.36);
 }
 
 .periodic-element[data-category='metalloid'],
 .element-info-panel[data-category='metalloid'] {
-  --category-strong: rgba(130, 220, 160, 0.32);
-  --category-weak: rgba(130, 220, 160, 0.12);
-  --category-border: rgba(130, 220, 160, 0.32);
+  --category-strong: rgba(211, 184, 104, 0.32);
+  --category-weak: rgba(211, 184, 104, 0.12);
+  --category-border: rgba(211, 184, 104, 0.32);
 }
 
 .periodic-element[data-category='nonmetal'],
 .element-info-panel[data-category='nonmetal'] {
-  --category-strong: rgba(110, 170, 255, 0.36);
-  --category-weak: rgba(110, 170, 255, 0.14);
-  --category-border: rgba(110, 170, 255, 0.34);
+  --category-strong: rgba(117, 165, 158, 0.36);
+  --category-weak: rgba(117, 165, 158, 0.14);
+  --category-border: rgba(117, 165, 158, 0.34);
 }
 
 .periodic-element[data-category='halogen'],
 .element-info-panel[data-category='halogen'] {
-  --category-strong: rgba(255, 120, 200, 0.36);
-  --category-weak: rgba(255, 120, 200, 0.14);
-  --category-border: rgba(255, 120, 200, 0.34);
+  --category-strong: rgba(88, 142, 127, 0.36);
+  --category-weak: rgba(88, 142, 127, 0.14);
+  --category-border: rgba(88, 142, 127, 0.34);
 }
 
 .periodic-element[data-category='noble-gas'],
 .element-info-panel[data-category='noble-gas'] {
-  --category-strong: rgba(180, 140, 255, 0.36);
-  --category-weak: rgba(180, 140, 255, 0.14);
-  --category-border: rgba(180, 140, 255, 0.34);
+  --category-strong: rgba(63, 119, 95, 0.36);
+  --category-weak: rgba(63, 119, 95, 0.14);
+  --category-border: rgba(63, 119, 95, 0.34);
 }
 
 .periodic-element[data-category='lanthanide'],
 .element-info-panel[data-category='lanthanide'] {
-  --category-strong: rgba(255, 184, 120, 0.34);
-  --category-weak: rgba(255, 184, 120, 0.12);
-  --category-border: rgba(255, 184, 120, 0.32);
+  --category-strong: rgba(49, 124, 83, 0.34);
+  --category-weak: rgba(49, 124, 83, 0.12);
+  --category-border: rgba(49, 124, 83, 0.32);
 }
 
 .periodic-element[data-category='actinide'],
 .element-info-panel[data-category='actinide'] {
-  --category-strong: rgba(255, 130, 150, 0.34);
-  --category-weak: rgba(255, 130, 150, 0.12);
-  --category-border: rgba(255, 130, 150, 0.32);
+  --category-strong: rgba(42, 157, 88, 0.34);
+  --category-weak: rgba(42, 157, 88, 0.12);
+  --category-border: rgba(42, 157, 88, 0.32);
 }
 
 body.theme-light .periodic-table-wrapper {
