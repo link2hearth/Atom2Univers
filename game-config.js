@@ -657,6 +657,12 @@ const GAME_CONFIG = {
    *   - requireAllUnique (par défaut true) : exige d'avoir tous les éléments de la rareté.
    *   - minCopies / minUnique : seuils supplémentaires pour déclencher le bonus.
    * - multiplier : multiplicateur progressif basé sur le nombre de copies.
+   * - Les raretés spéciales (ex. : « mythique ») peuvent définir des bonus
+   *   supplémentaires via les clés suivantes :
+   *   - ticketBonus : réduction de l'intervalle de l'étoile à tickets.
+   *   - offlineBonus : multiplicateur de gains hors-ligne par duplicata.
+   *   - duplicateOverflow : gain plat supplémentaire après le plafond.
+   *   - frenzyBonus : multiplicateur des chances de frénésie.
    */
   elementBonuses: {
     groups: {
@@ -746,6 +752,21 @@ const GAME_CONFIG = {
           ticketBonus: 'Mythe quantique · étoile compressée',
           offlineBonus: 'Mythe quantique · collecte persistante',
           duplicateOverflow: 'Mythe quantique · surcharge fractale'
+        },
+        ticketBonus: {
+          uniqueReductionSeconds: 1,
+          minIntervalSeconds: 5
+        },
+        offlineBonus: {
+          baseMultiplier: 0.01,
+          perDuplicate: 0.01,
+          cap: 1
+        },
+        duplicateOverflow: {
+          flatBonus: 50
+        },
+        frenzyBonus: {
+          multiplier: 1.5
         }
       },
       irreel: {
