@@ -3752,6 +3752,7 @@ const elements = {
   gachaOwnedSummary: document.getElementById('gachaOwnedSummary'),
   gachaSunButton: document.getElementById('gachaSunButton'),
   gachaTicketCounter: document.getElementById('gachaTicketCounter'),
+  gachaTicketValue: document.getElementById('gachaTicketValue'),
   gachaAnimation: document.getElementById('gachaAnimation'),
   gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
   gachaContinueHint: document.getElementById('gachaContinueHint'),
@@ -4618,7 +4619,9 @@ let gachaAnimationInProgress = false;
 
 function updateGachaUI() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
-  if (elements.gachaTicketCounter) {
+  if (elements.gachaTicketValue) {
+    elements.gachaTicketValue.textContent = formatTicketLabel(available);
+  } else if (elements.gachaTicketCounter) {
     elements.gachaTicketCounter.textContent = formatTicketLabel(available);
   }
   if (elements.gachaSunButton) {

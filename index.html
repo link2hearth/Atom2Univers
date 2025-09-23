@@ -73,7 +73,16 @@
 
     <section id="gacha" class="page page--gacha" aria-labelledby="gacha-title">
       <h2 id="gacha-title" class="visually-hidden">Portail de tirage cosmique</h2>
-      <div class="gacha-ticket-counter" id="gachaTicketCounter" aria-live="polite">0 ticket</div>
+      <div class="gacha-ticket-counter" id="gachaTicketCounter" aria-live="polite">
+        <img
+          src="Assets/Image/ministar.png"
+          alt=""
+          class="gacha-ticket-counter__icon"
+          aria-hidden="true"
+          draggable="false"
+        />
+        <span class="gacha-ticket-counter__value" id="gachaTicketValue">0 ticket</span>
+      </div>
       <button
         class="gacha-sun-button"
         id="gachaSunButton"
