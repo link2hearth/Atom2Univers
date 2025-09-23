@@ -4507,25 +4507,47 @@ function populateGachaAnimationStars() {
   container.appendChild(fragment);
 }
 
-function waitForGachaAnimationDismiss(layer) {
+function waitForGachaAnimationDismiss(layer, options = {}) {
+  const { ignoreClicksUntil = 0 } = options;
   return new Promise(resolve => {
-    const handleClick = event => {
+    let inputGuardTime = Number(ignoreClicksUntil) || 0;
+    const cleanup = () => {
+      layer.removeEventListener('pointerdown', handlePointerDown);
+      layer.removeEventListener('click', handleClick, true);
+      layer.removeEventListener('keydown', handleKeyDown);
+      resolve();
+    };
+    const handlePointerDown = event => {
+      const timeStamp = typeof event.timeStamp === 'number' ? event.timeStamp : 0;
+      if (inputGuardTime && timeStamp <= inputGuardTime) {
+        inputGuardTime = 0;
+        return;
+      }
+      if ('isPrimary' in event && event.isPrimary === false) return;
+      if (typeof event.button === 'number' && event.button > 0) return;
       event.preventDefault();
+      event.stopPropagation();
+      cleanup();
+    };
+    const handleClick = event => {
+      const timeStamp = typeof event.timeStamp === 'number' ? event.timeStamp : 0;
+      if (inputGuardTime && timeStamp <= inputGuardTime) {
+        inputGuardTime = 0;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
       cleanup();
     };
     const handleKeyDown = event => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         cleanup();
-      }
-      if (event.key === 'Escape') {
+      } else if (event.key === 'Escape') {
         cleanup();
       }
-    };
-    const cleanup = () => {
-      layer.removeEventListener('click', handleClick);
-      layer.removeEventListener('keydown', handleKeyDown);
-      resolve();
     };
     requestAnimationFrame(() => {
       try {
@@ -4534,7 +4556,61 @@ function waitForGachaAnimationDismiss(layer) {
         layer.focus();
       }
     });
-    layer.addEventListener('click', handleClick);
+    layer.addEventListener('pointerdown', handlePointerDown);
+    layer.addEventListener('click', handleClick, true);
+    layer.addEventListener('keydown', handleKeyDown);
+  });
+}
+
+function waitForGachaReveal(layer, delay) {
+  const revealDelay = Math.max(0, Number(delay) || 0);
+  return new Promise(resolve => {
+    let resolved = false;
+    let timeoutId = window.setTimeout(() => finish(false, 0), revealDelay);
+    const cleanup = () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      layer.removeEventListener('pointerup', handlePointerUp);
+      layer.removeEventListener('click', handleClick, true);
+      layer.removeEventListener('keydown', handleKeyDown);
+    };
+    const finish = (skipped, guardTime) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve({ skipped, guardTime });
+    };
+    const resolveWithGuardTime = event => {
+      const timeStamp = typeof event.timeStamp === 'number' ? event.timeStamp + 16 : 0;
+      finish(true, timeStamp);
+    };
+    const handlePointerUp = event => {
+      if (resolved) return;
+      if ('isPrimary' in event && event.isPrimary === false) return;
+      if (typeof event.button === 'number' && event.button > 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resolveWithGuardTime(event);
+    };
+    const handleClick = event => {
+      if (resolved) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resolveWithGuardTime(event);
+    };
+    const handleKeyDown = event => {
+      if (resolved) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        finish(true, 0);
+      } else if (event.key === 'Escape') {
+        finish(true, 0);
+      }
+    };
+    layer.addEventListener('pointerup', handlePointerUp);
+    layer.addEventListener('click', handleClick, true);
     layer.addEventListener('keydown', handleKeyDown);
   });
 }
@@ -4595,12 +4671,16 @@ async function playGachaAnimation(outcome) {
 
   populateGachaAnimationStars();
 
-  await wait(GACHA_ANIMATION_REVEAL_DELAY);
+  const revealResult = await waitForGachaReveal(layer, GACHA_ANIMATION_REVEAL_DELAY);
 
   displayGachaResult(outcome);
   layer.classList.add('show-result');
 
-  await waitForGachaAnimationDismiss(layer);
+  const guardTime = revealResult && typeof revealResult.guardTime === 'number'
+    ? revealResult.guardTime
+    : 0;
+
+  await waitForGachaAnimationDismiss(layer, { ignoreClicksUntil: guardTime });
 
   layer.classList.remove('show-result');
   layer.classList.remove('is-active');
