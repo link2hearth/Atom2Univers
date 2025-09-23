@@ -621,7 +621,7 @@ const GAME_CONFIG = {
         label: 'Mythe quantique',
         description: 'Éléments aux propriétés quasi légendaires.',
         weight: 4,
-        color: '#f4d03f'
+        color: '#FFBF66'
       },
       {
         id: 'irreel',
