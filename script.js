@@ -6408,8 +6408,8 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   const offsetX = state.posX;
   const offsetY = state.posY;
   const squash = Math.max(-0.75, Math.min(0.75, state.squash));
-  const scaleY = Math.max(0.6, Math.min(1.48, 1 + squash * 0.82 + intensity * 0.06));
-  const scaleX = Math.max(0.6, Math.min(1.48, 1 - squash * 0.55 - intensity * 0.04));
+  const scaleY = Math.max(0.75, Math.min(1.25, 1 + squash * 0.28 + intensity * 0.02));
+  const scaleX = Math.max(0.75, Math.min(1.25, 1 - squash * 0.18 - intensity * 0.015));
 
   visual.style.setProperty('--shake-x', `${offsetX.toFixed(2)}px`);
   visual.style.setProperty('--shake-y', `${offsetY.toFixed(2)}px`);
