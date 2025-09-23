@@ -1850,10 +1850,10 @@ body.theme-neon .production-breakdown__row--total {
   background: rgba(255,255,255,0.05);
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.08);
-  padding: clamp(1rem, 1.8vw, 1.2rem);
+  padding: clamp(0.75rem, 1.4vw, 1rem);
   display: flex;
   flex-direction: column;
-  gap: clamp(0.9rem, 1.4vw, 1.2rem);
+  gap: clamp(0.65rem, 1.1vw, 0.9rem);
   height: 100%;
 }
 
@@ -1871,7 +1871,7 @@ body.theme-neon .element-bonus-card {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  gap: clamp(1rem, 1.8vw, 1.6rem);
+  gap: clamp(0.75rem, 1.2vw, 1.1rem);
 }
 
 .element-bonus-card:not(.shop-bonus-card) .element-bonus-card__meta,
@@ -1898,7 +1898,7 @@ body.theme-neon .element-bonus-card {
 .element-bonus-card__meta {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.65rem, 1.2vw, 1.05rem);
+  gap: clamp(0.45rem, 0.9vw, 0.75rem);
 }
 
 .element-bonus-counts {
@@ -1906,14 +1906,14 @@ body.theme-neon .element-bonus-card {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .element-bonus-count {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
 }
 
@@ -1943,7 +1943,7 @@ body.theme-light .element-bonus-count--highlight .element-bonus-count__value {
 .element-bonus-progress {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .element-bonus-progress__label {
@@ -1954,7 +1954,7 @@ body.theme-light .element-bonus-count--highlight .element-bonus-count__value {
 
 .element-bonus-progress__track {
   position: relative;
-  height: 0.45rem;
+  height: 0.35rem;
   border-radius: 999px;
   background: rgba(255,255,255,0.12);
   overflow: hidden;
@@ -1982,13 +1982,13 @@ body.theme-light .element-bonus-progress__fill {
 .element-bonus-card__details {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.85rem, 1.5vw, 1.25rem);
+  gap: clamp(0.6rem, 1.1vw, 0.85rem);
 }
 
 .element-bonus-section {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .element-bonus-section__title {
@@ -2054,7 +2054,7 @@ body.theme-light .element-bonus-card__status {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .element-bonus-effects__item {
