@@ -2570,7 +2570,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
   ];
 })();
 
-const ATOM_SCALE_TROPHY_DATA = [
+const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
   {
     id: 'scaleHumanCell',
     name: 'Échelle : cellule humaine',
@@ -2734,7 +2734,11 @@ const ATOM_SCALE_TROPHY_DATA = [
   }
 ];
 
-function formatAtomScaleBonus(value) {
+const ATOM_SCALE_TROPHY_DATA = Array.isArray(globalThis.ATOM_SCALE_TROPHY_DATA)
+  ? globalThis.ATOM_SCALE_TROPHY_DATA
+  : DEFAULT_ATOM_SCALE_TROPHY_DATA;
+
+function formatAtomScaleBonusValue(value) {
   if (!Number.isFinite(value)) {
     return '0';
   }
@@ -2753,7 +2757,7 @@ function createFallbackAtomScaleTrophies() {
   return ATOM_SCALE_TROPHY_DATA.map((entry, index) => {
     const rawBonus = count > 1 ? minBonus + step * index : maxBonus;
     const roundedBonus = Math.round(rawBonus * 100) / 100;
-    const displayBonus = formatAtomScaleBonus(roundedBonus);
+    const displayBonus = formatAtomScaleBonusValue(roundedBonus);
     return {
       id: entry.id,
       name: entry.name,

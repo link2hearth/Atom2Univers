@@ -404,7 +404,7 @@ function createShopBuildingDefinitions() {
   ];
 }
 
-const ATOM_SCALE_TROPHY_DATA = [
+const ATOM_SCALE_TROPHY_PRESETS = [
   {
     id: 'scaleHumanCell',
     name: 'Échelle : cellule humaine',
@@ -568,6 +568,8 @@ const ATOM_SCALE_TROPHY_DATA = [
   }
 ];
 
+globalThis.ATOM_SCALE_TROPHY_DATA = ATOM_SCALE_TROPHY_PRESETS;
+
 function formatAtomScaleBonus(value) {
   if (!Number.isFinite(value)) {
     return '0';
@@ -582,9 +584,9 @@ function formatAtomScaleBonus(value) {
 function createAtomScaleTrophies() {
   const minBonus = 1;
   const maxBonus = 50;
-  const count = ATOM_SCALE_TROPHY_DATA.length;
+  const count = ATOM_SCALE_TROPHY_PRESETS.length;
   const step = count > 1 ? (maxBonus - minBonus) / (count - 1) : 0;
-  return ATOM_SCALE_TROPHY_DATA.map((entry, index) => {
+  return ATOM_SCALE_TROPHY_PRESETS.map((entry, index) => {
     const rawBonus = count > 1 ? minBonus + step * index : maxBonus;
     const roundedBonus = Math.round(rawBonus * 100) / 100;
     const displayBonus = formatAtomScaleBonus(roundedBonus);
