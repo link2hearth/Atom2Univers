@@ -3753,8 +3753,7 @@ const elements = {
   gachaSunButton: document.getElementById('gachaSunButton'),
   gachaTicketCounter: document.getElementById('gachaTicketCounter'),
   gachaAnimation: document.getElementById('gachaAnimation'),
-  gachaAnimationStars: document.getElementById('gachaAnimationStars'),
-  gachaWarp: document.getElementById('gachaWarp'),
+  gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
   gachaContinueHint: document.getElementById('gachaContinueHint'),
   themeSelect: document.getElementById('themeSelect'),
   resetButton: document.getElementById('resetButton'),
@@ -4600,12 +4599,22 @@ function formatTicketLabel(count) {
   return `${formatted} ${unit}`;
 }
 
-const GACHA_ANIMATION_STAR_COUNT = 90;
-const GACHA_ANIMATION_REVEAL_DELAY = 2600;
-const GACHA_WARP_BASE_CLASS = 'gacha-warp--commun';
-const GACHA_WARP_COLOR_TRANSITION_DELAY = 1500;
+const GACHA_ANIMATION_CONFETTI_COUNT = 110;
+const GACHA_ANIMATION_COLOR_SHIFT_DELAY = 1500;
+const GACHA_ANIMATION_REVEAL_DELAY = 3000;
+const GACHA_CONFETTI_BASE_RARITY_ID = 'commun';
+const DEFAULT_GACHA_CONFETTI_COLOR = '#4f7ec2';
+const GACHA_CONFETTI_SHAPES = [
+  { className: 'crit-confetti--circle', widthFactor: 1, heightFactor: 1 },
+  { className: 'crit-confetti--oval', widthFactor: 1.4, heightFactor: 1 },
+  { className: 'crit-confetti--heart', widthFactor: 1.1, heightFactor: 1.1 },
+  { className: 'crit-confetti--star', widthFactor: 1.2, heightFactor: 1.2 },
+  { className: 'crit-confetti--square', widthFactor: 1, heightFactor: 1 },
+  { className: 'crit-confetti--triangle', widthFactor: 1.15, heightFactor: 1.3 },
+  { className: 'crit-confetti--rectangle', widthFactor: 1.8, heightFactor: 0.7 },
+  { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
+];
 let gachaAnimationInProgress = false;
-let gachaWarpColorTimeout = null;
 
 function updateGachaUI() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
@@ -4711,30 +4720,184 @@ function wait(duration) {
   });
 }
 
-function populateGachaAnimationStars() {
-  if (!elements.gachaAnimationStars) return;
-  const container = elements.gachaAnimationStars;
-  container.innerHTML = '';
+const gachaConfettiState = {
+  container: null,
+  nodes: [],
+  baseColor: null,
+  targetColor: null,
+  colorShiftTimeoutId: null
+};
+
+function normalizeHexColor(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
+  if (!match) return null;
+  let hex = match[1];
+  if (hex.length === 3) {
+    hex = hex.split('').map(part => part + part).join('');
+  }
+  return `#${hex.toLowerCase()}`;
+}
+
+function parseHexColorToRgb(input) {
+  const normalized = normalizeHexColor(input);
+  if (!normalized) return null;
+  const value = normalized.slice(1);
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+    return null;
+  }
+  return { r, g, b };
+}
+
+function mixRgb(color, target, amount) {
+  const mixAmount = Math.max(0, Math.min(1, Number(amount) || 0));
+  const mixChannel = (base, goal) => {
+    const value = base + (goal - base) * mixAmount;
+    return Math.max(0, Math.min(255, Math.round(value)));
+  };
+  return {
+    r: mixChannel(color.r, target.r),
+    g: mixChannel(color.g, target.g),
+    b: mixChannel(color.b, target.b)
+  };
+}
+
+function lightenRgb(color, amount) {
+  return mixRgb(color, { r: 255, g: 255, b: 255 }, amount);
+}
+
+function darkenRgb(color, amount) {
+  return mixRgb(color, { r: 0, g: 0, b: 0 }, amount);
+}
+
+function rgbToCss(color) {
+  return `rgb(${color.r}, ${color.g}, ${color.b})`;
+}
+
+function rgbaToCss(color, alpha) {
+  const clampedAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+  return `rgba(${color.r}, ${color.g}, ${color.b}, ${clampedAlpha})`;
+}
+
+function applyGachaConfettiColor(confetti, color) {
+  if (!confetti) return;
+  const rgb = parseHexColorToRgb(color) || parseHexColorToRgb(DEFAULT_GACHA_CONFETTI_COLOR);
+  if (!rgb) return;
+  const highlight = lightenRgb(rgb, 0.35);
+  const shadow = darkenRgb(rgb, 0.32);
+  const glow = lightenRgb(rgb, 0.22);
+  const halo = lightenRgb(rgb, 0.5);
+  const storedAngle = Number.parseFloat(confetti.dataset.gradientAngle);
+  const gradientAngle = Number.isFinite(storedAngle) ? storedAngle : Math.random() * 360;
+  confetti.dataset.gradientAngle = gradientAngle.toFixed(2);
+  confetti.style.background = `linear-gradient(${gradientAngle.toFixed(2)}deg, ${rgbToCss(highlight)}, ${rgbToCss(shadow)})`;
+  confetti.style.boxShadow = `0 0 18px ${rgbaToCss(glow, 0.45)}, 0 0 40px ${rgbaToCss(halo, 0.22)}`;
+}
+
+function resolveGachaConfettiColor(input, fallback = DEFAULT_GACHA_CONFETTI_COLOR) {
+  return normalizeHexColor(input) || normalizeHexColor(fallback) || DEFAULT_GACHA_CONFETTI_COLOR;
+}
+
+function createGachaConfettiNode(baseColor) {
+  const confetti = document.createElement('span');
+  const baseSize = 26 + Math.random() * 26;
+  const shape = pickRandom(GACHA_CONFETTI_SHAPES);
+  const width = baseSize * shape.widthFactor;
+  const height = baseSize * shape.heightFactor;
+  confetti.className = `gacha-confetti ${shape.className}`;
+  confetti.style.width = `${width.toFixed(2)}px`;
+  confetti.style.height = `${height.toFixed(2)}px`;
+
+  const direction = Math.random() < 0.5 ? -1 : 1;
+  const travelDistance = 260 + Math.random() * 260;
+  const endX = travelDistance * direction;
+  const endY = (Math.random() - 0.5) * 280;
+  const midX = endX * (0.36 + Math.random() * 0.22);
+  const midY = endY * 0.5 + (Math.random() - 0.5) * 80;
+
+  const rotationStart = Math.random() * 360;
+  const spin = direction * (160 + Math.random() * 220);
+  const rotationMid = rotationStart + spin * 0.38;
+  const rotationEnd = rotationStart + spin;
+  const scale = 0.85 + Math.random() * 0.45;
+  const duration = 1.6 + Math.random() * 1.2;
+  const delay = Math.random() * 1.8;
+
+  confetti.style.setProperty('--confetti-mid-x', `${midX.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-mid-y', `${midY.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-end-x', `${endX.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-end-y', `${endY.toFixed(2)}px`);
+  confetti.style.setProperty('--confetti-scale', scale.toFixed(2));
+  confetti.style.setProperty('--confetti-start-rotation', `${rotationStart.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-mid-rotation', `${rotationMid.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-end-rotation', `${rotationEnd.toFixed(2)}deg`);
+  confetti.style.setProperty('--confetti-delay', `${delay.toFixed(2)}s`);
+  confetti.style.setProperty('--confetti-duration', `${duration.toFixed(2)}s`);
+  confetti.style.animationDuration = `${duration.toFixed(2)}s`;
+  confetti.style.animationDelay = `${delay.toFixed(2)}s`;
+
+  confetti.dataset.gradientAngle = (Math.random() * 360).toFixed(2);
+  applyGachaConfettiColor(confetti, baseColor);
+
+  return confetti;
+}
+
+function stopGachaConfettiAnimation() {
+  if (gachaConfettiState.colorShiftTimeoutId != null) {
+    clearTimeout(gachaConfettiState.colorShiftTimeoutId);
+    gachaConfettiState.colorShiftTimeoutId = null;
+  }
+  if (gachaConfettiState.container) {
+    gachaConfettiState.container.innerHTML = '';
+  }
+  gachaConfettiState.container = null;
+  gachaConfettiState.nodes = [];
+  gachaConfettiState.baseColor = null;
+  gachaConfettiState.targetColor = null;
+}
+
+function startGachaConfettiAnimation(outcome) {
+  if (!elements.gachaAnimationConfetti) {
+    stopGachaConfettiAnimation();
+    return;
+  }
+  stopGachaConfettiAnimation();
+
+  const container = elements.gachaAnimationConfetti;
+  const baseRarityColor = resolveGachaConfettiColor(
+    GACHA_RARITY_MAP.get(GACHA_CONFETTI_BASE_RARITY_ID)?.color,
+    DEFAULT_GACHA_CONFETTI_COLOR
+  );
+  const baseColor = baseRarityColor || DEFAULT_GACHA_CONFETTI_COLOR;
+  const targetColor = resolveGachaConfettiColor(outcome?.rarity?.color, baseColor);
+
   const fragment = document.createDocumentFragment();
-  for (let i = 0; i < GACHA_ANIMATION_STAR_COUNT; i += 1) {
-    const star = document.createElement('span');
-    star.className = 'gacha-star';
-    const height = 80 + Math.random() * 120;
-    const distance = 240 + Math.random() * 320;
-    const angle = Math.random() * 360;
-    const duration = 0.8 + Math.random() * 1.1;
-    const delay = Math.random() * 0.6;
-    const peakOpacity = 0.55 + Math.random() * 0.4;
-    star.style.height = `${height}px`;
-    star.style.setProperty('--star-distance', `${distance}px`);
-    star.style.setProperty('--star-angle', `${angle}deg`);
-    star.style.setProperty('--star-scale', (0.9 + Math.random() * 0.5).toFixed(2));
-    star.style.setProperty('--star-peak-opacity', peakOpacity.toFixed(2));
-    star.style.animationDuration = `${duration}s`;
-    star.style.animationDelay = `${delay}s`;
-    fragment.appendChild(star);
+  const nodes = [];
+  for (let i = 0; i < GACHA_ANIMATION_CONFETTI_COUNT; i += 1) {
+    const confetti = createGachaConfettiNode(baseColor);
+    fragment.appendChild(confetti);
+    nodes.push(confetti);
   }
   container.appendChild(fragment);
+
+  gachaConfettiState.container = container;
+  gachaConfettiState.nodes = nodes;
+  gachaConfettiState.baseColor = baseColor;
+  gachaConfettiState.targetColor = targetColor;
+
+  if (targetColor !== baseColor) {
+    gachaConfettiState.colorShiftTimeoutId = window.setTimeout(() => {
+      gachaConfettiState.colorShiftTimeoutId = null;
+      if (!gachaConfettiState.nodes.length) {
+        return;
+      }
+      gachaConfettiState.nodes.forEach(node => applyGachaConfettiColor(node, targetColor));
+    }, GACHA_ANIMATION_COLOR_SHIFT_DELAY);
+  }
 }
 
 function waitForGachaAnimationDismiss(layer, options = {}) {
@@ -4853,86 +5016,38 @@ async function playGachaAnimation(outcome) {
   }
 
   const layer = elements.gachaAnimation;
-  const stars = elements.gachaAnimationStars;
-  const warp = elements.gachaWarp;
-  const rarityClassName = outcome.rarity?.id
-    ? `gacha-warp--${outcome.rarity.id}`
-    : '';
 
   layer.hidden = false;
   layer.setAttribute('aria-hidden', 'false');
   layer.classList.remove('show-result');
   layer.classList.add('is-active');
-  if (warp) {
-    if (gachaWarpColorTimeout) {
-      clearTimeout(gachaWarpColorTimeout);
-      gachaWarpColorTimeout = null;
-    }
-    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
-    previousClasses.forEach(cls => {
-      if (cls) {
-        warp.classList.remove(cls);
-      }
-    });
-    delete warp.dataset.activeRarityClass;
-    delete warp.dataset.baseRarityClass;
-    if (GACHA_WARP_BASE_CLASS) {
-      warp.classList.add(GACHA_WARP_BASE_CLASS);
-      warp.dataset.baseRarityClass = GACHA_WARP_BASE_CLASS;
-    }
-    if (rarityClassName) {
-      if (rarityClassName === GACHA_WARP_BASE_CLASS) {
-        warp.dataset.activeRarityClass = GACHA_WARP_BASE_CLASS;
-      } else {
-        gachaWarpColorTimeout = setTimeout(() => {
-          warp.classList.remove(GACHA_WARP_BASE_CLASS);
-          delete warp.dataset.baseRarityClass;
-          warp.classList.add(rarityClassName);
-          warp.dataset.activeRarityClass = rarityClassName;
-          gachaWarpColorTimeout = null;
-        }, GACHA_WARP_COLOR_TRANSITION_DELAY);
-      }
-    }
-  }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
     elements.gachaResult.style.removeProperty('--rarity-color');
   }
 
-  populateGachaAnimationStars();
+  startGachaConfettiAnimation(outcome);
 
-  const revealResult = await waitForGachaReveal(layer, GACHA_ANIMATION_REVEAL_DELAY);
+  let guardTime = 0;
+  try {
+    const revealResult = await waitForGachaReveal(layer, GACHA_ANIMATION_REVEAL_DELAY);
 
-  displayGachaResult(outcome);
-  layer.classList.add('show-result');
+    displayGachaResult(outcome);
+    layer.classList.add('show-result');
 
-  const guardTime = revealResult && typeof revealResult.guardTime === 'number'
-    ? revealResult.guardTime
-    : 0;
+    guardTime = revealResult && typeof revealResult.guardTime === 'number'
+      ? revealResult.guardTime
+      : 0;
 
-  await waitForGachaAnimationDismiss(layer, { ignoreClicksUntil: guardTime });
+    await waitForGachaAnimationDismiss(layer, { ignoreClicksUntil: guardTime });
+  } finally {
+    stopGachaConfettiAnimation();
+  }
 
   layer.classList.remove('show-result');
   layer.classList.remove('is-active');
   layer.setAttribute('aria-hidden', 'true');
   layer.hidden = true;
-  if (stars) {
-    stars.innerHTML = '';
-  }
-  if (warp) {
-    if (gachaWarpColorTimeout) {
-      clearTimeout(gachaWarpColorTimeout);
-      gachaWarpColorTimeout = null;
-    }
-    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
-    previousClasses.forEach(cls => {
-      if (cls) {
-        warp.classList.remove(cls);
-      }
-    });
-    delete warp.dataset.activeRarityClass;
-    delete warp.dataset.baseRarityClass;
-  }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
     elements.gachaResult.style.removeProperty('--rarity-color');
