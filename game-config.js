@@ -593,42 +593,42 @@ const GAME_CONFIG = {
         label: 'Commun cosmique',
         description: 'Les éléments omniprésents dans les nébuleuses et les atmosphères stellaires.',
         weight: 55,
-        color: '#6bb8ff'
+        color: '#1abc9c'
       },
       {
         id: 'essentiel',
         label: 'Essentiel planétaire',
         description: 'Les piliers des mondes rocheux et des océans extraterrestres.',
         weight: 20,
-        color: '#74f5c6'
+        color: '#3498db'
       },
       {
         id: 'stellaire',
         label: 'Forge stellaire',
         description: 'Alliages façonnés dans les coeurs d’étoiles actives.',
         weight: 12,
-        color: '#c1f06a'
+        color: '#9b59b6'
       },
       {
         id: 'singulier',
         label: 'Singularité minérale',
         description: 'Raretés cristallines difficiles à isoler.',
         weight: 7,
-        color: '#ffb45a'
+        color: '#cd6155'
       },
       {
         id: 'mythique',
         label: 'Mythe quantique',
         description: 'Éléments aux propriétés quasi légendaires.',
         weight: 4,
-        color: '#ff6cb1'
+        color: '#f4d03f'
       },
       {
         id: 'irreel',
         label: 'Irréel',
         description: 'Créations synthétiques jamais rencontrées naturellement.',
         weight: 2,
-        color: '#a579ff'
+        color: '#7f8c8d'
       }
     ]
   },
