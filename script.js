@@ -6151,6 +6151,27 @@ const atomAnimationState = {
   lastTime: null
 };
 
+function getAtomVisualElement() {
+  const current = elements.atomVisual;
+  if (current?.isConnected) {
+    return current;
+  }
+
+  let resolved = null;
+  if (elements.atomButton?.isConnected) {
+    resolved = elements.atomButton.querySelector('.atom-visual');
+  }
+  if (!resolved) {
+    resolved = document.querySelector('.atom-visual');
+  }
+
+  if (resolved) {
+    elements.atomVisual = resolved;
+  }
+
+  return resolved;
+}
+
 function isGamePageActive() {
   return document.body.dataset.activePage === 'game';
 }
@@ -6225,7 +6246,7 @@ function applyClickStrength(strength) {
 }
 
 function injectAtomImpulse(now = performance.now()) {
-  if (!elements.atomVisual) return;
+  if (!getAtomVisualElement()) return;
   const state = atomAnimationState;
   if (state.lastTime == null) {
     state.lastTime = now;
@@ -6256,7 +6277,8 @@ function injectAtomImpulse(now = performance.now()) {
 }
 
 function updateAtomSpring(now = performance.now(), drive = 0) {
-  if (!elements.atomVisual) return;
+  const visual = getAtomVisualElement();
+  if (!visual) return;
   const state = atomAnimationState;
   if (state.lastTime == null) {
     state.lastTime = now;
@@ -6389,7 +6411,6 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   const scaleY = Math.max(0.6, Math.min(1.48, 1 + squash * 0.82 + intensity * 0.06));
   const scaleX = Math.max(0.6, Math.min(1.48, 1 - squash * 0.55 - intensity * 0.04));
 
-  const visual = elements.atomVisual;
   visual.style.setProperty('--shake-x', `${offsetX.toFixed(2)}px`);
   visual.style.setProperty('--shake-y', `${offsetY.toFixed(2)}px`);
   visual.style.setProperty('--shake-rot', `${(state.tilt + spin).toFixed(2)}deg`);
