@@ -1,197 +1,123 @@
+# 🧪 Atom → Univers
 
-# 🧪 Atomes Clicker
+**Atom → Univers** est un idle/clicker cosmique. Chaque clic forge des atomes, chaque atome alimente vos laboratoires, et votre objectif ultime reste d’atteindre \(10^{80}\) atomes afin de reconstituer un univers entier.
 
-**Atomes Clicker** est un jeu idle/clicker où le joueur collecte des **atomes** pour atteindre l’objectif ultime : **recréer un univers entier** (\~$10^{80}$ atomes).
+Le jeu combine plusieurs boucles complémentaires :
 
-Le jeu combine un **système de progression** inspiré des grands clickers (Cookie Clicker, Antimatter Dimensions, Universal Paperclips) avec une thématique scientifique :
-
-* Les **atomes** sont la ressource principale, servant à la fois de **monnaie** et de **compteur de progression globale**.
-* Le jeu utilise une **arithmétique à couches (layered numbers)** pour gérer des nombres gigantesques (jusqu’à l’échelle cosmique).
-
----
-
-## 🚀 Objectifs du jeu
-
-* **Départ :** cliquer manuellement pour collecter ses premiers atomes.
-* **Idle :** débloquer et améliorer des générateurs d’atomes (APS : Atomes par seconde).
-* **Clicker :** augmenter la puissance des clics manuels (APC : Atomes par clic).
-* **Collection :** invoquer un gacha permettant de débloquer les **118 éléments chimiques** du tableau de Mendeleïev, chacun donnant des bonus uniques.
-* **Finalité :** atteindre **$10^{80}$ atomes**, équivalent du nombre d’atomes dans l’univers observable → *fin cosmique*.
+* **Clic manuel (APC)** : appuyez sur l’atome central pour générer instantanément des ressources.
+* **Production passive (APS)** : investissez dans des bâtiments scientifiques qui produisent automatiquement.
+* **Moments de frénésie** : capturez les orbes de frénésie pour multiplier temporairement vos gains.
+* **Collection** : utilisez des tickets pour déclencher le gacha et étendre votre tableau périodique, chaque élément offrant des bonus croissants.
 
 ---
 
-## ⚙️ Mécaniques principales
+## ⚙️ Ressources & progression
 
-### 1. Ressource principale
-
-* **Atomes**
-
-  * Collectés par clic (APC) et générés passivement (APS).
-  * Servent de monnaie pour acheter des améliorations et lancer le gacha.
-
-### 2. Progression chiffrée
-
-* Système de **Layered Numbers** :
-
-  * `1.23K`, `4.56M`, `7.89B` → notation classique.
-  * `1.23e1000` → exponentielle scientifique.
-  * `ee123` → double exponentielle.
-  * Pas de limite théorique.
-* Objectif final : **atteindre $10^{80}$**.
-
-### 3. Améliorations
-
-* **APC (Atomes par clic)** :
-
-  * Bonus additifs : +5 atomes par clic.
-  * Bonus multiplicatifs : x2 sur les clics.
-  * Bonus totaux : x3 après application de tous les multiplicateurs.
-
-* **APS (Atomes par seconde)** :
-
-  * Générateurs passifs (réacteurs, fusions, supernovas, etc.).
-  * Upgrades pour multiplier la production.
-
-### 4. Gacha des éléments
-
-* Tirages payés en **atomes**.
-* Chaque élément (H, He, Li, … Uuo) possède une rareté et un bonus unique :
-
-
-# 🌌 Système de raretés
-
-Voici une proposition de hiérarchie des raretés :
-
-* **🌱 Commun** → éléments simples et fréquents (Hydrogène, Oxygène, Carbone…).
-* **💎 Rare** → éléments utiles, plus techniques (Fer, Cuivre, Argent…).
-* **🔥 Épique** → éléments puissants ou symboliques (Uranium, Or, Platine…).
-* **🌟 Mythique** → éléments exotiques ou instables (Plutonium, Prométhium…).
-* **👁️ Immortel** → éléments artificiels, extrêmes, presque impossibles à manipuler.
-* **🌌 Cosmique** → bonus ultimes, liés à la physique fondamentale, déblocables seulement en *late game*.
+* Les atomes servent à acheter des améliorations, débloquer de nouveaux bâtiments et augmenter la puissance de vos clics.
+* Une arithmétique à couches gère les très grands nombres : notation classique, scientifique, puis double exponentielle (`ee`). Il n’existe pas de plafond théorique.
+* Les sauvegardes utilisent un export/import JSON qui retient mantisses et exposants pour les sessions hors ligne.
 
 ---
 
-# 🧪 Répartition & Exemples de bonus
+## 🏭 Bâtiments scientifiques
 
-## 🌱 Commun (30 éléments)
+Les bâtiments sont regroupés par rôle (manuel, automatique, hybride) et se renforcent avec des paliers :
 
-> **Objets de base**, faciles à obtenir → bonus simples (APC / APS flat, multiplicateurs basiques).
-
-* **Hydrogène (H)** → +10% APC (premier clic amélioré).
-* **Carbone (C)** → +5% APS (lié à la vie → production de base).
-* **Oxygène (O)** → Multiplie les gains idle offline ×1.2.
-* **Fer (Fe)** → +10% vitesse d’achat des upgrades.
-* **Sodium (Na)** → Bonus spécial : +1 atom/sec tant qu’on est actif.
-
-*(Effet global : aide le joueur à décoller au jour 1.)*
+* **Paliers ×2 / ×4** aux niveaux 10, 25, 50, 100, 150, 200 (puis 300/400/500 pour ×4).
+* Plusieurs synergies croisées existent, par exemple l’Accélérateur de particules qui renforce les Laboratoires de physique, ou les Supercalculateurs boostés par les Stations orbitales.
+* Les descriptions détaillées se trouvent directement en jeu et dans `game-config.js`.
 
 ---
 
-## 💎 Rare (25 éléments)
+## 🎟️ Tickets de gacha
 
-> **Éléments de l’âge du métal et de l’industrie.** Bonus plus stratégiques.
+Le gacha ne consomme plus d’atomes : chaque tirage coûte **1 ticket**.
 
-* **Cuivre (Cu)** → +20% APC si on clique rapidement.
-* **Argent (Ag)** → Multiplie les récompenses de gacha ×1.1.
-* **Silicium (Si)** → Boost les gains passifs ×1.25 (lié à l’électronique).
-* **Aluminium (Al)** → Réduit le coût des améliorations ×0.9.
-* **Titane (Ti)** → Augmente les gains par prestige ×1.2.
+### Collecte des tickets
 
-*(Effet : booste la croissance, donne des mécaniques de synergies nouvelles.)*
+* Une **étoile de tickets** apparaît sur l’écran principal toutes les ~60 secondes (intervalle moyen). Cliquez dessus pour obtenir des tickets.
+* Les éléments de rareté **Mythe quantique** réduisent cet intervalle d’1 s par élément unique, jusqu’à un minimum de 5 s.
+* Certaines récompenses d’événements ou de DevKit peuvent également octroyer des tickets bonus.
 
----
+### Tirages
 
-## 🔥 Épique (25 éléments)
+* Un bouton dédié lance une animation cosmique et consomme automatiquement 1 ticket (sauf modes gratuits spéciaux).
+* Les éléments tirés s’ajoutent à votre collection : les nouveaux éléments octroient des bonus “unique”, tandis que les doublons activent des effets “duplicate”.
+* Chaque tirage affiche la rareté, le nom de l’élément et l’état de votre collection (nouveau/doublon/max).
 
-> **Éléments rares, précieux ou radioactifs.** Bonus puissants, souvent multiplicatifs.
+### Raretés et probabilités
 
-* **Or (Au)** → Tous les gains ×1.5 (prestige-friendly).
-* **Platine (Pt)** → +25% APS *et* APC.
-* **Uranium (U)** → Double temporairement la production chaque fois qu’un palier majeur est franchi.
-* **Plutonium (Pu)** → Chance de gagner ×10 sur un clic (proc aléatoire).
-* **Mercure (Hg)** → Augmente de +50% la vitesse de gacha.
-
-*(Effet : boost massif, début du mid/late game.)*
-
----
-
-## 🌟 Mythique (20 éléments)
-
-> **Éléments instables ou exotiques.** Bonus originaux, effets spéciaux.
-
-* **Prométhium (Pm)** → Débloque un auto-clicker cosmique (clic automatique × APS).
-* **Radon (Rn)** → Boost exponentiel aux APS en idle long (>1h).
-* **Thorium (Th)** → Multiplie les APC en fonction du nombre d’éléments collectés.
-* **Technétium (Tc)** → Bonus caché : augmente la rareté des tirages de gacha.
-* **Iridium (Ir)** → +5% gain par élément débloqué (scaling collection).
-
-*(Effet : synergies, effets exponentiels, boost de collection.)*
+| Rareté | Poids | Description |
+| --- | --- | --- |
+| **Commun cosmique** | 55 % | Les éléments omniprésents dans les nébuleuses. |
+| **Essentiel planétaire** | 20 % | Les fondations des mondes rocheux et océaniques. |
+| **Forge stellaire** | 12 % | Alliages forgés au cœur des étoiles actives. |
+| **Singularité minérale** | 7 % | Cristaux rarissimes difficiles à stabiliser. |
+| **Mythe quantique** | 4 % | Éléments quasi légendaires, aux effets systémiques. |
+| **Irréel** | 2 % | Créations synthétiques, jamais observées naturellement. |
 
 ---
 
-## 👁️ Immortel (12 éléments)
+## 💠 Bonus par rareté
 
-> **Éléments synthétiques lourds (> numéro atomique 100)**. Très rares.
+Chaque groupe de rareté dispose d’une configuration propre. Les bonus sont cumulés par élément, puis complétés par des récompenses de collection :
 
-* **Fermium (Fm)** → Les multiplicateurs APC et APS deviennent exponentiels (x² au lieu de x1.5).
-* **Nobelium (No)** → Chance d’obtenir un double élément par tirage gacha.
-* **Lawrencium (Lr)** → +1 prestige automatique par reset cosmique.
-* **Moscovium (Mc)** → Réduit les coûts exponentiellement (e.g. ÷ log(coût)).
+### Commun cosmique
 
-*(Effet : bouleverse les règles, change radicalement la progression.)*
+* **Par copie** : +1 atome par clic.
+* **Collection complète** : +500 APC plats.
+* **Accumulation** : toutes les 50 copies, +1 au multiplicateur global (APC & APS).
 
----
+### Essentiel planétaire
 
-## 🌌 Cosmique (6 éléments ultimes)
+* **Par élément unique** : +10 APC plats. Les doublons donnent également +10 APC.
+* **Collection complète** : +1 000 APC plats.
+* **Accumulation** : toutes les 30 copies, +1 au multiplicateur global (APC & APS).
 
-> **Non pas des éléments réels, mais des concepts physiques liés aux particules.**
-> Débloqués uniquement après avoir atteint $10^{70}$.
+### Forge stellaire
 
-* **Graviton** → Multiplie tous les gains en fonction du temps joué (scaling avec la durée totale de la partie).
-* **Photon** → Rend l’APS indépendant du temps offline (production infinie même déconnecté).
-* **Neutrino** → Permet de dépasser les caps habituels (accès aux notations `ee`, `eee`).
-* **Quark** → Chaque clic augmente de façon exponentielle le multiplicateur global.
-* **Boson de Higgs** → Débloque une “seconde monnaie cosmique” qui renforce tous les multiplicateurs.
-* **Vide quantique** → Reset complet… mais avec bonus exponentiel permanent. *Prestige ultime.*
+* **Par élément unique** : +50 APC plats.
+* **Par doublon** : +25 APC plats.
+* **Collection complète** : multiplie par 2 les bonus plats apportés par les Commun cosmique.
+* **Accumulation** : toutes les 20 copies, +1 au multiplicateur global (APC & APS).
 
-*(Effet : ultime fin de jeu, accès aux couches de nombres supérieures.)*
+### Singularité minérale
 
----
+* **Par élément unique** : +25 APC et +25 APS plats.
+* **Par doublon** : +20 APC et +20 APS plats.
+* **Accumulation** : toutes les 10 copies, +1 au multiplicateur global (APC & APS).
 
-# 🎲 Gacha & Progression
+### Mythe quantique
 
-* **Jour 1–2 :** Le joueur débloque facilement des **communs/rares**.
-* **Jour 3–4 :** Apparition des **épiques**, début des gros multiplicateurs.
-* **Jour 5+ :** Les **mythiques** changent la façon de progresser (auto-clicks, boosts de collection).
-* **Late game ( $10^{60}$+ ) :** Les **immortels** apparaissent.
-* **Fin cosmique ( $10^{70-80}$ ) :** Déblocage des **cosmiques**, qui redéfinissent le jeu.
+* **Réduction des tickets** : chaque élément unique réduit de 1 s l’intervalle d’apparition de l’étoile à tickets (minimum 5 s).
+* **Hors-ligne** : chaque doublon ajoute +1 % de gains hors-ligne (jusqu’à +100 %). Au-delà du plafond, chaque doublon offre +50 APC et +50 APS plats.
+* **Collection complète** : +50 % de chances supplémentaires de déclencher une frénésie.
 
+### Irréel
 
----
-
-
-## 🛠️ Technologies / Implémentation
-
-* **Langage** : JavaScript/TypeScript (ou autre selon le framework choisi). Utilisation d'un fichier config.js pour l'edition des bonus facilement pour une personne ne sachant pas coder.
-* **Arithmétique** : système de **layered numbers** (scientifique → exponentielle → double exponentielle, etc.).
-* **Sauvegarde** : export/import JSON avec mantisse + exposant (compatible offline progression).
-* **UI** :
-
-  * Affichage compact (`K/M/B`, `e+X`, `eeX`).
-  * Inventaire d’éléments débloqués.
-  * Progression visible vers l’Univers (barre ou jauge cosmique).
+* **Par élément unique** : +1 % de chance de critique (cumulatif).
+* **Par doublon** : +1 % au multiplicateur de critique.
+* **Accumulation** : toutes les 5 copies, +1 au multiplicateur global (APC & APS).
 
 ---
 
-## 🌌 Inspirations
+## 📈 Progression de collection (recommandation indicative)
 
-* **Cookie Clicker** → mécanique de clic + idle.
-* **Universal Paperclips** → thématique scientifique abstraite.
-* **Antimatter Dimensions / Balatro** → gestion de très grands nombres avec notations “ee / eee”.
+* **Début** : sécuriser les Commun cosmique et Essentiel planétaire pour accélérer les clics.
+* **Milieu de partie** : les Forge stellaire et Singularité minérale installent de véritables moteurs APS/APC.
+* **Fin de partie** : Mythe quantique et Irréel débloquent la gestion avancée des tickets, du hors-ligne, des critiques et des frénésies.
+
+---
+
+## 🛠️ Implémentation
+
+* **Technologies** : HTML, CSS et JavaScript vanilla.
+* **Configuration** : `game-config.js` centralise l’équilibrage (bâtiments, gacha, bonus) ; `periodic-elements.js` référence les 118 éléments.
+* **Accessibilité** : navigation par onglets, compteurs `aria-live`, animations désactivables via classes CSS.
+* **Sauvegarde** : export/import JSON ; le format stocke les tickets, la progression de collection, les multiplicateurs et les paramètres de l’étoile à tickets.
 
 ---
 
 ## 🎯 Objectif
 
-Créer un idle/clicker **thématique, progressif et cosmique**, où l’on part du simple clic → ramasser un atome, pour finir par **façonner un univers entier**.
-
+Collectez, automatisez, déclenchez des frénésies et maîtrisez la synthèse élémentaire via les tickets pour franchir l’échelle des grands nombres… jusqu’à reconstituer l’univers tout entier.
