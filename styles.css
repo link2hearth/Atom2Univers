@@ -1286,7 +1286,6 @@ body.theme-neon .page--void {
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: transform 0.12s ease;
   z-index: 2;
   touch-action: manipulation;
 }
@@ -1318,10 +1317,6 @@ body.theme-neon .page--void {
     0 0 calc(80px + 140px * var(--glow-strength)) rgba(var(--glow-color), calc(0.12 + 0.35 * var(--glow-strength)));
   opacity: calc(0.45 + 0.45 * var(--glow-strength) + 0.2 * var(--critical-flash));
   filter: brightness(calc(1 + 0.25 * var(--critical-flash)));
-}
-
-.atom-button.is-pressed {
-  transform: scale(0.97);
 }
 
 .atom-button.is-critical {
@@ -1422,7 +1417,8 @@ body.theme-neon .page--void {
   --shake-scale-x: 1;
   --shake-scale-y: 1;
   transform-origin: center;
-  transform: translate3d(var(--shake-x), var(--shake-y), 0) rotate(var(--shake-rot)) scaleX(var(--shake-scale-x)) scaleY(var(--shake-scale-y));
+  transform: translate3d(var(--shake-x), var(--shake-y), 0) rotate(var(--shake-rot)) scaleX(var(--shake-scale-x))
+    scaleY(var(--shake-scale-y));
   will-change: transform;
 }
 

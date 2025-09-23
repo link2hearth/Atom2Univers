@@ -6451,7 +6451,6 @@ function animateAtomPress(options = {}) {
   if (!elements.atomButton) return;
   const { critical = false, multiplier = 1 } = options;
   const button = elements.atomButton;
-  button.classList.add('is-pressed');
   if (critical) {
     soundEffects.crit.play();
     button.classList.add('is-critical');
@@ -6461,10 +6460,6 @@ function animateAtomPress(options = {}) {
       button.classList.remove('is-critical');
     }, 280);
   }
-  clearTimeout(animateAtomPress.timeout);
-  animateAtomPress.timeout = setTimeout(() => {
-    button.classList.remove('is-pressed');
-  }, 110);
 }
 
 const STAR_COUNT = CONFIG.presentation?.starfield?.starCount ?? 60;
