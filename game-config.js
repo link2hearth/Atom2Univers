@@ -709,29 +709,6 @@ const GAME_CONFIG = {
    */
   upgrades: createShopBuildingDefinitions(),
 
-  /**
-   * Liste des jalons de progression.
-   * Le champ "amount" accepte des nombres classiques ou une description de layer
-   * (ex. { type: 'layer1', value: 8 } représente 10^8).
-   */
-  milestones: [
-    {
-      amount: { type: 'number', value: 100 },
-      text: 'Collectez 100 atomes pour débloquer la synthèse automatique.'
-    },
-    {
-      amount: { type: 'number', value: 1_000 },
-      text: 'Atteignez 1 000 atomes pour améliorer vos gants quantiques.'
-    },
-    {
-      amount: { type: 'number', value: 1_000_000 },
-      text: 'Atteignez 1 million d’atomes pour accéder aux surcadences.'
-    },
-    {
-      amount: { type: 'layer1', value: 8 },
-      text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.'
-    }
-  ],
 
   /**
    * Liste des trophées et succès spéciaux.
@@ -799,42 +776,42 @@ const GAME_CONFIG = {
         id: 'commun',
         label: 'Commun cosmique',
         description: 'Les éléments omniprésents dans les nébuleuses et les atmosphères stellaires.',
-        weight: 55,
+        weight: 35,
         color: '#1abc9c'
       },
       {
         id: 'essentiel',
         label: 'Essentiel planétaire',
         description: 'Les piliers des mondes rocheux et des océans extraterrestres.',
-        weight: 20,
+        weight: 25,
         color: '#3498db'
       },
       {
         id: 'stellaire',
         label: 'Forge stellaire',
         description: 'Alliages façonnés dans les coeurs d’étoiles actives.',
-        weight: 12,
+        weight: 20,
         color: '#9b59b6'
       },
       {
         id: 'singulier',
         label: 'Singularité minérale',
         description: 'Raretés cristallines difficiles à isoler.',
-        weight: 7,
+        weight: 8,
         color: '#cd6155'
       },
       {
         id: 'mythique',
         label: 'Mythe quantique',
         description: 'Éléments aux propriétés quasi légendaires.',
-        weight: 4,
+        weight: 7,
         color: '#FFBF66'
       },
       {
         id: 'irreel',
         label: 'Irréel',
         description: 'Créations synthétiques jamais rencontrées naturellement.',
-        weight: 2,
+        weight: 5,
         color: '#7f8c8d'
       }
     ]
