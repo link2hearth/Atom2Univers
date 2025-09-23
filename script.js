@@ -6224,6 +6224,37 @@ function applyClickStrength(strength) {
   }
 }
 
+function injectAtomImpulse(now = performance.now()) {
+  if (!elements.atomVisual) return;
+  const state = atomAnimationState;
+  if (state.lastTime == null) {
+    state.lastTime = now;
+  }
+
+  const drive = Math.max(targetClickStrength, displayedClickStrength, 0);
+  const baseIntensity = Math.max(state.intensity, drive);
+  const energy = Math.pow(Math.max(0, baseIntensity), 0.6);
+  const impulseAngle = Math.random() * Math.PI * 2;
+  const impulseStrength = 180 + energy * 520;
+
+  state.velX += Math.cos(impulseAngle) * impulseStrength;
+  state.velY += Math.sin(impulseAngle) * impulseStrength;
+
+  const recenter = 20 + energy * 60;
+  state.velX += -state.posX * recenter;
+  state.velY += -state.posY * recenter * 1.05;
+
+  const wobbleKick = (Math.random() - 0.5) * (220 + energy * 320);
+  state.tiltVelocity += wobbleKick;
+  state.squashVelocity += (Math.random() - 0.35) * (160 + energy * 220);
+
+  state.spinPhase += (Math.random() - 0.5) * (0.45 + energy * 1.2);
+  state.noiseOffset = Math.random() * Math.PI * 2;
+
+  state.intensity = Math.min(1, baseIntensity + 0.25 + drive * 0.4);
+  state.impulseTimer = Math.min(state.impulseTimer, 0.06);
+}
+
 function updateAtomSpring(now = performance.now(), drive = 0) {
   if (!elements.atomVisual) return;
   const state = atomAnimationState;
@@ -6380,6 +6411,7 @@ function registerManualClick() {
   const now = performance.now();
   clickHistory.push(now);
   updateClickVisuals(now);
+  injectAtomImpulse(now);
   if (gameState.stats) {
     const session = gameState.stats.session;
     const global = gameState.stats.global;
@@ -6419,7 +6451,6 @@ function animateAtomPress(options = {}) {
   if (!elements.atomButton) return;
   const { critical = false, multiplier = 1 } = options;
   const button = elements.atomButton;
-  button.classList.add('is-pressed');
   if (critical) {
     soundEffects.crit.play();
     button.classList.add('is-critical');
@@ -6429,10 +6460,6 @@ function animateAtomPress(options = {}) {
       button.classList.remove('is-critical');
     }, 280);
   }
-  clearTimeout(animateAtomPress.timeout);
-  animateAtomPress.timeout = setTimeout(() => {
-    button.classList.remove('is-pressed');
-  }, 110);
 }
 
 const STAR_COUNT = CONFIG.presentation?.starfield?.starCount ?? 60;
