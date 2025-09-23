@@ -1825,12 +1825,20 @@ body.theme-neon .production-breakdown__row--total {
 
 .info-card--bonuses {
   gap: clamp(1rem, 1.8vw, 1.5rem);
+  grid-column: 1 / -1;
 }
 
-.element-bonus-list {
-  display: flex;
-  flex-direction: column;
+.info-card--bonuses .element-bonus-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: clamp(1rem, 1.6vw, 1.35rem);
+  align-items: stretch;
+}
+
+@media (max-width: 720px) {
+  .info-card--bonuses .element-bonus-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .element-bonus-card {
@@ -1841,6 +1849,7 @@ body.theme-neon .production-breakdown__row--total {
   display: flex;
   flex-direction: column;
   gap: clamp(0.9rem, 1.4vw, 1.2rem);
+  height: 100%;
 }
 
 body.theme-light .element-bonus-card {
