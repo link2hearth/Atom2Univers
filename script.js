@@ -3754,7 +3754,6 @@ const elements = {
   gachaTicketCounter: document.getElementById('gachaTicketCounter'),
   gachaAnimation: document.getElementById('gachaAnimation'),
   gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
-  gachaWarp: document.getElementById('gachaWarp'),
   gachaContinueHint: document.getElementById('gachaContinueHint'),
   themeSelect: document.getElementById('themeSelect'),
   resetButton: document.getElementById('resetButton'),
@@ -4601,7 +4600,7 @@ function formatTicketLabel(count) {
 }
 
 const GACHA_ANIMATION_CONFETTI_COUNT = 110;
-const GACHA_ANIMATION_COLOR_SHIFT_DELAY = 500;
+const GACHA_ANIMATION_COLOR_SHIFT_DELAY = 1500;
 const GACHA_ANIMATION_REVEAL_DELAY = 3000;
 const GACHA_CONFETTI_BASE_RARITY_ID = 'commun';
 const DEFAULT_GACHA_CONFETTI_COLOR = '#4f7ec2';
@@ -4615,10 +4614,7 @@ const GACHA_CONFETTI_SHAPES = [
   { className: 'crit-confetti--rectangle', widthFactor: 1.8, heightFactor: 0.7 },
   { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
 ];
-const GACHA_WARP_BASE_CLASS = 'gacha-warp--commun';
-const GACHA_WARP_COLOR_TRANSITION_DELAY = 1500;
 let gachaAnimationInProgress = false;
-let gachaWarpColorTimeout = null;
 
 function updateGachaUI() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
@@ -5020,46 +5016,11 @@ async function playGachaAnimation(outcome) {
   }
 
   const layer = elements.gachaAnimation;
-  const warp = elements.gachaWarp;
-  const rarityClassName = outcome.rarity?.id
-    ? `gacha-warp--${outcome.rarity.id}`
-    : '';
 
   layer.hidden = false;
   layer.setAttribute('aria-hidden', 'false');
   layer.classList.remove('show-result');
   layer.classList.add('is-active');
-  if (warp) {
-    if (gachaWarpColorTimeout) {
-      clearTimeout(gachaWarpColorTimeout);
-      gachaWarpColorTimeout = null;
-    }
-    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
-    previousClasses.forEach(cls => {
-      if (cls) {
-        warp.classList.remove(cls);
-      }
-    });
-    delete warp.dataset.activeRarityClass;
-    delete warp.dataset.baseRarityClass;
-    if (GACHA_WARP_BASE_CLASS) {
-      warp.classList.add(GACHA_WARP_BASE_CLASS);
-      warp.dataset.baseRarityClass = GACHA_WARP_BASE_CLASS;
-    }
-    if (rarityClassName) {
-      if (rarityClassName === GACHA_WARP_BASE_CLASS) {
-        warp.dataset.activeRarityClass = GACHA_WARP_BASE_CLASS;
-      } else {
-        gachaWarpColorTimeout = setTimeout(() => {
-          warp.classList.remove(GACHA_WARP_BASE_CLASS);
-          delete warp.dataset.baseRarityClass;
-          warp.classList.add(rarityClassName);
-          warp.dataset.activeRarityClass = rarityClassName;
-          gachaWarpColorTimeout = null;
-        }, GACHA_WARP_COLOR_TRANSITION_DELAY);
-      }
-    }
-  }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
     elements.gachaResult.style.removeProperty('--rarity-color');
@@ -5087,20 +5048,6 @@ async function playGachaAnimation(outcome) {
   layer.classList.remove('is-active');
   layer.setAttribute('aria-hidden', 'true');
   layer.hidden = true;
-  if (warp) {
-    if (gachaWarpColorTimeout) {
-      clearTimeout(gachaWarpColorTimeout);
-      gachaWarpColorTimeout = null;
-    }
-    const previousClasses = [warp.dataset.activeRarityClass, warp.dataset.baseRarityClass];
-    previousClasses.forEach(cls => {
-      if (cls) {
-        warp.classList.remove(cls);
-      }
-    });
-    delete warp.dataset.activeRarityClass;
-    delete warp.dataset.baseRarityClass;
-  }
   if (elements.gachaResult) {
     elements.gachaResult.innerHTML = '';
     elements.gachaResult.style.removeProperty('--rarity-color');

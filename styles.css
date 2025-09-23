@@ -528,77 +528,6 @@ body.theme-neon .gacha-ticket-counter {
   pointer-events: auto;
 }
 
-.gacha-warp {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 220vw;
-  height: 220vh;
-  transform: translate(-50%, -50%) scale(1);
-  background: radial-gradient(circle, rgba(179, 229, 252, 0.85) 10%, transparent 70%);
-  opacity: 0.85;
-  animation: gacha-warp-spin 1.4s linear infinite;
-  filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.35));
-  mix-blend-mode: screen;
-  z-index: 0;
-  transition: background 0.9s ease, opacity 0.6s ease;
-}
-
-.gacha-warp::after {
-  content: '';
-  position: absolute;
-  inset: -25%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, transparent 70%);
-  animation: gacha-warp-spin-overlay 2s linear infinite;
-  opacity: 0.7;
-  transform-origin: center;
-  mix-blend-mode: screen;
-}
-
-.gacha-warp--commun {
-  background: radial-gradient(circle, rgba(26, 188, 156, 0.88) 14%, transparent 72%);
-}
-
-.gacha-warp--essentiel {
-  background: radial-gradient(circle, rgba(52, 152, 219, 0.88) 14%, transparent 72%);
-}
-
-.gacha-warp--stellaire {
-  background: radial-gradient(circle, rgba(155, 89, 182, 0.88) 12%, transparent 72%);
-}
-
-.gacha-warp--singulier {
-  background: radial-gradient(circle, rgba(205, 97, 85, 0.9) 14%, transparent 72%);
-}
-
-.gacha-warp--mythique {
-  background: radial-gradient(circle, rgba(244, 208, 63, 0.85) 8%, rgba(244, 208, 63, 0.4) 34%, transparent 72%);
-}
-
-.gacha-warp--irreel {
-  background: radial-gradient(circle, rgba(127, 140, 141, 0.82) 12%, rgba(127, 140, 141, 0.32) 42%, transparent 72%);
-}
-
-.gacha-warp--irreel::after {
-  content: '';
-  position: absolute;
-  inset: -35%;
-  background: conic-gradient(
-    from 0deg,
-    rgba(255, 0, 0, 0.85),
-    rgba(255, 165, 0, 0.85),
-    rgba(255, 255, 0, 0.85),
-    rgba(0, 255, 128, 0.85),
-    rgba(0, 204, 255, 0.85),
-    rgba(76, 0, 255, 0.85),
-    rgba(255, 0, 204, 0.85),
-    rgba(255, 0, 0, 0.85)
-  );
-  mix-blend-mode: screen;
-  animation: gacha-warp-spin-overlay 2.2s linear infinite, gacha-rainbow 2.4s linear infinite;
-  opacity: 0.8;
-}
-
 .gacha-animation-layer::before {
   content: '';
   position: absolute;
@@ -734,15 +663,6 @@ body.theme-neon .gacha-ticket-counter {
   transform: translateY(0);
 }
 
-@keyframes gacha-warp-spin {
-  from {
-    transform: translate(-50%, -50%) scale(1) rotate(0deg);
-  }
-  to {
-    transform: translate(-50%, -50%) scale(1.15) rotate(360deg);
-  }
-}
-
 @keyframes gacha-confetti-shoot {
   0% {
     opacity: 0;
@@ -768,24 +688,6 @@ body.theme-neon .gacha-ticket-counter {
       )
       scale(var(--confetti-scale, 1))
       rotate(var(--confetti-end-rotation, 0deg));
-  }
-}
-
-@keyframes gacha-warp-spin-overlay {
-  from {
-    transform: scale(1) rotate(0deg);
-  }
-  to {
-    transform: scale(1.1) rotate(360deg);
-  }
-}
-
-@keyframes gacha-rainbow {
-  from {
-    filter: hue-rotate(0deg);
-  }
-  to {
-    filter: hue-rotate(360deg);
   }
 }
 
