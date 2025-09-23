@@ -694,9 +694,11 @@ const GAME_CONFIG = {
             label: 'Essentiel planétaire · collection complète'
           }
         ],
-        rarityMultiplierBonus: {
-          copyThreshold: 50,
-          amount: 1,
+        multiplier: {
+          every: 30,
+          increment: 1,
+          cap: 100,
+          targets: ['perClick', 'perSecond'],
           label: 'Essentiel planétaire · synergie orbitale'
         }
       },
@@ -707,10 +709,10 @@ const GAME_CONFIG = {
           label: 'Forge stellaire · fragments activés'
         },
         multiplier: {
-          base: 1,
           every: 20,
           increment: 1,
-          targets: ['perClick'],
+          cap: 100,
+          targets: ['perClick', 'perSecond'],
           label: 'Forge stellaire · intensité stellaire'
         },
         setBonus: {
@@ -735,9 +737,9 @@ const GAME_CONFIG = {
           label: 'Singularité minérale · résonance cristalline'
         },
         multiplier: {
-          base: 1,
-          every: 50,
+          every: 10,
           increment: 1,
+          cap: 100,
           targets: ['perClick', 'perSecond'],
           label: 'Singularité minérale · densité extrême'
         },
@@ -778,9 +780,11 @@ const GAME_CONFIG = {
             multiplierAdd: 0.01
           }
         },
-        rarityMultiplierBonus: {
-          uniqueThreshold: 5,
-          amount: 1,
+        multiplier: {
+          every: 5,
+          increment: 1,
+          cap: 100,
+          targets: ['perClick', 'perSecond'],
           label: 'Irréel · catalyseur dimensionnel'
         }
       }
