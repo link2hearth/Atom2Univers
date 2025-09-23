@@ -663,6 +663,8 @@ body.theme-neon .gacha-ticket-counter {
     0 0 26px rgba(255, 255, 255, 0.35),
     0 0 38px var(--rarity-color, rgba(255, 255, 255, 0.4));
   z-index: 2;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .gacha-result__rarity {
