@@ -7775,7 +7775,6 @@ function updateShopVisibility() {
   if (!shopRows.size) return;
   const shopFree = isDevKitShopFree();
   const unlocks = getShopUnlockSet();
-  const displayedCosts = [];
 
   UPGRADE_DEFS.forEach((def, index) => {
     const row = shopRows.get(def.id);
@@ -7785,7 +7784,6 @@ function updateShopVisibility() {
       row.root.hidden = false;
       row.root.classList.remove('shop-item--locked');
       unlocks.add(def.id);
-      displayedCosts.push(LayeredNumber.zero());
       return;
     }
 
@@ -7797,18 +7795,10 @@ function updateShopVisibility() {
     if (index === 0 || isUnlocked) {
       shouldReveal = true;
     } else {
-      let thresholdCost = null;
-      if (displayedCosts.length >= 2) {
-        thresholdCost = displayedCosts[displayedCosts.length - 2];
-      } else if (displayedCosts.length === 1) {
-        thresholdCost = displayedCosts[0];
-      }
-
-      if (thresholdCost instanceof LayeredNumber) {
-        shouldReveal = gameState.atoms.compare(thresholdCost) >= 0;
-      } else {
-        shouldReveal = gameState.atoms.compare(unlockCost) >= 0;
-      }
+      const thresholdCost = unlockCost instanceof LayeredNumber
+        ? unlockCost.clone()
+        : toLayeredNumber(unlockCost, def.baseCost ?? 0);
+      shouldReveal = gameState.atoms.compare(thresholdCost) >= 0;
     }
 
     if (!shouldReveal) {
@@ -7822,9 +7812,6 @@ function updateShopVisibility() {
     if (!isUnlocked) {
       unlocks.add(def.id);
     }
-
-    const costForOne = computeUpgradeCost(def, 1);
-    displayedCosts.push(costForOne.clone());
   });
 }
 
