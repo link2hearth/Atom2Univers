@@ -1260,6 +1260,196 @@ if (!ELEMENT_GROUP_BONUS_CONFIG.has(MYTHIQUE_RARITY_ID)) {
   }
 }
 
+function pickDefined(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function clampNumber(value, fallback, { min = -Infinity, max = Infinity } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  let result = numeric;
+  if (Number.isFinite(min) && result < min) {
+    result = min;
+  }
+  if (Number.isFinite(max) && result > max) {
+    result = max;
+  }
+  return result;
+}
+
+const MYTHIQUE_BONUS_DEFAULTS = {
+  ticket: {
+    uniqueReductionSeconds: 1,
+    minIntervalSeconds: 5
+  },
+  offline: {
+    baseMultiplier: 0.01,
+    perDuplicate: 0.01,
+    cap: 1
+  },
+  overflow: {
+    flatBonus: 50
+  },
+  frenzy: {
+    multiplier: 1.5
+  }
+};
+
+function normalizeMythiqueBonusConfig(rawConfig) {
+  const config = {
+    ticket: { ...MYTHIQUE_BONUS_DEFAULTS.ticket },
+    offline: { ...MYTHIQUE_BONUS_DEFAULTS.offline },
+    overflow: { ...MYTHIQUE_BONUS_DEFAULTS.overflow },
+    frenzy: { ...MYTHIQUE_BONUS_DEFAULTS.frenzy }
+  };
+  if (!rawConfig || typeof rawConfig !== 'object') {
+    return config;
+  }
+
+  const ticketCandidate = pickDefined(
+    rawConfig.ticketBonus,
+    rawConfig.ticket,
+    rawConfig.specialBonuses?.ticketBonus,
+    rawConfig.specialBonuses?.ticket,
+    rawConfig.specials?.ticketBonus,
+    rawConfig.specials?.ticket,
+    rawConfig.bonusConfig?.ticketBonus,
+    rawConfig.bonusConfig?.ticket
+  );
+  if (ticketCandidate !== undefined) {
+    if (ticketCandidate && typeof ticketCandidate === 'object') {
+      const reduction = clampNumber(
+        ticketCandidate.uniqueReductionSeconds
+          ?? ticketCandidate.reductionPerUnique
+          ?? ticketCandidate.perUnique
+          ?? ticketCandidate.reduction,
+        config.ticket.uniqueReductionSeconds,
+        { min: 0 }
+      );
+      const minInterval = clampNumber(
+        ticketCandidate.minIntervalSeconds
+          ?? ticketCandidate.minSeconds
+          ?? ticketCandidate.minimum
+          ?? ticketCandidate.minimumSeconds,
+        config.ticket.minIntervalSeconds,
+        { min: 1 }
+      );
+      config.ticket.uniqueReductionSeconds = reduction;
+      config.ticket.minIntervalSeconds = minInterval;
+    } else {
+      const minInterval = clampNumber(ticketCandidate, config.ticket.minIntervalSeconds, { min: 1 });
+      config.ticket.minIntervalSeconds = minInterval;
+    }
+  }
+
+  const offlineCandidate = pickDefined(
+    rawConfig.offlineBonus,
+    rawConfig.offline,
+    rawConfig.specialBonuses?.offlineBonus,
+    rawConfig.specialBonuses?.offline,
+    rawConfig.specials?.offlineBonus,
+    rawConfig.specials?.offline,
+    rawConfig.bonusConfig?.offlineBonus,
+    rawConfig.bonusConfig?.offline
+  );
+  if (offlineCandidate !== undefined && offlineCandidate !== null) {
+    if (typeof offlineCandidate === 'object') {
+      const baseMultiplier = clampNumber(
+        offlineCandidate.baseMultiplier
+          ?? offlineCandidate.base
+          ?? offlineCandidate.minimum
+          ?? offlineCandidate.min,
+        config.offline.baseMultiplier,
+        { min: 0 }
+      );
+      const perDuplicate = clampNumber(
+        offlineCandidate.perDuplicate
+          ?? offlineCandidate.increment
+          ?? offlineCandidate.step
+          ?? offlineCandidate.perCopy,
+        config.offline.perDuplicate,
+        { min: 0 }
+      );
+      const cap = clampNumber(
+        offlineCandidate.cap
+          ?? offlineCandidate.maximum
+          ?? offlineCandidate.max,
+        config.offline.cap,
+        { min: baseMultiplier }
+      );
+      config.offline.baseMultiplier = Math.min(baseMultiplier, cap);
+      config.offline.perDuplicate = perDuplicate;
+      config.offline.cap = Math.max(cap, config.offline.baseMultiplier);
+    } else {
+      const perDuplicate = clampNumber(offlineCandidate, config.offline.perDuplicate, { min: 0 });
+      config.offline.perDuplicate = perDuplicate;
+    }
+  }
+
+  const overflowCandidate = pickDefined(
+    rawConfig.duplicateOverflow,
+    rawConfig.overflow,
+    rawConfig.specialBonuses?.duplicateOverflow,
+    rawConfig.specialBonuses?.overflow,
+    rawConfig.specials?.duplicateOverflow,
+    rawConfig.specials?.overflow,
+    rawConfig.bonusConfig?.duplicateOverflow,
+    rawConfig.bonusConfig?.overflow
+  );
+  if (overflowCandidate !== undefined && overflowCandidate !== null) {
+    if (typeof overflowCandidate === 'object') {
+      const flatBonus = clampNumber(
+        overflowCandidate.flatBonus
+          ?? overflowCandidate.flat
+          ?? overflowCandidate.amount,
+        config.overflow.flatBonus,
+        { min: 0 }
+      );
+      config.overflow.flatBonus = flatBonus;
+    } else {
+      const flatBonus = clampNumber(overflowCandidate, config.overflow.flatBonus, { min: 0 });
+      config.overflow.flatBonus = flatBonus;
+    }
+  }
+
+  const frenzyCandidate = pickDefined(
+    rawConfig.frenzyBonus,
+    rawConfig.frenzy,
+    rawConfig.specialBonuses?.frenzyBonus,
+    rawConfig.specialBonuses?.frenzy,
+    rawConfig.specials?.frenzyBonus,
+    rawConfig.specials?.frenzy,
+    rawConfig.bonusConfig?.frenzyBonus,
+    rawConfig.bonusConfig?.frenzy
+  );
+  if (frenzyCandidate !== undefined && frenzyCandidate !== null) {
+    if (typeof frenzyCandidate === 'object') {
+      const multiplier = clampNumber(
+        frenzyCandidate.multiplier
+          ?? frenzyCandidate.value
+          ?? frenzyCandidate.amount,
+        config.frenzy.multiplier,
+        { min: 1 }
+      );
+      config.frenzy.multiplier = multiplier;
+    } else {
+      const multiplier = clampNumber(frenzyCandidate, config.frenzy.multiplier, { min: 1 });
+      config.frenzy.multiplier = multiplier;
+    }
+  }
+
+  return config;
+}
+
+const MYTHIQUE_SPECIAL_BONUS_CONFIG = normalizeMythiqueBonusConfig(RAW_MYTHIQUE_GROUP_CONFIG);
+
 const CATEGORY_LABELS = {
   'alkali-metal': 'métal alcalin',
   'alkaline-earth-metal': 'métal alcalino-terreux',
@@ -1485,16 +1675,22 @@ const TICKET_STAR_CONFIG = {
 };
 
 const DEFAULT_TICKET_STAR_INTERVAL_SECONDS = TICKET_STAR_CONFIG.averageSpawnIntervalMs / 1000;
-const MYTHIQUE_OFFLINE_BASE = 0.01;
-const MYTHIQUE_OFFLINE_PER_DUPLICATE = 0.01;
-const MYTHIQUE_OFFLINE_CAP = 1;
-const MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS = 50;
-const MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS = 5;
-const MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER = 1.5;
-const MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP = Math.max(
-  0,
-  Math.ceil((MYTHIQUE_OFFLINE_CAP - MYTHIQUE_OFFLINE_BASE) / MYTHIQUE_OFFLINE_PER_DUPLICATE)
-);
+const MYTHIQUE_OFFLINE_BASE = MYTHIQUE_SPECIAL_BONUS_CONFIG.offline.baseMultiplier;
+const MYTHIQUE_OFFLINE_PER_DUPLICATE = MYTHIQUE_SPECIAL_BONUS_CONFIG.offline.perDuplicate;
+const MYTHIQUE_OFFLINE_CAP = MYTHIQUE_SPECIAL_BONUS_CONFIG.offline.cap;
+const MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS = MYTHIQUE_SPECIAL_BONUS_CONFIG.overflow.flatBonus;
+const MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS = MYTHIQUE_SPECIAL_BONUS_CONFIG.ticket.minIntervalSeconds;
+const MYTHIQUE_TICKET_UNIQUE_REDUCTION_SECONDS = MYTHIQUE_SPECIAL_BONUS_CONFIG.ticket.uniqueReductionSeconds;
+const MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER = MYTHIQUE_SPECIAL_BONUS_CONFIG.frenzy.multiplier;
+const MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP = (() => {
+  if (
+    MYTHIQUE_OFFLINE_PER_DUPLICATE > 0
+    && MYTHIQUE_OFFLINE_CAP > MYTHIQUE_OFFLINE_BASE
+  ) {
+    return Math.ceil((MYTHIQUE_OFFLINE_CAP - MYTHIQUE_OFFLINE_BASE) / MYTHIQUE_OFFLINE_PER_DUPLICATE);
+  }
+  return Number.POSITIVE_INFINITY;
+})();
 
 const PRODUCTION_STEP_DEFINITIONS = new Map();
 
@@ -6878,11 +7074,11 @@ function recalcProduction() {
       const baseTicketSeconds = DEFAULT_TICKET_STAR_INTERVAL_SECONDS;
       const ticketSeconds = Math.max(
         MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS,
-        baseTicketSeconds - uniqueCount
+        baseTicketSeconds - uniqueCount * MYTHIQUE_TICKET_UNIQUE_REDUCTION_SECONDS
       );
       mythiqueBonuses.ticketIntervalSeconds = ticketSeconds;
       summary.ticketIntervalSeconds = ticketSeconds;
-      if (uniqueCount > 0) {
+      if (baseTicketSeconds - ticketSeconds > 1e-9) {
         activeLabels.add(ticketLabel);
       }
 
@@ -6894,7 +7090,7 @@ function recalcProduction() {
       );
       mythiqueBonuses.offlineMultiplier = offlineMultiplier;
       summary.offlineMultiplier = offlineMultiplier;
-      if (duplicates > 0) {
+      if (offlineMultiplier > MYTHIQUE_OFFLINE_BASE + 1e-9) {
         activeLabels.add(offlineLabel);
       }
 
