@@ -5316,8 +5316,51 @@ function renderElementBonuses() {
 
     const rawLabels = Array.isArray(summary.activeLabels) ? summary.activeLabels : [];
     const highlightLabels = rawLabels
-      .map(rawLabel => stripBonusLabelPrefix(rawLabel, summary.label))
-      .filter(labelText => typeof labelText === 'string' && labelText.trim().length > 0);
+      .map(raw => {
+        if (raw == null) {
+          return null;
+        }
+        if (typeof raw === 'string') {
+          const labelText = stripBonusLabelPrefix(raw, summary.label);
+          if (!labelText || !labelText.trim()) {
+            return null;
+          }
+          return { label: labelText.trim(), description: null };
+        }
+        if (typeof raw === 'object') {
+          const rawLabel = typeof raw.label === 'string' ? raw.label : '';
+          const labelText = stripBonusLabelPrefix(rawLabel, summary.label);
+          if (!labelText || !labelText.trim()) {
+            return null;
+          }
+          let description = null;
+          if (typeof raw.description === 'string' && raw.description.trim()) {
+            description = raw.description.trim();
+          } else {
+            const parts = [];
+            if (Array.isArray(raw.effects)) {
+              raw.effects.forEach(effect => {
+                if (typeof effect === 'string' && effect.trim()) {
+                  parts.push(effect.trim());
+                }
+              });
+            }
+            if (Array.isArray(raw.notes)) {
+              raw.notes.forEach(note => {
+                if (typeof note === 'string' && note.trim()) {
+                  parts.push(note.trim());
+                }
+              });
+            }
+            if (parts.length) {
+              description = parts.join(' · ');
+            }
+          }
+          return { label: labelText.trim(), description };
+        }
+        return null;
+      })
+      .filter(entry => entry && entry.label);
 
     if (highlightLabels.length) {
       const section = document.createElement('section');
@@ -5331,10 +5374,15 @@ function renderElementBonuses() {
       const tags = document.createElement('div');
       tags.className = 'element-bonus-tags';
 
-      highlightLabels.forEach(text => {
+      highlightLabels.forEach(entry => {
         const tag = document.createElement('span');
         tag.className = 'element-bonus-tag';
-        tag.textContent = text;
+        tag.textContent = entry.label;
+        if (entry.description) {
+          tag.dataset.tooltip = entry.description;
+          tag.setAttribute('tabindex', '0');
+          tag.setAttribute('aria-label', `${entry.label} : ${entry.description}`);
+        }
         tags.appendChild(tag);
       });
 
@@ -6519,6 +6567,23 @@ function recalcProduction() {
     offlineMultiplier: MYTHIQUE_OFFLINE_BASE,
     frenzyChanceMultiplier: 1
   };
+  const formatMultiplierTooltip = value => {
+    const display = formatElementMultiplierDisplay(value);
+    if (display) {
+      return display;
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || Math.abs(numeric - 1) < 1e-9) {
+      return null;
+    }
+    const abs = Math.abs(numeric);
+    const options = abs >= 100
+      ? { maximumFractionDigits: 0 }
+      : abs >= 10
+        ? { maximumFractionDigits: 1 }
+        : { maximumFractionDigits: 2 };
+    return `×${numeric.toLocaleString('fr-FR', options)}`;
+  };
   const getRarityCounter = rarityId => {
     if (!rarityId) return null;
     let counter = elementCountsByRarity.get(rarityId);
@@ -6728,7 +6793,79 @@ function recalcProduction() {
     const duplicateCount = Math.max(0, copyCount - uniqueCount);
     const totalUnique = getRarityPoolSize(rarityId);
     const stellaireBoostActive = stellaireSingularityBoost !== 1 && rarityId === 'stellaire';
-    const activeLabels = new Set();
+    const activeLabelDetails = new Map();
+    const normalizeLabelKey = label => {
+      if (typeof label !== 'string') return '';
+      return label.trim();
+    };
+    const ensureActiveLabel = label => {
+      const key = normalizeLabelKey(label);
+      if (!key) return null;
+      if (!activeLabelDetails.has(key)) {
+        activeLabelDetails.set(key, {
+          label: key,
+          effects: [],
+          notes: []
+        });
+      }
+      return activeLabelDetails.get(key);
+    };
+    const addLabelEffect = (label, effectText) => {
+      if (!effectText) return;
+      const entry = ensureActiveLabel(label);
+      if (!entry) return;
+      if (!entry.effects.includes(effectText)) {
+        entry.effects.push(effectText);
+      }
+    };
+    const addLabelNote = (label, noteText) => {
+      if (!noteText) return;
+      const entry = ensureActiveLabel(label);
+      if (!entry) return;
+      if (!entry.notes.includes(noteText)) {
+        entry.notes.push(noteText);
+      }
+    };
+    const markLabelActive = label => {
+      ensureActiveLabel(label);
+    };
+    const describeRarityFlatMultipliers = entries => {
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return [];
+      }
+      const notes = [];
+      entries.forEach(target => {
+        if (!target || typeof target !== 'object') return;
+        const targetRarityId = typeof target.rarityId === 'string' ? target.rarityId.trim() : '';
+        if (!targetRarityId) return;
+        const targetLabel = RARITY_LABEL_MAP.get(targetRarityId) || targetRarityId;
+        const parts = [];
+        const rawPerClick = Number(target.perClick);
+        if (Number.isFinite(rawPerClick) && rawPerClick > 0 && rawPerClick !== 1) {
+          const effective = stellaireBoostActive
+            ? rawPerClick * stellaireSingularityBoost
+            : rawPerClick;
+          const formatted = formatMultiplierTooltip(effective);
+          if (formatted) {
+            parts.push(`APC ${formatted}`);
+          }
+        }
+        const rawPerSecond = Number(target.perSecond);
+        if (Number.isFinite(rawPerSecond) && rawPerSecond > 0 && rawPerSecond !== 1) {
+          const effective = stellaireBoostActive
+            ? rawPerSecond * stellaireSingularityBoost
+            : rawPerSecond;
+          const formatted = formatMultiplierTooltip(effective);
+          if (formatted) {
+            parts.push(`APS ${formatted}`);
+          }
+        }
+        if (parts.length) {
+          notes.push(`Amplifie ${targetLabel} : ${parts.join(' · ')}`);
+        }
+      });
+      return notes;
+    };
     let clickMultiplierValue = 1;
     let autoMultiplierValue = 1;
     const summary = {
@@ -6773,6 +6910,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APC +${formatted}`);
+            }
           }
         }
         if (autoAdd) {
@@ -6785,6 +6926,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APS +${formatted}`);
+            }
           }
         }
         if (uniqueClickAdd && uniqueCount > 0) {
@@ -6797,6 +6942,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APC +${formatted}`);
+            }
           }
         }
         if (uniqueAutoAdd && uniqueCount > 0) {
@@ -6809,6 +6958,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APS +${formatted}`);
+            }
           }
         }
         if (duplicateClickAdd && duplicateCount > 0) {
@@ -6821,6 +6974,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APC +${formatted}`);
+            }
           }
         }
         if (duplicateAutoAdd && duplicateCount > 0) {
@@ -6833,13 +6990,22 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             hasEffect = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(copyLabel, `APS +${formatted}`);
+            }
           }
         }
         if (activeFlatMultiplierEntries.has(`${rarityId}:perCopy`)) {
           hasEffect = true;
+          if (groupConfig.perCopy?.rarityFlatMultipliers) {
+            describeRarityFlatMultipliers(groupConfig.perCopy.rarityFlatMultipliers).forEach(note => {
+              addLabelNote(copyLabel, note);
+            });
+          }
         }
         if (hasEffect) {
-          activeLabels.add(copyLabel);
+          markLabelActive(copyLabel);
         }
       }
     }
@@ -6890,6 +7056,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APC +${formatted}`);
+            }
           }
         }
         if (autoAdd) {
@@ -6901,6 +7071,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APS +${formatted}`);
+            }
           }
         }
         if (uniqueClickAdd && uniqueCount > 0) {
@@ -6913,6 +7087,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APC +${formatted}`);
+            }
           }
         }
         if (uniqueAutoAdd && uniqueCount > 0) {
@@ -6925,6 +7103,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APS +${formatted}`);
+            }
           }
         }
         if (duplicateClickAdd && duplicateCount > 0) {
@@ -6937,6 +7119,10 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.clickFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APC +${formatted}`);
+            }
           }
         }
         if (duplicateAutoAdd && duplicateCount > 0) {
@@ -6949,13 +7135,22 @@ function recalcProduction() {
           if (Number.isFinite(applied) && applied !== 0) {
             summary.autoFlatTotal += applied;
             setBonusTriggered = true;
+            const formatted = formatElementFlatBonus(applied);
+            if (formatted) {
+              addLabelEffect(resolvedLabel, `APS +${formatted}`);
+            }
           }
         }
         if (activeFlatMultiplierEntries.has(`${rarityId}:setBonus:${index}`)) {
           setBonusTriggered = true;
+          if (Array.isArray(setBonusEntry.rarityFlatMultipliers)) {
+            describeRarityFlatMultipliers(setBonusEntry.rarityFlatMultipliers).forEach(note => {
+              addLabelNote(resolvedLabel, note);
+            });
+          }
         }
         if (setBonusTriggered) {
-          activeLabels.add(resolvedLabel);
+          markLabelActive(resolvedLabel);
         }
       });
     }
@@ -6993,7 +7188,16 @@ function recalcProduction() {
         multiplierApplied = multiplierApplied || Math.abs(appliedMultiplier - 1) > 1e-9;
       }
       if (multiplierApplied) {
-        activeLabels.add(multiplierLabelResolved);
+        markLabelActive(multiplierLabelResolved);
+        const multiplierText = formatMultiplierTooltip(appliedMultiplier);
+        if (multiplierText) {
+          if (targets.has('perClick')) {
+            addLabelEffect(multiplierLabelResolved, `APC ${multiplierText}`);
+          }
+          if (targets.has('perSecond')) {
+            addLabelEffect(multiplierLabelResolved, `APS ${multiplierText}`);
+          }
+        }
       }
     }
 
@@ -7026,7 +7230,16 @@ function recalcProduction() {
         }
       }
       if (critApplied) {
-        activeLabels.add('Critique');
+        const critLabel = 'Critique';
+        markLabelActive(critLabel);
+        const chanceText = formatElementCritChanceBonus(summary.critChanceAdd);
+        if (chanceText) {
+          addLabelEffect(critLabel, `Chance +${chanceText}`);
+        }
+        const critMultiplierText = formatElementCritMultiplierBonus(summary.critMultiplierAdd);
+        if (critMultiplierText) {
+          addLabelEffect(critLabel, `Multiplicateur +${critMultiplierText}×`);
+        }
       }
     }
 
@@ -7043,12 +7256,18 @@ function recalcProduction() {
         const meetsCopies = copyThreshold > 0 ? copyCount >= copyThreshold : true;
         if (meetsUnique && meetsCopies) {
           const resolvedLabel = bonusLabel || rarityMultiplierLabel;
+          let labelApplied = false;
           if (targets.has('perClick')) {
             const current = Number(clickRarityMultipliers.get(rarityId)) || clickMultiplierValue || 1;
             const updated = Math.max(0, current + amount);
             clickRarityMultipliers.set(rarityId, updated);
             updateRarityMultiplierDetail(clickDetails.multipliers, multiplierDetailId, resolvedLabel, updated);
             clickMultiplierValue = updated;
+            const display = formatMultiplierTooltip(updated);
+            if (display) {
+              addLabelEffect(resolvedLabel, `Multiplicateur de rareté APC ${display}`);
+              labelApplied = true;
+            }
           }
           if (targets.has('perSecond')) {
             const current = Number(autoRarityMultipliers.get(rarityId)) || autoMultiplierValue || 1;
@@ -7056,8 +7275,15 @@ function recalcProduction() {
             autoRarityMultipliers.set(rarityId, updated);
             updateRarityMultiplierDetail(autoDetails.multipliers, multiplierDetailId, resolvedLabel, updated);
             autoMultiplierValue = updated;
+            const display = formatMultiplierTooltip(updated);
+            if (display) {
+              addLabelEffect(resolvedLabel, `Multiplicateur de rareté APS ${display}`);
+              labelApplied = true;
+            }
           }
-          activeLabels.add(resolvedLabel);
+          if (labelApplied) {
+            markLabelActive(resolvedLabel);
+          }
         }
       }
     }
@@ -7079,7 +7305,11 @@ function recalcProduction() {
       mythiqueBonuses.ticketIntervalSeconds = ticketSeconds;
       summary.ticketIntervalSeconds = ticketSeconds;
       if (baseTicketSeconds - ticketSeconds > 1e-9) {
-        activeLabels.add(ticketLabel);
+        markLabelActive(ticketLabel);
+        const ticketText = formatElementTicketInterval(summary.ticketIntervalSeconds);
+        if (ticketText) {
+          addLabelEffect(ticketLabel, ticketText);
+        }
       }
 
       const duplicates = duplicateCount;
@@ -7091,7 +7321,11 @@ function recalcProduction() {
       mythiqueBonuses.offlineMultiplier = offlineMultiplier;
       summary.offlineMultiplier = offlineMultiplier;
       if (offlineMultiplier > MYTHIQUE_OFFLINE_BASE + 1e-9) {
-        activeLabels.add(offlineLabel);
+        markLabelActive(offlineLabel);
+        const offlineText = formatMultiplierTooltip(offlineMultiplier);
+        if (offlineText) {
+          addLabelEffect(offlineLabel, `Collecte hors ligne ${offlineText}`);
+        }
       }
 
       const overflowDuplicates = Math.max(0, duplicates - MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP);
@@ -7109,6 +7343,10 @@ function recalcProduction() {
         );
         if (Number.isFinite(overflowClick) && overflowClick !== 0) {
           summary.clickFlatTotal += overflowClick;
+          const formatted = formatElementFlatBonus(overflowClick);
+          if (formatted) {
+            addLabelEffect(overflowLabel, `APC +${formatted}`);
+          }
         }
         const overflowAuto = addAutoElementFlat(
           MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS * overflowDuplicates,
@@ -7120,12 +7358,16 @@ function recalcProduction() {
         );
         if (Number.isFinite(overflowAuto) && overflowAuto !== 0) {
           summary.autoFlatTotal += overflowAuto;
+          const formatted = formatElementFlatBonus(overflowAuto);
+          if (formatted) {
+            addLabelEffect(overflowLabel, `APS +${formatted}`);
+          }
         }
         if (
           (Number.isFinite(overflowClick) && overflowClick !== 0)
           || (Number.isFinite(overflowAuto) && overflowAuto !== 0)
         ) {
-          activeLabels.add(overflowLabel);
+          markLabelActive(overflowLabel);
         }
       } else {
         summary.overflowDuplicates = 0;
@@ -7138,7 +7380,11 @@ function recalcProduction() {
       summary.frenzyChanceMultiplier = frenzyMultiplier;
       if (frenzyMultiplier !== 1) {
         const frenzyLabel = resolveLabel('setBonus', `${rarityLabel} · convergence totale`);
-        activeLabels.add(frenzyLabel);
+        markLabelActive(frenzyLabel);
+        const frenzyText = formatMultiplierTooltip(frenzyMultiplier);
+        if (frenzyText) {
+          addLabelEffect(frenzyLabel, `Chance de frénésie ${frenzyText}`);
+        }
       }
     }
 
@@ -7150,13 +7396,43 @@ function recalcProduction() {
         || Math.abs((autoMultiplierValue ?? 1) - 1) > 1e-9
       )
     ) {
-      activeLabels.add(STELLAIRE_SINGULARITY_BONUS_LABEL);
+      markLabelActive(STELLAIRE_SINGULARITY_BONUS_LABEL);
+      const singularityText = formatMultiplierTooltip(stellaireSingularityBoost);
+      if (singularityText) {
+        addLabelNote(STELLAIRE_SINGULARITY_BONUS_LABEL, `Singularité amplifiée : effets ${singularityText}`);
+      }
     }
 
     summary.multiplierPerClick = clickMultiplierValue;
     summary.multiplierPerSecond = autoMultiplierValue;
     summary.isComplete = totalUnique > 0 && uniqueCount >= totalUnique;
-    summary.activeLabels = Array.from(activeLabels);
+    const labelEntries = [];
+    activeLabelDetails.forEach(entry => {
+      if (!entry || !entry.label) return;
+      const effects = Array.isArray(entry.effects)
+        ? entry.effects.filter(text => typeof text === 'string' && text.trim().length > 0)
+        : [];
+      const notes = Array.isArray(entry.notes)
+        ? entry.notes.filter(text => typeof text === 'string' && text.trim().length > 0)
+        : [];
+      const descriptionParts = [];
+      if (effects.length) {
+        descriptionParts.push(effects.join(' · '));
+      }
+      notes.forEach(note => descriptionParts.push(note));
+      const labelEntry = { label: entry.label };
+      if (effects.length) {
+        labelEntry.effects = effects;
+      }
+      if (notes.length) {
+        labelEntry.notes = notes;
+      }
+      if (descriptionParts.length) {
+        labelEntry.description = descriptionParts.join(' · ');
+      }
+      labelEntries.push(labelEntry);
+    });
+    summary.activeLabels = labelEntries;
     elementGroupSummaries.set(rarityId, summary);
   });
 
