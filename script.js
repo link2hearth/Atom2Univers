@@ -4885,6 +4885,23 @@ function formatElementCritMultiplierBonus(value) {
   return numeric.toLocaleString('fr-FR', options);
 }
 
+function formatElementMultiplierDisplay(value) {
+  const formatted = formatElementMultiplierBonus(value);
+  return formatted ? `×${formatted}` : null;
+}
+
+function formatElementTicketInterval(seconds) {
+  const numeric = Number(seconds);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  const duration = formatDuration(numeric * 1000);
+  if (!duration) {
+    return null;
+  }
+  return `Toutes les ${duration}`;
+}
+
 function stripBonusLabelPrefix(label, rarityLabel) {
   if (!label) return null;
   const trimmed = String(label).trim();
@@ -4918,6 +4935,7 @@ function renderElementBonuses() {
       label,
       copies: 0,
       uniques: 0,
+      duplicates: 0,
       totalUnique: getRarityPoolSize(rarityId),
       isComplete: false,
       clickFlatTotal: 0,
@@ -4926,7 +4944,11 @@ function renderElementBonuses() {
       multiplierPerSecond: 1,
       critChanceAdd: 0,
       critMultiplierAdd: 0,
-      activeLabels: []
+      activeLabels: [],
+      ticketIntervalSeconds: null,
+      offlineMultiplier: 1,
+      overflowDuplicates: 0,
+      frenzyChanceMultiplier: 1
     };
   });
 
@@ -4938,6 +4960,9 @@ function renderElementBonuses() {
     if (summary.isComplete) {
       card.classList.add('element-bonus-card--complete');
     }
+
+    const meta = document.createElement('div');
+    meta.className = 'element-bonus-card__meta';
 
     const header = document.createElement('header');
     header.className = 'element-bonus-card__header';
@@ -4951,57 +4976,102 @@ function renderElementBonuses() {
     status.textContent = summary.isComplete ? 'Complet' : 'En cours';
     header.appendChild(status);
 
-    card.appendChild(header);
+    meta.appendChild(header);
 
-    const stats = document.createElement('dl');
-    stats.className = 'info-metrics element-bonus-stats';
+    const counts = document.createElement('dl');
+    counts.className = 'element-bonus-counts';
 
-    const uniqueRow = document.createElement('div');
-    uniqueRow.className = 'info-metrics__row';
-    const uniqueLabel = document.createElement('dt');
-    uniqueLabel.textContent = 'Unique';
-    const uniqueValue = document.createElement('dd');
-    if (summary.totalUnique && summary.totalUnique > 0) {
-      uniqueValue.textContent = `${summary.uniques.toLocaleString('fr-FR')} / ${summary.totalUnique.toLocaleString('fr-FR')}`;
-    } else {
-      uniqueValue.textContent = summary.uniques.toLocaleString('fr-FR');
-    }
-    uniqueRow.append(uniqueLabel, uniqueValue);
-    stats.appendChild(uniqueRow);
-
-    const copiesRow = document.createElement('div');
-    copiesRow.className = 'info-metrics__row';
-    const copiesLabel = document.createElement('dt');
-    copiesLabel.textContent = 'Copies';
-    const copiesValue = document.createElement('dd');
-    copiesValue.textContent = Number(summary.copies || 0).toLocaleString('fr-FR');
-    copiesRow.append(copiesLabel, copiesValue);
-    stats.appendChild(copiesRow);
-
-    card.appendChild(stats);
-
-    const effects = document.createElement('ul');
-    effects.className = 'element-bonus-effects';
-    let hasEffect = false;
-    const appendEffect = (labelText, valueText) => {
-      if (!valueText) return;
-      const item = document.createElement('li');
-      item.className = 'element-bonus-effects__item';
-      const labelEl = document.createElement('span');
-      labelEl.className = 'element-bonus-effects__label';
+    const addCountRow = (labelText, valueText, options = {}) => {
+      if (!labelText || valueText == null) return;
+      const row = document.createElement('div');
+      row.className = 'element-bonus-count';
+      if (options.highlight) {
+        row.classList.add('element-bonus-count--highlight');
+      }
+      const labelEl = document.createElement('dt');
+      labelEl.className = 'element-bonus-count__label';
       labelEl.textContent = labelText;
-      const valueEl = document.createElement('span');
-      valueEl.className = 'element-bonus-effects__value';
+      const valueEl = document.createElement('dd');
+      valueEl.className = 'element-bonus-count__value';
       valueEl.textContent = valueText;
-      item.append(labelEl, valueEl);
-      effects.appendChild(item);
-      hasEffect = true;
+      row.append(labelEl, valueEl);
+      counts.appendChild(row);
     };
 
-    appendEffect('APC +', formatElementFlatBonus(summary.clickFlatTotal));
-    appendEffect('APS +', formatElementFlatBonus(summary.autoFlatTotal));
-    appendEffect('APC ×', formatElementMultiplierBonus(summary.multiplierPerClick));
-    appendEffect('APS ×', formatElementMultiplierBonus(summary.multiplierPerSecond));
+    const copiesCount = Number(summary.copies || 0);
+    const uniqueCount = Number(summary.uniques || 0);
+    const totalUnique = Number(summary.totalUnique || 0);
+    const duplicatesCount = Number(
+      summary.duplicates != null
+        ? summary.duplicates
+        : Math.max(0, copiesCount - uniqueCount)
+    );
+
+    const uniqueDisplay = totalUnique > 0
+      ? `${uniqueCount.toLocaleString('fr-FR')} / ${totalUnique.toLocaleString('fr-FR')}`
+      : uniqueCount.toLocaleString('fr-FR');
+
+    addCountRow('Éléments uniques', uniqueDisplay);
+    addCountRow('Copies totales', copiesCount.toLocaleString('fr-FR'));
+    addCountRow('Doublons', duplicatesCount.toLocaleString('fr-FR'), {
+      highlight: duplicatesCount > 0
+    });
+
+    if (counts.children.length) {
+      meta.appendChild(counts);
+    }
+
+    if (totalUnique > 0) {
+      const progress = document.createElement('div');
+      progress.className = 'element-bonus-progress';
+
+      const percentValue = Math.min(1, Math.max(0, uniqueCount / totalUnique));
+      const percent = percentValue * 100;
+      const percentOptions = percent >= 100
+        ? { maximumFractionDigits: 0 }
+        : percent >= 10
+          ? { maximumFractionDigits: 1 }
+          : { maximumFractionDigits: 2 };
+      const percentLabel = percent.toLocaleString('fr-FR', percentOptions);
+
+      const label = document.createElement('span');
+      label.className = 'element-bonus-progress__label';
+      label.textContent = `Progression de collection : ${percentLabel} %`;
+      progress.appendChild(label);
+
+      const track = document.createElement('div');
+      track.className = 'element-bonus-progress__track';
+      track.setAttribute('role', 'progressbar');
+      track.setAttribute('aria-valuemin', '0');
+      track.setAttribute('aria-valuemax', totalUnique.toString());
+      track.setAttribute('aria-valuenow', uniqueCount.toString());
+      track.setAttribute('aria-valuetext', `${uniqueCount.toLocaleString('fr-FR')} sur ${totalUnique.toLocaleString('fr-FR')}`);
+      track.setAttribute('aria-label', `Progression ${summary.label}`);
+
+      const fill = document.createElement('div');
+      fill.className = 'element-bonus-progress__fill';
+      fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+      track.appendChild(fill);
+
+      progress.appendChild(track);
+      meta.appendChild(progress);
+    }
+
+    card.appendChild(meta);
+
+    const details = document.createElement('div');
+    details.className = 'element-bonus-card__details';
+
+    const productionEntries = [];
+    const appendProduction = (labelText, valueText) => {
+      if (!valueText) return;
+      productionEntries.push({ label: labelText, value: valueText });
+    };
+
+    appendProduction('APC +', formatElementFlatBonus(summary.clickFlatTotal));
+    appendProduction('APS +', formatElementFlatBonus(summary.autoFlatTotal));
+    appendProduction('APC ×', formatElementMultiplierBonus(summary.multiplierPerClick));
+    appendProduction('APS ×', formatElementMultiplierBonus(summary.multiplierPerSecond));
 
     const critParts = [];
     const critChanceText = formatElementCritChanceBonus(summary.critChanceAdd);
@@ -5013,35 +5083,134 @@ function renderElementBonuses() {
       critParts.push(`+${critMultiplierText}×`);
     }
     if (critParts.length) {
-      appendEffect('Crit', critParts.join(' · '));
+      appendProduction('Critiques', critParts.join(' · '));
     }
 
-    if (hasEffect) {
-      card.appendChild(effects);
-    } else {
-      const empty = document.createElement('p');
-      empty.className = 'element-bonus-empty';
-      empty.textContent = 'Bonus inactifs';
-      card.appendChild(empty);
+    if (productionEntries.length) {
+      const section = document.createElement('section');
+      section.className = 'element-bonus-section';
+
+      const sectionTitle = document.createElement('h5');
+      sectionTitle.className = 'element-bonus-section__title';
+      sectionTitle.textContent = 'Bonus de production';
+      section.appendChild(sectionTitle);
+
+      const list = document.createElement('ul');
+      list.className = 'element-bonus-effects';
+
+      productionEntries.forEach(entry => {
+        const item = document.createElement('li');
+        item.className = 'element-bonus-effects__item';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'element-bonus-effects__label';
+        labelEl.textContent = entry.label;
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'element-bonus-effects__value';
+        valueEl.textContent = entry.value;
+
+        item.append(labelEl, valueEl);
+        list.appendChild(item);
+      });
+
+      section.appendChild(list);
+      details.appendChild(section);
     }
 
     const rawLabels = Array.isArray(summary.activeLabels) ? summary.activeLabels : [];
-    if (rawLabels.length) {
+    const highlightLabels = rawLabels
+      .map(rawLabel => stripBonusLabelPrefix(rawLabel, summary.label))
+      .filter(labelText => typeof labelText === 'string' && labelText.trim().length > 0);
+
+    if (highlightLabels.length) {
+      const section = document.createElement('section');
+      section.className = 'element-bonus-section';
+
+      const title = document.createElement('h5');
+      title.className = 'element-bonus-section__title';
+      title.textContent = 'Boosts actifs';
+      section.appendChild(title);
+
       const tags = document.createElement('div');
       tags.className = 'element-bonus-tags';
-      rawLabels.forEach(rawLabel => {
-        const cleaned = stripBonusLabelPrefix(rawLabel, summary.label);
-        if (!cleaned) return;
+
+      highlightLabels.forEach(text => {
         const tag = document.createElement('span');
         tag.className = 'element-bonus-tag';
-        tag.textContent = cleaned;
+        tag.textContent = text;
         tags.appendChild(tag);
       });
-      if (tags.children.length) {
-        card.appendChild(tags);
-      }
+
+      section.appendChild(tags);
+      details.appendChild(section);
     }
 
+    const specialEntries = [];
+
+    const ticketIntervalText = formatElementTicketInterval(summary.ticketIntervalSeconds);
+    if (ticketIntervalText) {
+      specialEntries.push({ label: 'Tickets quantiques', value: ticketIntervalText });
+    }
+
+    const offlineText = formatElementMultiplierDisplay(summary.offlineMultiplier);
+    if (offlineText) {
+      specialEntries.push({ label: 'Collecte hors ligne', value: offlineText });
+    }
+
+    const frenzyText = formatElementMultiplierDisplay(summary.frenzyChanceMultiplier);
+    if (frenzyText) {
+      specialEntries.push({ label: 'Chance de frénésie', value: frenzyText });
+    }
+
+    const overflowCount = Number(summary.overflowDuplicates || 0);
+    if (overflowCount > 0) {
+      specialEntries.push({
+        label: 'Surcharge fractale',
+        value: `${overflowCount.toLocaleString('fr-FR')} doublons`
+      });
+    }
+
+    if (specialEntries.length) {
+      const section = document.createElement('section');
+      section.className = 'element-bonus-section';
+
+      const title = document.createElement('h5');
+      title.className = 'element-bonus-section__title';
+      title.textContent = 'Effets spéciaux';
+      section.appendChild(title);
+
+      const list = document.createElement('ul');
+      list.className = 'element-bonus-specials';
+
+      specialEntries.forEach(entry => {
+        const item = document.createElement('li');
+        item.className = 'element-bonus-specials__item';
+
+        const labelEl = document.createElement('span');
+        labelEl.className = 'element-bonus-specials__label';
+        labelEl.textContent = entry.label;
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'element-bonus-specials__value';
+        valueEl.textContent = entry.value;
+
+        item.append(labelEl, valueEl);
+        list.appendChild(item);
+      });
+
+      section.appendChild(list);
+      details.appendChild(section);
+    }
+
+    if (!details.children.length) {
+      const empty = document.createElement('p');
+      empty.className = 'element-bonus-empty';
+      empty.textContent = 'Bonus inactifs';
+      details.appendChild(empty);
+    }
+
+    card.appendChild(details);
     container.appendChild(card);
   });
 }
