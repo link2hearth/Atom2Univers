@@ -730,11 +730,11 @@ const GAME_CONFIG = {
       },
       reward: {
         multiplier: {
-          global: 1.1
+          global: 1.5
         },
-        description: 'Boost global ×1,10 sur la production manuelle et automatique.'
+        description: 'Boost global ×1,50 sur la production manuelle et automatique.'
       },
-      order: 1000
+      order: -1
     },
     {
       id: 'frenzyCollector',
