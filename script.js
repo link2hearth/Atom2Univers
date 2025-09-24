@@ -4312,6 +4312,17 @@ function refreshMusicControls() {
   updateMusicStatus();
 }
 
+musicPlayer.onChange(event => {
+  if (event?.currentTrack && event.currentTrack.id) {
+    gameState.musicTrackId = event.currentTrack.id;
+  } else if (Array.isArray(event?.tracks) && event.tracks.length === 0) {
+    gameState.musicTrackId = null;
+  }
+  if (event?.type === 'tracks' || event?.type === 'track' || event?.type === 'state' || event?.type === 'error') {
+    refreshMusicControls();
+  }
+});
+
 const DEVKIT_AUTO_LABEL = 'DevKit (APS +)';
 
 function parseDevKitLayeredInput(raw) {
