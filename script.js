@@ -30,6 +30,15 @@ class LayeredNumber {
     }
   }
 
+  setZeroState() {
+    this.sign = 0;
+    this.layer = 0;
+    this.mantissa = 0;
+    this.exponent = 0;
+    this.value = 0;
+    return this;
+  }
+
   static zero() {
     return new LayeredNumber(0);
   }
@@ -45,22 +54,12 @@ class LayeredNumber {
 
   fromNumber(num) {
     if (!isFinite(num) || num === 0) {
-      this.sign = 0;
-      this.layer = 0;
-      this.mantissa = 0;
-      this.exponent = 0;
-      this.value = 0;
-      return this;
+      return this.setZeroState();
     }
     this.sign = num >= 0 ? 1 : -1;
     const abs = Math.abs(num);
     if (abs < 1e-12) {
-      this.sign = 0;
-      this.layer = 0;
-      this.mantissa = 0;
-      this.exponent = 0;
-      this.value = 0;
-      return this;
+      return this.setZeroState();
     }
     this.layer = 0;
     this.exponent = 0;
@@ -72,12 +71,7 @@ class LayeredNumber {
   static fromLayer0(mantissa, exponent = 0, sign = 1) {
     const inst = new LayeredNumber();
     if (mantissa === 0) {
-      inst.sign = 0;
-      inst.layer = 0;
-      inst.mantissa = 0;
-      inst.exponent = 0;
-      inst.value = 0;
-      return inst;
+      return inst.setZeroState();
     }
     inst.sign = sign >= 0 ? 1 : -1;
     inst.layer = 0;
@@ -113,11 +107,7 @@ class LayeredNumber {
     }
 
     if (this.sign === 0) {
-      this.layer = 0;
-      this.mantissa = 0;
-      this.exponent = 0;
-      this.value = 0;
-      return this;
+      return this.setZeroState();
     }
 
     if (this.layer === 0) {
