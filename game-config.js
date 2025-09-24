@@ -623,6 +623,7 @@ const GAME_CONFIG = {
    * - basePerClick : quantité d'atomes gagnés par clic avant bonus (Layer 0 par défaut).
    * - basePerSecond : production passive initiale (0 si aucune production automatique).
    * - offlineCapSeconds : durée maximale (en secondes) prise en compte pour les gains hors-ligne.
+   * - offlineTickets : configuration des gains de tickets hors-ligne (intervalle et plafond).
    * - defaultTheme : thème visuel utilisé lors d'une nouvelle partie ou après réinitialisation.
    * - crit : paramètres initiaux des coups critiques (chance, multiplicateur et plafond).
    */
@@ -630,6 +631,10 @@ const GAME_CONFIG = {
     basePerClick: { type: 'number', value: 1 },
     basePerSecond: { type: 'number', value: 0 },
     offlineCapSeconds: 60 * 60 * 12,
+    offlineTickets: {
+      secondsPerTicket: 60 * 15,
+      capSeconds: 60 * 60 * 24
+    },
     defaultTheme: 'dark',
     crit: {
       baseChance: 0.05,
