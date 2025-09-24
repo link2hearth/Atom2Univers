@@ -5778,11 +5778,12 @@ function renderPeriodicTable() {
       cell.dataset.rarity = rarityId;
       const rarityDef = GACHA_RARITY_MAP.get(rarityId);
       if (rarityDef?.color) {
-        cell.style.setProperty('--rarity-color', rarityDef.color);
+        cell.dataset.rarityColor = rarityDef.color;
       } else {
-        cell.style.removeProperty('--rarity-color');
+        delete cell.dataset.rarityColor;
       }
     } else {
+      delete cell.dataset.rarityColor;
       cell.style.removeProperty('--rarity-color');
     }
     const { row, column } = def.position || {};
@@ -5815,7 +5816,9 @@ function renderPeriodicTable() {
     cell.addEventListener('focus', () => selectPeriodicElement(def.id));
 
     const state = gameState.elements[def.id];
-    if (hasElementLifetime(state)) {
+    const isOwned = hasElementLifetime(state);
+    applyPeriodicCellCollectionColor(cell, isOwned);
+    if (isOwned) {
       cell.classList.add('is-owned');
     }
 
@@ -5865,7 +5868,9 @@ function updateCollectionDisplay() {
 
   periodicCells.forEach((cell, id) => {
     const entry = gameState.elements?.[id];
-    cell.classList.toggle('is-owned', hasElementLifetime(entry));
+    const isOwned = hasElementLifetime(entry);
+    cell.classList.toggle('is-owned', isOwned);
+    applyPeriodicCellCollectionColor(cell, isOwned);
   });
 
   if (selectedElementId && periodicElementIndex.has(selectedElementId)) {
@@ -6785,6 +6790,44 @@ function rgbToCss(color) {
 function rgbaToCss(color, alpha) {
   const clampedAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
   return `rgba(${color.r}, ${color.g}, ${color.b}, ${clampedAlpha})`;
+}
+
+function rgbToHex(color) {
+  if (!color || typeof color.r !== 'number' || typeof color.g !== 'number' || typeof color.b !== 'number') {
+    return null;
+  }
+  const clampChannel = value => {
+    return Math.max(0, Math.min(255, Math.round(value)));
+  };
+  const toHex = value => clampChannel(value).toString(16).padStart(2, '0');
+  return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
+}
+
+function getPeriodicCellCollectionColor(baseColor, isOwned) {
+  const normalized = normalizeHexColor(baseColor);
+  if (!normalized) {
+    return null;
+  }
+  if (isOwned) {
+    return normalized;
+  }
+  const rgb = parseHexColorToRgb(normalized);
+  if (!rgb) {
+    return normalized;
+  }
+  const darkened = darkenRgb(rgb, 0.4);
+  return rgbToHex(darkened) || normalized;
+}
+
+function applyPeriodicCellCollectionColor(cell, isOwned) {
+  if (!cell) return;
+  const baseColor = cell.dataset.rarityColor;
+  const resolved = getPeriodicCellCollectionColor(baseColor, isOwned);
+  if (resolved) {
+    cell.style.setProperty('--rarity-color', resolved);
+  } else {
+    cell.style.removeProperty('--rarity-color');
+  }
 }
 
 function applyGachaConfettiColor(confetti, color) {
