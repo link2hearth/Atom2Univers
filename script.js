@@ -3363,7 +3363,8 @@ const DEFAULT_STATE = {
   trophies: [],
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
-  frenzySpawnBonus: { perClick: 1, perSecond: 1 }
+  frenzySpawnBonus: { perClick: 1, perSecond: 1 },
+  musicTrackId: null
 };
 
 const gameState = {
@@ -3388,10 +3389,22 @@ const gameState = {
   trophies: new Set(),
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
-  frenzySpawnBonus: { perClick: 1, perSecond: 1 }
+  frenzySpawnBonus: { perClick: 1, perSecond: 1 },
+  musicTrackId: null
 };
 
 applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
+
+musicPlayer.onChange(event => {
+  if (event?.currentTrack && event.currentTrack.id) {
+    gameState.musicTrackId = event.currentTrack.id;
+  } else if (Array.isArray(event?.tracks) && event.tracks.length === 0) {
+    gameState.musicTrackId = null;
+  }
+  if (event?.type === 'tracks' || event?.type === 'track' || event?.type === 'state' || event?.type === 'error') {
+    refreshMusicControls();
+  }
+});
 
 const DEVKIT_STATE = {
   isOpen: false,
@@ -3757,6 +3770,8 @@ const elements = {
   gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
   gachaContinueHint: document.getElementById('gachaContinueHint'),
   themeSelect: document.getElementById('themeSelect'),
+  musicTrackSelect: document.getElementById('musicTrackSelect'),
+  musicTrackStatus: document.getElementById('musicTrackStatus'),
   resetButton: document.getElementById('resetButton'),
   infoApsBreakdown: document.getElementById('infoApsBreakdown'),
   infoApcBreakdown: document.getElementById('infoApcBreakdown'),
@@ -3824,6 +3839,478 @@ const soundEffects = (() => {
     crit: createSoundPool('Assets/Sounds/crit.mp3', 3)
   };
 })();
+
+const musicPlayer = (() => {
+  const MUSIC_DIR = 'Assets/Music/';
+  const SUPPORTED_EXTENSIONS = ['mp3', 'ogg', 'wav', 'webm', 'm4a'];
+  const FALLBACK_TRACKS = ['Piste1.mp3', 'Piste2.mp3', 'Piste3.mp3'];
+
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') {
+    const resolved = Promise.resolve([]);
+    return {
+      init: () => resolved,
+      ready: () => resolved,
+      getTracks: () => [],
+      getCurrentTrack: () => null,
+      getCurrentTrackId: () => null,
+      getPlaybackState: () => 'unsupported',
+      playTrackById: () => false,
+      onChange: () => () => {},
+      isAwaitingUserGesture: () => false
+    };
+  }
+
+  let tracks = [];
+  let audioElement = null;
+  let currentIndex = -1;
+  let readyPromise = null;
+  let preferredTrackId = null;
+  let awaitingUserGesture = true;
+  let unlockListenersAttached = false;
+  const changeListeners = new Set();
+
+  const formatDisplayName = fileName => {
+    const baseName = fileName
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    if (!baseName) {
+      return fileName;
+    }
+    return baseName.replace(/\b\w/g, char => char.toUpperCase());
+  };
+
+  const sanitizeFileName = input => {
+    if (!input || typeof input !== 'string') {
+      return '';
+    }
+    let value = input.trim();
+    if (!value) {
+      return '';
+    }
+    value = value.replace(/^[./]+/, '');
+    value = value.replace(/^Assets\/?Music\//i, '');
+    value = value.replace(/^assets\/?music\//i, '');
+    value = value.split(/[?#]/)[0];
+    value = value.replace(/\\/g, '/');
+    const parts = value.split('/');
+    return parts[parts.length - 1];
+  };
+
+  const isSupportedFile = fileName => {
+    const cleanName = sanitizeFileName(fileName);
+    const segments = cleanName.split('.');
+    if (segments.length <= 1) {
+      return false;
+    }
+    const extension = segments.pop().toLowerCase();
+    return SUPPORTED_EXTENSIONS.includes(extension);
+  };
+
+  const createTrack = (fileName, { placeholder = false } = {}) => {
+    const cleanName = sanitizeFileName(fileName);
+    if (!cleanName || !isSupportedFile(cleanName)) {
+      return null;
+    }
+    return {
+      id: cleanName,
+      filename: cleanName,
+      src: `${MUSIC_DIR}${cleanName}`,
+      displayName: formatDisplayName(cleanName),
+      placeholder
+    };
+  };
+
+  const normalizeCandidate = entry => {
+    if (!entry) {
+      return '';
+    }
+    if (typeof entry === 'string') {
+      return sanitizeFileName(entry);
+    }
+    if (typeof entry === 'object') {
+      const candidate = entry.path
+        ?? entry.src
+        ?? entry.url
+        ?? entry.file
+        ?? entry.filename
+        ?? entry.name;
+      return typeof candidate === 'string' ? sanitizeFileName(candidate) : '';
+    }
+    return '';
+  };
+
+  const findIndexForId = id => {
+    if (!id) {
+      return -1;
+    }
+    const target = id.toLowerCase();
+    return tracks.findIndex(track => {
+      const name = track.id?.toLowerCase?.() ?? '';
+      const file = track.filename?.toLowerCase?.() ?? '';
+      const src = track.src?.toLowerCase?.() ?? '';
+      return name === target || file === target || src === target;
+    });
+  };
+
+  const getPlaybackState = () => {
+    if (!audioElement) {
+      return 'idle';
+    }
+    if (audioElement.error) {
+      return 'error';
+    }
+    if (audioElement.paused) {
+      return audioElement.currentTime > 0 ? 'paused' : 'idle';
+    }
+    return 'playing';
+  };
+
+  const emitChange = type => {
+    const payload = {
+      type,
+      tracks: tracks.map(track => ({ ...track })),
+      currentTrack: tracks[currentIndex] ? { ...tracks[currentIndex] } : null,
+      state: getPlaybackState(),
+      awaitingUserGesture
+    };
+    changeListeners.forEach(listener => {
+      try {
+        listener(payload);
+      } catch (error) {
+        console.error('Music listener error', error);
+      }
+    });
+  };
+
+  const getAudioElement = () => {
+    if (!audioElement) {
+      audioElement = new Audio();
+      audioElement.loop = true;
+      audioElement.preload = 'auto';
+      audioElement.setAttribute('preload', 'auto');
+      audioElement.volume = 0.5;
+      audioElement.addEventListener('playing', () => {
+        awaitingUserGesture = false;
+        emitChange('state');
+      });
+      audioElement.addEventListener('pause', () => {
+        emitChange('state');
+      });
+      audioElement.addEventListener('error', () => {
+        emitChange('error');
+      });
+    }
+    return audioElement;
+  };
+
+  const tryPlay = () => {
+    const audio = getAudioElement();
+    if (!audio.src) {
+      return;
+    }
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  };
+
+  const playIndex = index => {
+    if (!tracks.length) {
+      currentIndex = -1;
+      emitChange('track');
+      return false;
+    }
+    const wrappedIndex = ((index % tracks.length) + tracks.length) % tracks.length;
+    const track = tracks[wrappedIndex];
+    const audio = getAudioElement();
+    if (audio.src !== track.src) {
+      audio.src = track.src;
+    }
+    audio.currentTime = 0;
+    currentIndex = wrappedIndex;
+    preferredTrackId = track.id;
+    emitChange('track');
+    tryPlay();
+    return true;
+  };
+
+  const setupUnlockListeners = () => {
+    if (unlockListenersAttached || typeof document === 'undefined') {
+      return;
+    }
+    unlockListenersAttached = true;
+    awaitingUserGesture = true;
+    const unlock = () => {
+      awaitingUserGesture = false;
+      tryPlay();
+    };
+    document.addEventListener('pointerdown', unlock, { once: true, capture: false });
+    document.addEventListener('keydown', unlock, { once: true, capture: false });
+  };
+
+  const loadJsonList = async fileName => {
+    try {
+      const response = await fetch(`${MUSIC_DIR}${fileName}`, { cache: 'no-store' });
+      if (!response.ok) {
+        return [];
+      }
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (data && Array.isArray(data.files)) {
+        return data.files;
+      }
+      if (data && Array.isArray(data.tracks)) {
+        return data.tracks;
+      }
+      return [];
+    } catch (error) {
+      return [];
+    }
+  };
+
+  const loadDirectoryListing = async () => {
+    try {
+      const response = await fetch(MUSIC_DIR, { cache: 'no-store' });
+      if (!response.ok) {
+        return [];
+      }
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          return data;
+        }
+        if (data && Array.isArray(data.files)) {
+          return data.files;
+        }
+        if (data && Array.isArray(data.tracks)) {
+          return data.tracks;
+        }
+        return [];
+      }
+      const text = await response.text();
+      const matches = Array.from(
+        text.matchAll(/href="([^"?#]+\.(?:mp3|ogg|wav|webm|m4a))"/gi)
+      );
+      return matches.map(match => match[1]).filter(Boolean);
+    } catch (error) {
+      return [];
+    }
+  };
+
+  const discoverTracks = async () => {
+    const discovered = new Set();
+    const pushCandidate = candidate => {
+      const normalized = normalizeCandidate(candidate);
+      if (!normalized || !isSupportedFile(normalized)) {
+        return;
+      }
+      discovered.add(normalized);
+    };
+
+    for (const manifest of ['tracks.json', 'manifest.json']) {
+      const entries = await loadJsonList(manifest);
+      entries.forEach(pushCandidate);
+      if (discovered.size > 0) {
+        break;
+      }
+    }
+
+    if (discovered.size === 0) {
+      const listing = await loadDirectoryListing();
+      listing.forEach(pushCandidate);
+    }
+
+    if (discovered.size > 0) {
+      return Array.from(discovered)
+        .map(name => createTrack(name))
+        .filter(Boolean);
+    }
+
+    return FALLBACK_TRACKS.map(name => createTrack(name, { placeholder: true })).filter(Boolean);
+  };
+
+  const init = options => {
+    if (readyPromise) {
+      if (options?.preferredTrackId) {
+        preferredTrackId = options.preferredTrackId;
+        const preferredIndex = findIndexForId(preferredTrackId);
+        if (preferredIndex >= 0) {
+          playIndex(preferredIndex);
+        }
+      }
+      return readyPromise;
+    }
+
+    preferredTrackId = options?.preferredTrackId || null;
+    setupUnlockListeners();
+
+    readyPromise = discoverTracks()
+      .then(foundTracks => {
+        tracks = foundTracks;
+        emitChange('tracks');
+        if (!tracks.length) {
+          currentIndex = -1;
+          emitChange('track');
+          return tracks;
+        }
+        const preferredIndex = preferredTrackId ? findIndexForId(preferredTrackId) : -1;
+        const indexToPlay = preferredIndex >= 0
+          ? preferredIndex
+          : Math.floor(Math.random() * tracks.length);
+        playIndex(indexToPlay);
+        return tracks;
+      })
+      .catch(error => {
+        console.error('Erreur de découverte des pistes musicales', error);
+        tracks = FALLBACK_TRACKS.map(name => createTrack(name, { placeholder: true })).filter(Boolean);
+        emitChange('tracks');
+        if (tracks.length) {
+          const preferredIndex = preferredTrackId ? findIndexForId(preferredTrackId) : -1;
+          playIndex(preferredIndex >= 0 ? preferredIndex : Math.floor(Math.random() * tracks.length));
+        } else {
+          currentIndex = -1;
+          emitChange('track');
+        }
+        return tracks;
+      });
+
+    return readyPromise;
+  };
+
+  const ready = () => {
+    if (readyPromise) {
+      return readyPromise;
+    }
+    return init();
+  };
+
+  const getTracks = () => tracks.map(track => ({ ...track }));
+
+  const getCurrentTrack = () => {
+    if (currentIndex < 0 || currentIndex >= tracks.length) {
+      return null;
+    }
+    return { ...tracks[currentIndex] };
+  };
+
+  const getCurrentTrackId = () => {
+    const current = getCurrentTrack();
+    return current ? current.id : null;
+  };
+
+  const playTrackById = id => {
+    preferredTrackId = id || null;
+    if (!tracks.length) {
+      return false;
+    }
+    const index = findIndexForId(id);
+    if (index === -1) {
+      emitChange('track');
+      return false;
+    }
+    return playIndex(index);
+  };
+
+  const onChange = listener => {
+    if (typeof listener !== 'function') {
+      return () => {};
+    }
+    changeListeners.add(listener);
+    return () => {
+      changeListeners.delete(listener);
+    };
+  };
+
+  return {
+    init,
+    ready,
+    getTracks,
+    getCurrentTrack,
+    getCurrentTrackId,
+    getPlaybackState,
+    playTrackById,
+    onChange,
+    isAwaitingUserGesture: () => awaitingUserGesture
+  };
+})();
+
+function updateMusicSelectOptions() {
+  const select = elements.musicTrackSelect;
+  if (!select) {
+    return;
+  }
+  const tracks = musicPlayer.getTracks();
+  const current = musicPlayer.getCurrentTrack();
+  const previousValue = select.value;
+  select.innerHTML = '';
+  if (!tracks.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Aucune piste disponible';
+    select.appendChild(option);
+    select.disabled = true;
+    return;
+  }
+  tracks.forEach(track => {
+    const option = document.createElement('option');
+    option.value = track.id;
+    option.textContent = track.placeholder
+      ? `${track.displayName} (fichier manquant)`
+      : track.displayName;
+    option.dataset.placeholder = track.placeholder ? 'true' : 'false';
+    select.appendChild(option);
+  });
+  let valueToSelect = current?.id || '';
+  if (!valueToSelect && previousValue && tracks.some(track => track.id === previousValue)) {
+    valueToSelect = previousValue;
+  }
+  if (!valueToSelect) {
+    valueToSelect = tracks[0].id;
+  }
+  select.value = valueToSelect;
+  select.disabled = false;
+}
+
+function updateMusicStatus() {
+  const status = elements.musicTrackStatus;
+  if (!status) {
+    return;
+  }
+  const tracks = musicPlayer.getTracks();
+  if (!tracks.length) {
+    status.textContent = 'Ajoutez vos fichiers audio dans Assets/Music pour activer la musique.';
+    return;
+  }
+  const current = musicPlayer.getCurrentTrack();
+  if (!current) {
+    status.textContent = 'Sélectionnez une piste pour lancer la musique.';
+    return;
+  }
+  const playbackState = musicPlayer.getPlaybackState();
+  let message = `Lecture en boucle : ${current.displayName}`;
+  if (current.placeholder) {
+    message += ' (fichier manquant)';
+  }
+  if (playbackState === 'unsupported') {
+    message += '. Lecture audio indisponible sur cet appareil.';
+  } else if (playbackState === 'error') {
+    message += '. Impossible de lire le fichier audio.';
+  } else if (musicPlayer.isAwaitingUserGesture()) {
+    message += '. La musique démarre après votre première interaction.';
+  } else if (playbackState === 'paused' || playbackState === 'idle') {
+    message += '. Lecture en pause.';
+  }
+  status.textContent = message;
+}
+
+function refreshMusicControls() {
+  updateMusicSelectOptions();
+  updateMusicStatus();
+}
 
 const DEVKIT_AUTO_LABEL = 'DevKit (APS +)';
 
@@ -8476,6 +8963,30 @@ elements.themeSelect.addEventListener('change', event => {
   showToast('Thème mis à jour');
 });
 
+if (elements.musicTrackSelect) {
+  elements.musicTrackSelect.addEventListener('change', event => {
+    const selectedId = event.target.value;
+    if (!selectedId) {
+      return;
+    }
+    const success = musicPlayer.playTrackById(selectedId);
+    if (!success) {
+      showToast('Piste introuvable');
+      updateMusicStatus();
+      return;
+    }
+    const currentTrack = musicPlayer.getCurrentTrack();
+    if (currentTrack) {
+      if (currentTrack.placeholder) {
+        showToast('Le fichier de cette piste est manquant.');
+      } else {
+        showToast(`Lecture : ${currentTrack.displayName}`);
+      }
+    }
+    updateMusicStatus();
+  });
+}
+
 elements.resetButton.addEventListener('click', () => {
   const confirmationWord = 'RESET';
   const promptMessage = `Réinitialisation complète du jeu. Tapez "${confirmationWord}" pour confirmer.\nCette action est irréversible.`;
@@ -8546,6 +9057,9 @@ function serializeState() {
         ? Number(gameState.frenzySpawnBonus.perSecond)
         : 1
     },
+    music: {
+      selectedTrack: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null
+    },
     trophies: getUnlockedTrophyIds(),
     lastSave: Date.now()
   };
@@ -8583,7 +9097,8 @@ function resetGame() {
     trophies: new Set(),
     offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
     ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
-    frenzySpawnBonus: { perClick: 1, perSecond: 1 }
+    frenzySpawnBonus: { perClick: 1, perSecond: 1 },
+    musicTrackId: null
   });
   applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
   setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
@@ -8682,6 +9197,20 @@ function loadGame() {
     }
     gameState.elements = baseCollection;
     gameState.theme = data.theme || DEFAULT_THEME;
+    const storedMusic = data.music;
+    if (storedMusic && typeof storedMusic === 'object') {
+      const selected = storedMusic.selectedTrack
+        ?? storedMusic.track
+        ?? storedMusic.id
+        ?? storedMusic.filename;
+      gameState.musicTrackId = typeof selected === 'string' && selected ? selected : null;
+    } else if (typeof data.musicTrackId === 'string' && data.musicTrackId) {
+      gameState.musicTrackId = data.musicTrackId;
+    } else if (typeof data.musicTrack === 'string' && data.musicTrack) {
+      gameState.musicTrackId = data.musicTrack;
+    } else {
+      gameState.musicTrackId = null;
+    }
     getShopUnlockSet();
     applyTheme(gameState.theme);
     recalcProduction();
@@ -8750,6 +9279,10 @@ function loop(now) {
 window.addEventListener('beforeunload', saveGame);
 
 loadGame();
+musicPlayer.init({ preferredTrackId: gameState.musicTrackId });
+musicPlayer.ready().then(() => {
+  refreshMusicControls();
+});
 recalcProduction();
 renderShop();
 renderGoals();
