@@ -24,7 +24,7 @@
         <button class="nav-button" data-target="fusion">Fusion</button>
         <button class="nav-button" data-target="info">Infos</button>
         <button class="nav-button" data-target="goals">Goals</button>
-        <button class="nav-button" data-target="bigbang">Big Bang</button>
+        <button class="nav-button" data-target="bigbang" id="navBigBangButton" hidden aria-hidden="true">Big Bang</button>
         <button class="nav-button" data-target="options">Options</button>
       </nav>
     </div>
@@ -294,6 +294,14 @@
           <p class="option-note" id="musicTrackStatus">
             La musique démarre automatiquement après votre première interaction.
           </p>
+        </div>
+        <div class="option-card" id="bigBangOptionCard" hidden>
+          <h3>Big Bang</h3>
+          <div class="option-row">
+            <label for="bigBangNavToggle">Afficher le bouton</label>
+            <input type="checkbox" id="bigBangNavToggle" />
+          </div>
+          <p class="option-note">Débloqué en atteignant l’échelle : univers observable.</p>
         </div>
       </div>
       <div class="options-reset">

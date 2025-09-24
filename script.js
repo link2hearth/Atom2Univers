@@ -3679,7 +3679,8 @@ const DEFAULT_STATE = {
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
-  musicEnabled: DEFAULT_MUSIC_ENABLED
+  musicEnabled: DEFAULT_MUSIC_ENABLED,
+  bigBangButtonVisible: false
 };
 
 const gameState = {
@@ -3715,7 +3716,8 @@ const gameState = {
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
-  musicEnabled: DEFAULT_MUSIC_ENABLED
+  musicEnabled: DEFAULT_MUSIC_ENABLED,
+  bigBangButtonVisible: false
 };
 
 applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
@@ -3934,6 +3936,7 @@ const TROPHY_DEFS = trophySource
   .sort((a, b) => a.order - b.order);
 
 const TROPHY_MAP = new Map(TROPHY_DEFS.map(def => [def.id, def]));
+const BIG_BANG_TROPHY_ID = 'scaleObservableUniverse';
 const trophyCards = new Map();
 
 function getUnlockedTrophySet() {
@@ -4141,6 +4144,7 @@ function unlockTrophy(def) {
   showToast(`Trophée débloqué : ${def.name} !`);
   recalcProduction();
   updateGoalsUI();
+  updateBigBangVisibility();
   return true;
 }
 
@@ -4160,6 +4164,7 @@ function evaluateTrophies() {
 
 const elements = {
   navButtons: document.querySelectorAll('.nav-button'),
+  navBigBangButton: document.getElementById('navBigBangButton'),
   pages: document.querySelectorAll('.page'),
   statusAtoms: document.getElementById('statusAtoms'),
   statusApc: document.getElementById('statusApc'),
@@ -4206,6 +4211,8 @@ const elements = {
   musicTrackStatus: document.getElementById('musicTrackStatus'),
   musicVolumeSlider: document.getElementById('musicVolumeSlider'),
   resetButton: document.getElementById('resetButton'),
+  bigBangOptionCard: document.getElementById('bigBangOptionCard'),
+  bigBangOptionToggle: document.getElementById('bigBangNavToggle'),
   infoApsBreakdown: document.getElementById('infoApsBreakdown'),
   infoApcBreakdown: document.getElementById('infoApcBreakdown'),
   infoSessionAtoms: document.getElementById('infoSessionAtoms'),
@@ -4234,6 +4241,34 @@ const elements = {
   devkitToggleShop: document.getElementById('devkitToggleShop'),
   devkitToggleGacha: document.getElementById('devkitToggleGacha')
 };
+
+function isBigBangTrophyUnlocked() {
+  return getUnlockedTrophySet().has(BIG_BANG_TROPHY_ID);
+}
+
+function updateBigBangVisibility() {
+  const unlocked = isBigBangTrophyUnlocked();
+  if (!unlocked && gameState.bigBangButtonVisible) {
+    gameState.bigBangButtonVisible = false;
+  }
+  if (elements.bigBangOptionCard) {
+    elements.bigBangOptionCard.hidden = !unlocked;
+  }
+  if (elements.bigBangOptionToggle) {
+    elements.bigBangOptionToggle.disabled = !unlocked;
+    elements.bigBangOptionToggle.checked = unlocked && gameState.bigBangButtonVisible === true;
+  }
+  const shouldShowButton = unlocked && gameState.bigBangButtonVisible === true;
+  if (elements.navBigBangButton) {
+    elements.navBigBangButton.toggleAttribute('hidden', !shouldShowButton);
+    elements.navBigBangButton.setAttribute('aria-hidden', shouldShowButton ? 'false' : 'true');
+  }
+  if (!shouldShowButton && document.body && document.body.dataset.activePage === 'bigbang') {
+    showPage('game');
+  }
+}
+
+updateBigBangVisibility();
 
 const soundEffects = (() => {
   const createSilentPool = () => ({ play: () => {} });
@@ -11189,6 +11224,7 @@ function updateFrenzyIndicators(now = performance.now()) {
 }
 
 function updateUI() {
+  updateBigBangVisibility();
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
@@ -11304,6 +11340,22 @@ elements.resetButton.addEventListener('click', () => {
   resetGame();
   showToast('Progression réinitialisée');
 });
+
+if (elements.bigBangOptionToggle) {
+  elements.bigBangOptionToggle.addEventListener('change', event => {
+    const enabled = event.target.checked;
+    if (!isBigBangTrophyUnlocked()) {
+      event.target.checked = false;
+      gameState.bigBangButtonVisible = false;
+      updateBigBangVisibility();
+      return;
+    }
+    gameState.bigBangButtonVisible = enabled;
+    updateBigBangVisibility();
+    saveGame();
+    showToast(enabled ? 'Bouton Big Bang affiché' : 'Bouton Big Bang masqué');
+  });
+}
 
 function serializeState() {
   const stats = gameState.stats || createInitialStats();
@@ -11431,6 +11483,7 @@ function serializeState() {
       DEFAULT_MUSIC_VOLUME
     ),
     musicEnabled: gameState.musicEnabled !== false,
+    bigBangButtonVisible: gameState.bigBangButtonVisible === true,
     trophies: getUnlockedTrophyIds(),
     lastSave: Date.now()
   };
@@ -11479,7 +11532,8 @@ function resetGame() {
     frenzySpawnBonus: { perClick: 1, perSecond: 1 },
     musicTrackId: null,
     musicVolume: DEFAULT_MUSIC_VOLUME,
-    musicEnabled: DEFAULT_MUSIC_ENABLED
+    musicEnabled: DEFAULT_MUSIC_ENABLED,
+    bigBangButtonVisible: false
   });
   applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
   setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
@@ -11547,6 +11601,15 @@ function loadGame() {
     }
     gameState.stats = parseStats(data.stats);
     gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
+    const storedBigBangPreference =
+      data.bigBangButtonVisible ?? data.showBigBangButton ?? data.bigBangVisible ?? null;
+    const wantsBigBang =
+      storedBigBangPreference === true
+      || storedBigBangPreference === 'true'
+      || storedBigBangPreference === 1
+      || storedBigBangPreference === '1';
+    const hasBigBangUnlock = gameState.trophies.has(BIG_BANG_TROPHY_ID);
+    gameState.bigBangButtonVisible = wantsBigBang && hasBigBangUnlock;
     const storedOffline = Number(data.offlineGainMultiplier);
     if (Number.isFinite(storedOffline) && storedOffline > 0) {
       gameState.offlineGainMultiplier = Math.min(MYTHIQUE_OFFLINE_CAP, storedOffline);
@@ -11776,6 +11839,7 @@ function loadGame() {
     applyTheme(gameState.theme);
     recalcProduction();
     renderShop();
+    updateBigBangVisibility();
     updateUI();
     if (data.lastSave) {
       const diff = Math.max(0, (Date.now() - data.lastSave) / 1000);
