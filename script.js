@@ -10339,6 +10339,9 @@ function buildGoalCard(def) {
   card.className = 'goal-card';
   card.dataset.trophyId = def.id;
   card.setAttribute('role', 'listitem');
+  card.classList.add('goal-card--locked');
+  card.hidden = true;
+  card.setAttribute('aria-hidden', 'true');
 
   const header = document.createElement('header');
   header.className = 'goal-card__header';
@@ -10382,9 +10385,6 @@ function renderGoals() {
     fragment.appendChild(card.root);
   });
   elements.goalsList.appendChild(fragment);
-  if (elements.goalsEmpty) {
-    elements.goalsEmpty.hidden = true;
-  }
   updateGoalsUI();
 }
 
@@ -10425,12 +10425,22 @@ function updateMilestone() {
 function updateGoalsUI() {
   if (!elements.goalsList || !trophyCards.size) return;
   const unlocked = getUnlockedTrophySet();
+  let visibleCount = 0;
   TROPHY_DEFS.forEach(def => {
     const card = trophyCards.get(def.id);
     if (!card) return;
     const isUnlocked = unlocked.has(def.id);
     card.root.classList.toggle('goal-card--completed', isUnlocked);
+    card.root.classList.toggle('goal-card--locked', !isUnlocked);
+    card.root.hidden = !isUnlocked;
+    card.root.setAttribute('aria-hidden', String(!isUnlocked));
+    if (isUnlocked) {
+      visibleCount += 1;
+    }
   });
+  if (elements.goalsEmpty) {
+    elements.goalsEmpty.hidden = visibleCount > 0;
+  }
 }
 
 function updateFrenzyIndicatorFor(type, targetElement, now) {
