@@ -2766,14 +2766,10 @@ function formatAtomScaleBonusValue(value) {
 }
 
 function createFallbackAtomScaleTrophies() {
-  const minBonus = 1;
-  const maxBonus = 50;
-  const count = ATOM_SCALE_TROPHY_DATA.length;
-  const step = count > 1 ? (maxBonus - minBonus) / (count - 1) : 0;
+  const bonusPerTrophy = 2;
   return ATOM_SCALE_TROPHY_DATA.map((entry, index) => {
-    const rawBonus = count > 1 ? minBonus + step * index : maxBonus;
-    const roundedBonus = Math.round(rawBonus * 100) / 100;
-    const displayBonus = formatAtomScaleBonusValue(roundedBonus);
+    const displayBonus = formatAtomScaleBonusValue(bonusPerTrophy);
+    const displayTotal = formatAtomScaleBonusValue(1 + bonusPerTrophy);
     return {
       id: entry.id,
       name: entry.name,
@@ -2783,8 +2779,8 @@ function createFallbackAtomScaleTrophies() {
         amount: entry.amount
       },
       reward: {
-        trophyMultiplierAdd: roundedBonus,
-        description: `Fait progresser le multiplicateur de trophées à +${displayBonus}.`
+        trophyMultiplierAdd: bonusPerTrophy,
+        description: `Ajoute +${displayBonus} au Boost global sur la production manuelle et automatique (×${displayTotal} pour ce palier).`
       },
       order: index
     };
@@ -2809,8 +2805,8 @@ const FALLBACK_TROPHIES = [
       amount: { type: 'number', value: 1_000_000 }
     },
     reward: {
-      multiplier: { global: 1.1 },
-      description: 'Boost global ×1,10 sur la production manuelle et automatique.'
+      trophyMultiplierAdd: 0.5,
+      description: 'Ajoute +0,5 au Boost global sur la production manuelle et automatique (×1,50 une fois ce succès débloqué).'
     },
     order: 1000
   },
@@ -3714,7 +3710,7 @@ function computeTrophyEffects() {
       maxStacks = Math.max(maxStacks, reward.frenzyMaxStacks);
     }
     if (Number.isFinite(reward?.trophyMultiplierAdd)) {
-      trophyMultiplierBonus = Math.max(trophyMultiplierBonus, Number(reward.trophyMultiplierAdd));
+      trophyMultiplierBonus += Number(reward.trophyMultiplierAdd);
     }
     applyCritModifiersFromEffect(critAccumulator, reward);
     if (reward?.crit) {
