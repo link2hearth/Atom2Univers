@@ -1974,6 +1974,7 @@ function defineProductionStep(id, type, label, extra = {}) {
 defineProductionStep('baseFlat', 'base', 'Base flat', { source: 'baseFlat' });
 defineProductionStep('shopFlat', 'flat', 'Bonus flat magasin', { source: 'shopFlat' });
 defineProductionStep('elementFlat', 'flat', 'Bonus flat éléments', { source: 'elementFlat' });
+defineProductionStep('fusionFlat', 'flat', 'Bonus flat fusions', { source: 'fusionFlat' });
 defineProductionStep('shopBonus1', 'multiplier', 'Bonus shop 1', { source: 'shopBonus1' });
 defineProductionStep('shopBonus2', 'multiplier', 'Bonus shop 2', { source: 'shopBonus2' });
 defineProductionStep('frenzy', 'multiplier', 'Frénésie', { source: 'frenzy' });
@@ -1999,6 +2000,7 @@ const DEFAULT_PRODUCTION_STEP_IDS = [
   'baseFlat',
   'shopFlat',
   'elementFlat',
+  'fusionFlat',
   'shopBonus1',
   'shopBonus2',
   'frenzy',
@@ -3236,6 +3238,9 @@ function cloneProductionEntry(entry) {
         elementFlat: entry.sources?.flats?.elementFlat instanceof LayeredNumber
           ? entry.sources.flats.elementFlat.clone()
           : toLayeredValue(entry.sources?.flats?.elementFlat, 0),
+        fusionFlat: entry.sources?.flats?.fusionFlat instanceof LayeredNumber
+          ? entry.sources.flats.fusionFlat.clone()
+          : toLayeredValue(entry.sources?.flats?.fusionFlat, 0),
         devkitFlat: entry.sources?.flats?.devkitFlat instanceof LayeredNumber
           ? entry.sources.flats.devkitFlat.clone()
           : toLayeredValue(entry.sources?.flats?.devkitFlat, 0)
