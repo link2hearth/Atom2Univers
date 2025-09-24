@@ -5249,17 +5249,139 @@ function updateElementInfoPanel(definition) {
   const count = Number.isFinite(rawCount) && rawCount > 0
     ? Math.floor(rawCount)
     : 0;
-  const isOwned = Boolean(entry?.owned) || count > 0;
   if (elements.elementInfoOwnedCount) {
-    elements.elementInfoOwnedCount.textContent = count.toString();
+    const displayCount = count.toLocaleString('fr-FR');
+    elements.elementInfoOwnedCount.textContent = displayCount;
+    elements.elementInfoOwnedCount.setAttribute('aria-label', `Copies possédées\u00a0: ${displayCount}`);
+    elements.elementInfoOwnedCount.setAttribute('title', `${displayCount} copie${count > 1 ? 's' : ''}`);
   }
   if (elements.elementInfoCollection) {
     const rarityId = entry?.rarity || elementRarityIndex.get(definition.id);
     const rarityDef = rarityId ? GACHA_RARITY_MAP.get(rarityId) : null;
-    const status = isOwned ? 'Possédé' : 'Non possédé';
-    elements.elementInfoCollection.textContent = rarityDef
-      ? `${rarityDef.label || rarityDef.id} · ${status}`
-      : status;
+    const rarityLabel = rarityDef?.label || rarityId || '—';
+    const hasRarityLabel = Boolean(rarityLabel && rarityLabel !== '—');
+    const bonusDetails = [];
+    if (rarityId) {
+      const summaryStore = gameState.elementBonusSummary || {};
+      const summary = summaryStore[rarityId];
+      if (summary) {
+        const activeLabels = Array.isArray(summary.activeLabels) ? summary.activeLabels : [];
+        activeLabels.forEach(raw => {
+          if (raw == null) {
+            return;
+          }
+          if (typeof raw === 'string') {
+            const trimmed = raw.trim();
+            if (!trimmed) {
+              return;
+            }
+            const labelText = stripBonusLabelPrefix(trimmed, rarityLabel);
+            if (labelText && labelText.trim()) {
+              bonusDetails.push(labelText.trim());
+            } else if (trimmed) {
+              bonusDetails.push(trimmed);
+            }
+            return;
+          }
+          if (typeof raw === 'object') {
+            const rawLabel = typeof raw.label === 'string' ? raw.label : '';
+            const labelText = stripBonusLabelPrefix(rawLabel, rarityLabel) || rawLabel?.trim();
+            const descriptionParts = [];
+            if (typeof raw.description === 'string' && raw.description.trim()) {
+              descriptionParts.push(raw.description.trim());
+            } else {
+              if (Array.isArray(raw.effects)) {
+                raw.effects.forEach(effect => {
+                  if (typeof effect === 'string' && effect.trim()) {
+                    descriptionParts.push(effect.trim());
+                  }
+                });
+              }
+              if (Array.isArray(raw.notes)) {
+                raw.notes.forEach(note => {
+                  if (typeof note === 'string' && note.trim()) {
+                    descriptionParts.push(note.trim());
+                  }
+                });
+              }
+            }
+            if (labelText && labelText.trim()) {
+              const trimmedLabel = labelText.trim();
+              if (descriptionParts.length) {
+                bonusDetails.push(`${trimmedLabel} : ${descriptionParts.join(' · ')}`);
+              } else {
+                bonusDetails.push(trimmedLabel);
+              }
+            } else if (descriptionParts.length) {
+              bonusDetails.push(descriptionParts.join(' · '));
+            }
+            return;
+          }
+        });
+
+        if (!bonusDetails.length) {
+          const fallbackParts = [];
+          const clickFlat = formatElementFlatBonus(summary.clickFlatTotal);
+          if (clickFlat) {
+            fallbackParts.push(`APC +${clickFlat}`);
+          }
+          const autoFlat = formatElementFlatBonus(summary.autoFlatTotal);
+          if (autoFlat) {
+            fallbackParts.push(`APS +${autoFlat}`);
+          }
+          const clickMult = formatElementMultiplierDisplay(summary.multiplierPerClick);
+          if (clickMult) {
+            fallbackParts.push(`APC ${clickMult}`);
+          }
+          const autoMult = formatElementMultiplierDisplay(summary.multiplierPerSecond);
+          if (autoMult) {
+            fallbackParts.push(`APS ${autoMult}`);
+          }
+          const critChance = formatElementCritChanceBonus(summary.critChanceAdd);
+          if (critChance) {
+            fallbackParts.push(`Chance critique +${critChance}`);
+          }
+          const critMult = formatElementCritMultiplierBonus(summary.critMultiplierAdd);
+          if (critMult) {
+            fallbackParts.push(`Dégâts critiques +${critMult}×`);
+          }
+          const ticketInterval = formatElementTicketInterval(summary.ticketIntervalSeconds);
+          if (ticketInterval) {
+            fallbackParts.push(ticketInterval);
+          }
+          const offlineMult = formatElementMultiplierDisplay(summary.offlineMultiplier);
+          if (offlineMult && offlineMult !== '×1') {
+            fallbackParts.push(`Gains hors-ligne ${offlineMult}`);
+          }
+          const frenzyMult = formatElementMultiplierDisplay(summary.frenzyChanceMultiplier);
+          if (frenzyMult && frenzyMult !== '×1') {
+            fallbackParts.push(`Chance de frénésie ${frenzyMult}`);
+          }
+          const overflowDuplicates = Number(summary.overflowDuplicates);
+          if (Number.isFinite(overflowDuplicates) && overflowDuplicates > 0) {
+            const overflowText = formatElementFlatBonus(overflowDuplicates);
+            if (overflowText) {
+              fallbackParts.push(`Bonus excédentaires +${overflowText}`);
+            }
+          }
+          if (fallbackParts.length) {
+            bonusDetails.push(fallbackParts.join(' · '));
+          }
+        }
+      }
+    }
+
+    if (!bonusDetails.length && rarityDef?.description) {
+      bonusDetails.push(rarityDef.description);
+    }
+
+    if (bonusDetails.length) {
+      elements.elementInfoCollection.textContent = hasRarityLabel
+        ? `${rarityLabel} · ${bonusDetails.join(' · ')}`
+        : bonusDetails.join(' · ');
+    } else {
+      elements.elementInfoCollection.textContent = rarityLabel;
+    }
   }
 }
 
