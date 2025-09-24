@@ -3853,7 +3853,14 @@ const soundEffects = (() => {
 const musicPlayer = (() => {
   const MUSIC_DIR = 'Assets/Music/';
   const SUPPORTED_EXTENSIONS = ['mp3', 'ogg', 'wav', 'webm', 'm4a'];
-  const FALLBACK_TRACKS = ['Piste1.mp3', 'Piste2.mp3', 'Piste3.mp3'];
+  const FALLBACK_TRACKS = [
+    'Piste1.mp3',
+    'Piste2.mp3',
+    'Piste3.mp3',
+    'Piste4.mp3',
+    'Piste5.mp3',
+    'Piste6.mp3'
+  ];
 
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     const resolved = Promise.resolve([]);
