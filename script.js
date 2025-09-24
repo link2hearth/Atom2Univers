@@ -1284,6 +1284,63 @@ function clampNumber(value, fallback, { min = -Infinity, max = Infinity } = {}) 
   return result;
 }
 
+const OFFLINE_TICKET_DEFAULTS = {
+  secondsPerTicket: 60 * 15,
+  capSeconds: 60 * 60 * 24
+};
+
+function normalizeOfflineTicketConfig(rawConfig) {
+  const config = { ...OFFLINE_TICKET_DEFAULTS };
+  if (rawConfig == null) {
+    return config;
+  }
+
+  if (typeof rawConfig === 'number') {
+    const interval = Number(rawConfig);
+    if (Number.isFinite(interval) && interval > 0) {
+      config.secondsPerTicket = interval;
+    }
+    return config;
+  }
+
+  if (typeof rawConfig === 'object') {
+    const intervalCandidate = pickDefined(
+      rawConfig.secondsPerTicket,
+      rawConfig.intervalSeconds,
+      rawConfig.ticketIntervalSeconds,
+      rawConfig.perTicketSeconds,
+      rawConfig.interval,
+      rawConfig.seconds,
+      rawConfig.value
+    );
+    const interval = Number(intervalCandidate);
+    if (Number.isFinite(interval) && interval > 0) {
+      config.secondsPerTicket = interval;
+    }
+
+    const capCandidate = pickDefined(
+      rawConfig.capSeconds,
+      rawConfig.maximumSeconds,
+      rawConfig.maxSeconds,
+      rawConfig.cap,
+      rawConfig.maximum,
+      rawConfig.max
+    );
+    const cap = Number(capCandidate);
+    if (Number.isFinite(cap) && cap > 0) {
+      config.capSeconds = cap;
+    }
+  }
+
+  if (config.capSeconds <= 0) {
+    config.capSeconds = config.secondsPerTicket;
+  } else if (config.capSeconds < config.secondsPerTicket) {
+    config.capSeconds = config.secondsPerTicket;
+  }
+
+  return config;
+}
+
 const MYTHIQUE_BONUS_DEFAULTS = {
   ticket: {
     uniqueReductionSeconds: 1,
@@ -1846,6 +1903,7 @@ function clampMusicVolume(value, fallback = DEFAULT_MUSIC_VOLUME) {
   }
   return numeric;
 }
+const OFFLINE_TICKET_CONFIG = normalizeOfflineTicketConfig(CONFIG.progression?.offlineTickets);
 const OFFLINE_GAIN_CAP = CONFIG.progression?.offlineCapSeconds ?? 60 * 60 * 12;
 
 function clampCritChance(value) {
@@ -3374,6 +3432,11 @@ const DEFAULT_STATE = {
   elementBonusSummary: {},
   trophies: [],
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  offlineTickets: {
+    secondsPerTicket: OFFLINE_TICKET_CONFIG.secondsPerTicket,
+    capSeconds: OFFLINE_TICKET_CONFIG.capSeconds,
+    progressSeconds: 0
+  },
   ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
@@ -3403,6 +3466,11 @@ const gameState = {
   elementBonusSummary: {},
   trophies: new Set(),
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  offlineTickets: {
+    secondsPerTicket: OFFLINE_TICKET_CONFIG.secondsPerTicket,
+    capSeconds: OFFLINE_TICKET_CONFIG.capSeconds,
+    progressSeconds: 0
+  },
   ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
@@ -9554,6 +9622,26 @@ function serializeState() {
     offlineGainMultiplier: Number.isFinite(Number(gameState.offlineGainMultiplier))
       ? Math.max(0, Number(gameState.offlineGainMultiplier))
       : MYTHIQUE_OFFLINE_BASE,
+    offlineTickets: (() => {
+      const raw = gameState.offlineTickets || {};
+      const secondsPerTicket = Number.isFinite(Number(raw.secondsPerTicket))
+        && Number(raw.secondsPerTicket) > 0
+        ? Number(raw.secondsPerTicket)
+        : OFFLINE_TICKET_CONFIG.secondsPerTicket;
+      const capSeconds = Number.isFinite(Number(raw.capSeconds))
+        && Number(raw.capSeconds) > 0
+        ? Math.max(Number(raw.capSeconds), secondsPerTicket)
+        : Math.max(OFFLINE_TICKET_CONFIG.capSeconds, secondsPerTicket);
+      const progressSeconds = Number.isFinite(Number(raw.progressSeconds))
+        && Number(raw.progressSeconds) > 0
+        ? Math.max(0, Math.min(Number(raw.progressSeconds), capSeconds))
+        : 0;
+      return {
+        secondsPerTicket,
+        capSeconds,
+        progressSeconds
+      };
+    })(),
     ticketStarAutoCollect: gameState.ticketStarAutoCollect
       ? {
           delaySeconds: Math.max(
@@ -9632,6 +9720,11 @@ function resetGame() {
     elementBonusSummary: {},
     trophies: new Set(),
     offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+    offlineTickets: {
+      secondsPerTicket: OFFLINE_TICKET_CONFIG.secondsPerTicket,
+      capSeconds: OFFLINE_TICKET_CONFIG.capSeconds,
+      progressSeconds: 0
+    },
     ticketStarAutoCollect: null,
     ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
     frenzySpawnBonus: { perClick: 1, perSecond: 1 },
@@ -9693,6 +9786,46 @@ function loadGame() {
       gameState.offlineGainMultiplier = Math.min(MYTHIQUE_OFFLINE_CAP, storedOffline);
     } else {
       gameState.offlineGainMultiplier = MYTHIQUE_OFFLINE_BASE;
+    }
+    const storedOfflineTickets = data.offlineTickets;
+    if (storedOfflineTickets && typeof storedOfflineTickets === 'object') {
+      const secondsPerTicket = Number(storedOfflineTickets.secondsPerTicket);
+      const normalizedSecondsPerTicket = Number.isFinite(secondsPerTicket) && secondsPerTicket > 0
+        ? secondsPerTicket
+        : OFFLINE_TICKET_CONFIG.secondsPerTicket;
+      const capSeconds = Number(storedOfflineTickets.capSeconds);
+      const normalizedCapSeconds = Number.isFinite(capSeconds) && capSeconds > 0
+        ? Math.max(capSeconds, normalizedSecondsPerTicket)
+        : Math.max(OFFLINE_TICKET_CONFIG.capSeconds, normalizedSecondsPerTicket);
+      const progressSeconds = Number(storedOfflineTickets.progressSeconds);
+      const normalizedProgressSeconds = Number.isFinite(progressSeconds) && progressSeconds > 0
+        ? Math.max(0, Math.min(progressSeconds, normalizedCapSeconds))
+        : 0;
+      gameState.offlineTickets = {
+        secondsPerTicket: normalizedSecondsPerTicket,
+        capSeconds: normalizedCapSeconds,
+        progressSeconds: normalizedProgressSeconds
+      };
+    } else if (typeof storedOfflineTickets === 'number' && storedOfflineTickets > 0) {
+      const interval = Number(storedOfflineTickets);
+      const normalizedSecondsPerTicket = Number.isFinite(interval) && interval > 0
+        ? interval
+        : OFFLINE_TICKET_CONFIG.secondsPerTicket;
+      const normalizedCapSeconds = Math.max(
+        OFFLINE_TICKET_CONFIG.capSeconds,
+        normalizedSecondsPerTicket
+      );
+      gameState.offlineTickets = {
+        secondsPerTicket: normalizedSecondsPerTicket,
+        capSeconds: normalizedCapSeconds,
+        progressSeconds: 0
+      };
+    } else {
+      gameState.offlineTickets = {
+        secondsPerTicket: OFFLINE_TICKET_CONFIG.secondsPerTicket,
+        capSeconds: OFFLINE_TICKET_CONFIG.capSeconds,
+        progressSeconds: 0
+      };
     }
     const storedInterval = Number(data.ticketStarIntervalSeconds);
     if (Number.isFinite(storedInterval) && storedInterval > 0) {
@@ -9818,7 +9951,7 @@ function loadGame() {
     renderShop();
     updateUI();
     if (data.lastSave) {
-      const diff = (Date.now() - data.lastSave) / 1000;
+      const diff = Math.max(0, (Date.now() - data.lastSave) / 1000);
       const capped = Math.min(diff, OFFLINE_GAIN_CAP);
       if (capped > 0) {
         const multiplier = Number.isFinite(Number(gameState.offlineGainMultiplier))
@@ -9830,6 +9963,45 @@ function loadGame() {
           gainAtoms(offlineGain);
           showToast(`Progression hors ligne : +${offlineGain.toString()} atomes`);
         }
+      }
+      if (diff > 0) {
+        const offlineTickets = gameState.offlineTickets || {
+          secondsPerTicket: OFFLINE_TICKET_CONFIG.secondsPerTicket,
+          capSeconds: OFFLINE_TICKET_CONFIG.capSeconds,
+          progressSeconds: 0
+        };
+        const secondsPerTicket = Number.isFinite(Number(offlineTickets.secondsPerTicket))
+          && Number(offlineTickets.secondsPerTicket) > 0
+          ? Number(offlineTickets.secondsPerTicket)
+          : OFFLINE_TICKET_CONFIG.secondsPerTicket;
+        const capSeconds = Number.isFinite(Number(offlineTickets.capSeconds))
+          && Number(offlineTickets.capSeconds) > 0
+          ? Math.max(Number(offlineTickets.capSeconds), secondsPerTicket)
+          : Math.max(OFFLINE_TICKET_CONFIG.capSeconds, secondsPerTicket);
+        let progressSeconds = Number.isFinite(Number(offlineTickets.progressSeconds))
+          && Number(offlineTickets.progressSeconds) > 0
+          ? Math.max(0, Math.min(Number(offlineTickets.progressSeconds), capSeconds))
+          : 0;
+        const effectiveSeconds = Math.min(diff, capSeconds);
+        progressSeconds = Math.min(progressSeconds + effectiveSeconds, capSeconds);
+        const ticketsEarned = secondsPerTicket > 0
+          ? Math.floor(progressSeconds / secondsPerTicket)
+          : 0;
+        if (ticketsEarned > 0) {
+          const currentTickets = Number.isFinite(Number(gameState.gachaTickets))
+            ? Math.max(0, Math.floor(Number(gameState.gachaTickets)))
+            : 0;
+          gameState.gachaTickets = currentTickets + ticketsEarned;
+          const unit = ticketsEarned === 1 ? 'ticket' : 'tickets';
+          showToast(`Tickets hors ligne : +${ticketsEarned} ${unit}`);
+          progressSeconds -= ticketsEarned * secondsPerTicket;
+          progressSeconds = Math.max(0, Math.min(progressSeconds, capSeconds));
+        }
+        gameState.offlineTickets = {
+          secondsPerTicket,
+          capSeconds,
+          progressSeconds
+        };
       }
     }
   } catch (err) {
