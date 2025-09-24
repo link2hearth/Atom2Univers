@@ -2399,6 +2399,18 @@ body.theme-neon .goal-card__reward {
   align-items: center;
 }
 
+.option-row input[type="range"] {
+  flex: 1 1 140px;
+  min-width: 140px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.option-row input[type="range"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 select, button {
   font-family: inherit;
 }

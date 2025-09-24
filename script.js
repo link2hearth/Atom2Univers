@@ -1830,6 +1830,22 @@ LayeredNumber.EPSILON = CONFIG.numbers?.epsilon ?? 1e-12;
 const BASE_PER_CLICK = toLayeredNumber(CONFIG.progression?.basePerClick, 1);
 const BASE_PER_SECOND = toLayeredNumber(CONFIG.progression?.basePerSecond, 0);
 const DEFAULT_THEME = CONFIG.progression?.defaultTheme ?? 'dark';
+const DEFAULT_MUSIC_VOLUME = 0.5;
+const DEFAULT_MUSIC_ENABLED = true;
+
+function clampMusicVolume(value, fallback = DEFAULT_MUSIC_VOLUME) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  if (numeric <= 0) {
+    return 0;
+  }
+  if (numeric >= 1) {
+    return 1;
+  }
+  return numeric;
+}
 const OFFLINE_GAIN_CAP = CONFIG.progression?.offlineCapSeconds ?? 60 * 60 * 12;
 
 function clampCritChance(value) {
@@ -3364,7 +3380,9 @@ const DEFAULT_STATE = {
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
-  musicTrackId: null
+  musicTrackId: null,
+  musicVolume: DEFAULT_MUSIC_VOLUME,
+  musicEnabled: DEFAULT_MUSIC_ENABLED
 };
 
 const gameState = {
@@ -3390,7 +3408,9 @@ const gameState = {
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
-  musicTrackId: null
+  musicTrackId: null,
+  musicVolume: DEFAULT_MUSIC_VOLUME,
+  musicEnabled: DEFAULT_MUSIC_ENABLED
 };
 
 applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
@@ -3761,6 +3781,7 @@ const elements = {
   themeSelect: document.getElementById('themeSelect'),
   musicTrackSelect: document.getElementById('musicTrackSelect'),
   musicTrackStatus: document.getElementById('musicTrackStatus'),
+  musicVolumeSlider: document.getElementById('musicVolumeSlider'),
   resetButton: document.getElementById('resetButton'),
   infoApsBreakdown: document.getElementById('infoApsBreakdown'),
   infoApcBreakdown: document.getElementById('infoApcBreakdown'),
@@ -3836,14 +3857,29 @@ const musicPlayer = (() => {
 
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     const resolved = Promise.resolve([]);
+    let stubVolume = DEFAULT_MUSIC_VOLUME;
     return {
-      init: () => resolved,
+      init: options => {
+        if (options && typeof options.volume === 'number') {
+          stubVolume = clampMusicVolume(options.volume, stubVolume);
+        }
+        return resolved;
+      },
       ready: () => resolved,
       getTracks: () => [],
       getCurrentTrack: () => null,
       getCurrentTrackId: () => null,
       getPlaybackState: () => 'unsupported',
-      playTrackById: () => false,
+      playTrackById: id => {
+        const normalized = typeof id === 'string' ? id.trim().toLowerCase() : '';
+        return !normalized || normalized === 'none';
+      },
+      stop: () => true,
+      setVolume: value => {
+        stubVolume = clampMusicVolume(value, stubVolume);
+        return stubVolume;
+      },
+      getVolume: () => stubVolume,
       onChange: () => () => {},
       isAwaitingUserGesture: () => false
     };
@@ -3856,15 +3892,21 @@ const musicPlayer = (() => {
   let preferredTrackId = null;
   let awaitingUserGesture = true;
   let unlockListenersAttached = false;
+  let volume = DEFAULT_MUSIC_VOLUME;
   const changeListeners = new Set();
 
   const formatDisplayName = fileName => {
-    const baseName = fileName
+    if (!fileName) {
+      return '';
+    }
+    const segments = String(fileName).split('/').filter(Boolean);
+    const lastSegment = segments.length ? segments[segments.length - 1] : String(fileName);
+    const baseName = lastSegment
       .replace(/\.[^/.]+$/, '')
       .replace(/[_-]+/g, ' ')
       .trim();
     if (!baseName) {
-      return fileName;
+      return lastSegment || fileName;
     }
     return baseName.replace(/\b\w/g, char => char.toUpperCase());
   };
@@ -3877,13 +3919,21 @@ const musicPlayer = (() => {
     if (!value) {
       return '';
     }
+    try {
+      value = decodeURIComponent(value);
+    } catch (error) {
+      // Ignore decoding issues and keep the original value.
+    }
     value = value.replace(/^[./]+/, '');
     value = value.replace(/^Assets\/?Music\//i, '');
     value = value.replace(/^assets\/?music\//i, '');
     value = value.split(/[?#]/)[0];
     value = value.replace(/\\/g, '/');
-    const parts = value.split('/');
-    return parts[parts.length - 1];
+    const parts = value
+      .split('/')
+      .map(part => part.trim())
+      .filter(part => part && part !== '..');
+    return parts.join('/');
   };
 
   const isSupportedFile = fileName => {
@@ -3901,10 +3951,14 @@ const musicPlayer = (() => {
     if (!cleanName || !isSupportedFile(cleanName)) {
       return null;
     }
+    const encodedPath = cleanName
+      .split('/')
+      .map(segment => encodeURIComponent(segment))
+      .join('/');
     return {
       id: cleanName,
       filename: cleanName,
-      src: `${MUSIC_DIR}${cleanName}`,
+      src: `${MUSIC_DIR}${encodedPath}`,
       displayName: formatDisplayName(cleanName),
       placeholder
     };
@@ -3933,12 +3987,29 @@ const musicPlayer = (() => {
     if (!id) {
       return -1;
     }
-    const target = id.toLowerCase();
+    const trimmed = typeof id === 'string' ? id.trim().toLowerCase() : '';
+    const sanitized = sanitizeFileName(id).toLowerCase();
+    const candidates = new Set([trimmed, sanitized]);
+    const addBaseVariant = value => {
+      if (value && value.includes('.')) {
+        candidates.add(value.replace(/\.[^/.]+$/, ''));
+      }
+    };
+    addBaseVariant(trimmed);
+    addBaseVariant(sanitized);
     return tracks.findIndex(track => {
       const name = track.id?.toLowerCase?.() ?? '';
       const file = track.filename?.toLowerCase?.() ?? '';
       const src = track.src?.toLowerCase?.() ?? '';
-      return name === target || file === target || src === target;
+      const base = track.filename?.split('/')?.pop()?.toLowerCase?.() ?? '';
+      const display = track.displayName?.toLowerCase?.() ?? '';
+      return (
+        candidates.has(name)
+        || candidates.has(file)
+        || candidates.has(src)
+        || candidates.has(base)
+        || candidates.has(display)
+      );
     });
   };
 
@@ -3972,13 +4043,34 @@ const musicPlayer = (() => {
     });
   };
 
+  const applyVolumeToAudio = () => {
+    if (audioElement) {
+      audioElement.volume = volume;
+    }
+  };
+
+  const setVolumeValue = (value, { silent = false } = {}) => {
+    const normalized = clampMusicVolume(value, volume);
+    if (normalized === volume) {
+      return volume;
+    }
+    volume = normalized;
+    applyVolumeToAudio();
+    if (!silent) {
+      emitChange('volume');
+    }
+    return volume;
+  };
+
+  const getVolumeValue = () => volume;
+
   const getAudioElement = () => {
     if (!audioElement) {
       audioElement = new Audio();
       audioElement.loop = true;
       audioElement.preload = 'auto';
       audioElement.setAttribute('preload', 'auto');
-      audioElement.volume = 0.5;
+      audioElement.volume = volume;
       audioElement.addEventListener('playing', () => {
         awaitingUserGesture = false;
         emitChange('state');
@@ -3998,10 +4090,45 @@ const musicPlayer = (() => {
     if (!audio.src) {
       return;
     }
+    audio.volume = volume;
     const playPromise = audio.play();
     if (playPromise && typeof playPromise.catch === 'function') {
       playPromise.catch(() => {});
     }
+  };
+
+  const stop = ({ keepPreference = false, silent = false } = {}) => {
+    let hadSource = false;
+    if (audioElement) {
+      try {
+        audioElement.pause();
+      } catch (error) {
+        // Ignore pause issues.
+      }
+      try {
+        if (audioElement.currentTime) {
+          audioElement.currentTime = 0;
+        }
+      } catch (error) {
+        // Ignore reset issues.
+      }
+      if (audioElement.src) {
+        hadSource = true;
+      }
+      audioElement.removeAttribute('src');
+      audioElement.src = '';
+    }
+    const wasPlaying = hadSource || currentIndex !== -1;
+    currentIndex = -1;
+    if (!keepPreference) {
+      preferredTrackId = null;
+    }
+    if (!silent) {
+      emitChange('stop');
+    } else {
+      emitChange('track');
+    }
+    return wasPlaying;
   };
 
   const playIndex = index => {
@@ -4017,6 +4144,7 @@ const musicPlayer = (() => {
       audio.src = track.src;
     }
     audio.currentTime = 0;
+    audio.volume = volume;
     currentIndex = wrappedIndex;
     preferredTrackId = track.id;
     emitChange('track');
@@ -4090,6 +4218,60 @@ const musicPlayer = (() => {
     }
   };
 
+  const sortTrackList = list => {
+    return list
+      .slice()
+      .sort((a, b) => {
+        const nameA = (a?.displayName || a?.filename || '').toString();
+        const nameB = (b?.displayName || b?.filename || '').toString();
+        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      });
+  };
+
+  const verifyTrackAvailability = async list => {
+    const results = await Promise.all(
+      list.map(async track => {
+        if (!track || !track.placeholder) {
+          return track;
+        }
+        if (typeof window !== 'undefined' && window.location?.protocol === 'file:') {
+          return { ...track, placeholder: false };
+        }
+        try {
+          const response = await fetch(track.src, { method: 'HEAD', cache: 'no-store' });
+          if (response.ok) {
+            return { ...track, placeholder: false };
+          }
+          if (response.status === 405) {
+            const rangeResponse = await fetch(track.src, {
+              method: 'GET',
+              headers: { Range: 'bytes=0-0' },
+              cache: 'no-store'
+            });
+            if (rangeResponse.ok) {
+              return { ...track, placeholder: false };
+            }
+          }
+        } catch (error) {
+          try {
+            const fallbackResponse = await fetch(track.src, {
+              method: 'GET',
+              headers: { Range: 'bytes=0-0' },
+              cache: 'no-store'
+            });
+            if (fallbackResponse.ok) {
+              return { ...track, placeholder: false };
+            }
+          } catch (innerError) {
+            // Ignore network failures and keep placeholder flag.
+          }
+        }
+        return track;
+      })
+    );
+    return results;
+  };
+
   const discoverTracks = async () => {
     const discovered = new Set();
     const pushCandidate = candidate => {
@@ -4100,7 +4282,7 @@ const musicPlayer = (() => {
       discovered.add(normalized);
     };
 
-    for (const manifest of ['tracks.json', 'manifest.json']) {
+    for (const manifest of ['tracks.json', 'manifest.json', 'playlist.json', 'music.json', 'list.json']) {
       const entries = await loadJsonList(manifest);
       entries.forEach(pushCandidate);
       if (discovered.size > 0) {
@@ -4122,28 +4304,70 @@ const musicPlayer = (() => {
     return FALLBACK_TRACKS.map(name => createTrack(name, { placeholder: true })).filter(Boolean);
   };
 
-  const init = options => {
+  const init = (options = {}) => {
     if (readyPromise) {
-      if (options?.preferredTrackId) {
-        preferredTrackId = options.preferredTrackId;
-        const preferredIndex = findIndexForId(preferredTrackId);
-        if (preferredIndex >= 0) {
-          playIndex(preferredIndex);
+      if (typeof options.volume === 'number') {
+        setVolumeValue(options.volume);
+      }
+      if (typeof options.preferredTrackId === 'string') {
+        const trimmed = options.preferredTrackId.trim();
+        if (!trimmed || ['none', 'off', 'stop'].includes(trimmed.toLowerCase())) {
+          preferredTrackId = null;
+          stop({ keepPreference: false });
+        } else {
+          preferredTrackId = sanitizeFileName(trimmed) || null;
+          if (preferredTrackId && options.autoplay !== false) {
+            const preferredIndex = findIndexForId(preferredTrackId);
+            if (preferredIndex >= 0) {
+              playIndex(preferredIndex);
+            }
+          } else if (options.autoplay === false) {
+            stop({ keepPreference: Boolean(preferredTrackId) });
+          }
         }
+      } else if (options.autoplay === false) {
+        stop({ keepPreference: Boolean(preferredTrackId) });
       }
       return readyPromise;
     }
 
-    preferredTrackId = options?.preferredTrackId || null;
+    if (typeof options.volume === 'number') {
+      setVolumeValue(options.volume, { silent: true });
+    }
+
+    if (typeof options.preferredTrackId === 'string') {
+      const rawPreference = options.preferredTrackId.trim();
+      if (!rawPreference || ['none', 'off', 'stop'].includes(rawPreference.toLowerCase())) {
+        preferredTrackId = null;
+      } else {
+        preferredTrackId = sanitizeFileName(rawPreference);
+        if (preferredTrackId && !preferredTrackId.trim()) {
+          preferredTrackId = null;
+        }
+      }
+    } else {
+      preferredTrackId = null;
+    }
+
+    const autoplay = options?.autoplay !== false;
+
     setupUnlockListeners();
 
     readyPromise = discoverTracks()
-      .then(foundTracks => {
-        tracks = foundTracks;
+      .then(async foundTracks => {
+        const verified = await verifyTrackAvailability(foundTracks);
+        tracks = sortTrackList(verified);
         emitChange('tracks');
         if (!tracks.length) {
           currentIndex = -1;
           emitChange('track');
+          if (!autoplay) {
+            stop({ keepPreference: Boolean(preferredTrackId) });
+          }
+          return tracks;
+        }
+        if (!autoplay) {
+          stop({ keepPreference: Boolean(preferredTrackId) });
           return tracks;
         }
         const preferredIndex = preferredTrackId ? findIndexForId(preferredTrackId) : -1;
@@ -4155,16 +4379,23 @@ const musicPlayer = (() => {
       })
       .catch(error => {
         console.error('Erreur de découverte des pistes musicales', error);
-        tracks = FALLBACK_TRACKS.map(name => createTrack(name, { placeholder: true })).filter(Boolean);
-        emitChange('tracks');
-        if (tracks.length) {
+        const fallbackList = FALLBACK_TRACKS.map(name => createTrack(name, { placeholder: true })).filter(Boolean);
+        return verifyTrackAvailability(fallbackList).then(verifiedFallback => {
+          tracks = sortTrackList(verifiedFallback);
+          emitChange('tracks');
+          if (!tracks.length) {
+            currentIndex = -1;
+            emitChange('track');
+            return tracks;
+          }
+          if (!autoplay) {
+            stop({ keepPreference: Boolean(preferredTrackId) });
+            return tracks;
+          }
           const preferredIndex = preferredTrackId ? findIndexForId(preferredTrackId) : -1;
           playIndex(preferredIndex >= 0 ? preferredIndex : Math.floor(Math.random() * tracks.length));
-        } else {
-          currentIndex = -1;
-          emitChange('track');
-        }
-        return tracks;
+          return tracks;
+        });
       });
 
     return readyPromise;
@@ -4192,11 +4423,23 @@ const musicPlayer = (() => {
   };
 
   const playTrackById = id => {
-    preferredTrackId = id || null;
+    const raw = typeof id === 'string' ? id.trim() : '';
+    const normalized = raw.toLowerCase();
+    if (!raw || normalized === 'none' || normalized === 'off' || normalized === 'stop') {
+      stop({ keepPreference: false });
+      return true;
+    }
+    const sanitized = sanitizeFileName(raw);
+    if (!sanitized) {
+      stop({ keepPreference: false });
+      return true;
+    }
+    preferredTrackId = sanitized;
     if (!tracks.length) {
+      emitChange('track');
       return false;
     }
-    const index = findIndexForId(id);
+    const index = findIndexForId(sanitized);
     if (index === -1) {
       emitChange('track');
       return false;
@@ -4222,6 +4465,9 @@ const musicPlayer = (() => {
     getCurrentTrackId,
     getPlaybackState,
     playTrackById,
+    stop,
+    setVolume: (value, options) => setVolumeValue(value, options || {}),
+    getVolume: () => getVolumeValue(),
     onChange,
     isAwaitingUserGesture: () => awaitingUserGesture
   };
@@ -4244,6 +4490,10 @@ function updateMusicSelectOptions() {
     select.disabled = true;
     return;
   }
+  const noneOption = document.createElement('option');
+  noneOption.value = '';
+  noneOption.textContent = 'Rien (aucune musique)';
+  select.appendChild(noneOption);
   tracks.forEach(track => {
     const option = document.createElement('option');
     option.value = track.id;
@@ -4254,11 +4504,18 @@ function updateMusicSelectOptions() {
     select.appendChild(option);
   });
   let valueToSelect = current?.id || '';
-  if (!valueToSelect && previousValue && tracks.some(track => track.id === previousValue)) {
-    valueToSelect = previousValue;
+  if (!valueToSelect && previousValue) {
+    if (previousValue === '' || previousValue === 'none') {
+      valueToSelect = '';
+    } else if (tracks.some(track => track.id === previousValue)) {
+      valueToSelect = previousValue;
+    }
   }
-  if (!valueToSelect) {
-    valueToSelect = tracks[0].id;
+  if (!valueToSelect
+    && gameState.musicTrackId
+    && gameState.musicEnabled !== false
+    && tracks.some(track => track.id === gameState.musicTrackId)) {
+    valueToSelect = gameState.musicTrackId;
   }
   select.value = valueToSelect;
   select.disabled = false;
@@ -4276,7 +4533,11 @@ function updateMusicStatus() {
   }
   const current = musicPlayer.getCurrentTrack();
   if (!current) {
-    status.textContent = 'Sélectionnez une piste pour lancer la musique.';
+    if (gameState.musicEnabled === false) {
+      status.textContent = 'Musique désactivée.';
+    } else {
+      status.textContent = 'Sélectionnez une piste pour lancer la musique.';
+    }
     return;
   }
   const playbackState = musicPlayer.getPlaybackState();
@@ -4296,18 +4557,51 @@ function updateMusicStatus() {
   status.textContent = message;
 }
 
+function updateMusicVolumeControl() {
+  const slider = elements.musicVolumeSlider;
+  if (!slider) {
+    return;
+  }
+  const volume = typeof musicPlayer.getVolume === 'function'
+    ? musicPlayer.getVolume()
+    : DEFAULT_MUSIC_VOLUME;
+  const clamped = Math.round(Math.min(100, Math.max(0, volume * 100)));
+  slider.value = String(clamped);
+  slider.setAttribute('aria-valuenow', String(clamped));
+  slider.setAttribute('aria-valuetext', `${clamped}%`);
+  slider.title = `Volume musique : ${clamped}%`;
+  const playbackState = musicPlayer.getPlaybackState();
+  slider.disabled = playbackState === 'unsupported';
+}
+
 function refreshMusicControls() {
   updateMusicSelectOptions();
   updateMusicStatus();
+  updateMusicVolumeControl();
 }
 
 musicPlayer.onChange(event => {
   if (event?.currentTrack && event.currentTrack.id) {
     gameState.musicTrackId = event.currentTrack.id;
+    gameState.musicEnabled = true;
+  } else if (event?.type === 'stop') {
+    gameState.musicTrackId = null;
+    gameState.musicEnabled = false;
   } else if (Array.isArray(event?.tracks) && event.tracks.length === 0) {
     gameState.musicTrackId = null;
+    gameState.musicEnabled = DEFAULT_MUSIC_ENABLED;
   }
-  if (event?.type === 'tracks' || event?.type === 'track' || event?.type === 'state' || event?.type === 'error') {
+
+  if (event?.type === 'volume') {
+    gameState.musicVolume = musicPlayer.getVolume();
+  }
+
+  if (event?.type === 'tracks'
+    || event?.type === 'track'
+    || event?.type === 'state'
+    || event?.type === 'error'
+    || event?.type === 'volume'
+    || event?.type === 'stop') {
     refreshMusicControls();
   }
 });
@@ -8967,6 +9261,8 @@ if (elements.musicTrackSelect) {
   elements.musicTrackSelect.addEventListener('change', event => {
     const selectedId = event.target.value;
     if (!selectedId) {
+      musicPlayer.stop();
+      showToast('Musique coupée');
       return;
     }
     const success = musicPlayer.playTrackById(selectedId);
@@ -8984,6 +9280,25 @@ if (elements.musicTrackSelect) {
       }
     }
     updateMusicStatus();
+  });
+}
+
+if (elements.musicVolumeSlider) {
+  const applyVolumeFromSlider = (rawValue, { announce = false } = {}) => {
+    const numeric = Number(rawValue);
+    const percent = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;
+    const normalized = clampMusicVolume(percent / 100, musicPlayer.getVolume());
+    musicPlayer.setVolume(normalized);
+    gameState.musicVolume = normalized;
+    if (announce) {
+      showToast(`Volume musique : ${Math.round(normalized * 100)} %`);
+    }
+  };
+  elements.musicVolumeSlider.addEventListener('input', event => {
+    applyVolumeFromSlider(event.target.value);
+  });
+  elements.musicVolumeSlider.addEventListener('change', event => {
+    applyVolumeFromSlider(event.target.value, { announce: true });
   });
 }
 
@@ -9058,8 +9373,23 @@ function serializeState() {
         : 1
     },
     music: {
-      selectedTrack: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null
+      selectedTrack: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null,
+      enabled: gameState.musicEnabled !== false,
+      volume: clampMusicVolume(
+        typeof musicPlayer.getVolume === 'function'
+          ? musicPlayer.getVolume()
+          : gameState.musicVolume,
+        DEFAULT_MUSIC_VOLUME
+      )
     },
+    musicTrackId: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null,
+    musicVolume: clampMusicVolume(
+      typeof musicPlayer.getVolume === 'function'
+        ? musicPlayer.getVolume()
+        : gameState.musicVolume,
+      DEFAULT_MUSIC_VOLUME
+    ),
+    musicEnabled: gameState.musicEnabled !== false,
     trophies: getUnlockedTrophyIds(),
     lastSave: Date.now()
   };
@@ -9098,13 +9428,17 @@ function resetGame() {
     offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
     ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
     frenzySpawnBonus: { perClick: 1, perSecond: 1 },
-    musicTrackId: null
+    musicTrackId: null,
+    musicVolume: DEFAULT_MUSIC_VOLUME,
+    musicEnabled: DEFAULT_MUSIC_ENABLED
   });
   applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
   setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
   resetFrenzyState({ skipApply: true });
   resetTicketStarState({ reschedule: true });
   applyTheme(DEFAULT_THEME);
+  musicPlayer.stop();
+  musicPlayer.setVolume(DEFAULT_MUSIC_VOLUME, { silent: true });
   recalcProduction();
   renderShop();
   updateUI();
@@ -9197,6 +9531,17 @@ function loadGame() {
     }
     gameState.elements = baseCollection;
     gameState.theme = data.theme || DEFAULT_THEME;
+    const parseStoredVolume = raw => {
+      const numeric = Number(raw);
+      if (!Number.isFinite(numeric)) {
+        return null;
+      }
+      if (numeric > 1) {
+        return clampMusicVolume(numeric / 100, DEFAULT_MUSIC_VOLUME);
+      }
+      return clampMusicVolume(numeric, DEFAULT_MUSIC_VOLUME);
+    };
+
     const storedMusic = data.music;
     if (storedMusic && typeof storedMusic === 'object') {
       const selected = storedMusic.selectedTrack
@@ -9204,11 +9549,43 @@ function loadGame() {
         ?? storedMusic.id
         ?? storedMusic.filename;
       gameState.musicTrackId = typeof selected === 'string' && selected ? selected : null;
-    } else if (typeof data.musicTrackId === 'string' && data.musicTrackId) {
-      gameState.musicTrackId = data.musicTrackId;
-    } else if (typeof data.musicTrack === 'string' && data.musicTrack) {
-      gameState.musicTrackId = data.musicTrack;
+      const storedVolume = parseStoredVolume(storedMusic.volume);
+      if (storedVolume != null) {
+        gameState.musicVolume = storedVolume;
+      } else if (typeof data.musicVolume === 'number') {
+        const fallbackVolume = parseStoredVolume(data.musicVolume);
+        gameState.musicVolume = fallbackVolume != null ? fallbackVolume : DEFAULT_MUSIC_VOLUME;
+      } else {
+        gameState.musicVolume = DEFAULT_MUSIC_VOLUME;
+      }
+      if (typeof storedMusic.enabled === 'boolean') {
+        gameState.musicEnabled = storedMusic.enabled;
+      } else if (typeof data.musicEnabled === 'boolean') {
+        gameState.musicEnabled = data.musicEnabled;
+      } else if (gameState.musicTrackId) {
+        gameState.musicEnabled = true;
+      } else {
+        gameState.musicEnabled = DEFAULT_MUSIC_ENABLED;
+      }
     } else {
+      if (typeof data.musicTrackId === 'string' && data.musicTrackId) {
+        gameState.musicTrackId = data.musicTrackId;
+      } else if (typeof data.musicTrack === 'string' && data.musicTrack) {
+        gameState.musicTrackId = data.musicTrack;
+      } else {
+        gameState.musicTrackId = null;
+      }
+      if (typeof data.musicEnabled === 'boolean') {
+        gameState.musicEnabled = data.musicEnabled;
+      } else if (gameState.musicTrackId) {
+        gameState.musicEnabled = true;
+      } else {
+        gameState.musicEnabled = DEFAULT_MUSIC_ENABLED;
+      }
+      const fallbackVolume = parseStoredVolume(data.musicVolume);
+      gameState.musicVolume = fallbackVolume != null ? fallbackVolume : DEFAULT_MUSIC_VOLUME;
+    }
+    if (gameState.musicEnabled === false) {
       gameState.musicTrackId = null;
     }
     getShopUnlockSet();
@@ -9279,7 +9656,11 @@ function loop(now) {
 window.addEventListener('beforeunload', saveGame);
 
 loadGame();
-musicPlayer.init({ preferredTrackId: gameState.musicTrackId });
+musicPlayer.init({
+  preferredTrackId: gameState.musicTrackId,
+  autoplay: gameState.musicEnabled !== false,
+  volume: gameState.musicVolume
+});
 musicPlayer.ready().then(() => {
   refreshMusicControls();
 });
