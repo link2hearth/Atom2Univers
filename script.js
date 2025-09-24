@@ -1691,6 +1691,7 @@ configuredRarityIds.forEach(id => {
 });
 
 const RARITY_IDS = GACHA_RARITIES.map(entry => entry.id);
+const GACHA_RARITY_ORDER = new Map(RARITY_IDS.map((id, index) => [id, index]));
 const RARITY_LABEL_MAP = new Map(GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
 const INFO_BONUS_RARITIES = RARITY_IDS.length > 0
   ? [...RARITY_IDS]
@@ -3961,6 +3962,8 @@ const elements = {
   gachaOwnedSummary: document.getElementById('gachaOwnedSummary'),
   gachaSunButton: document.getElementById('gachaSunButton'),
   gachaTicketCounter: document.getElementById('gachaTicketCounter'),
+  gachaTicketModeButton: document.getElementById('gachaTicketModeButton'),
+  gachaTicketModeLabel: document.getElementById('gachaTicketModeLabel'),
   gachaTicketValue: document.getElementById('gachaTicketValue'),
   gachaAnimation: document.getElementById('gachaAnimation'),
   gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
@@ -5548,25 +5551,93 @@ function pickRandomElementFromRarity(rarityId) {
   return periodicElementIndex.get(elementId) || null;
 }
 
-function setGachaResult(rarityDef, elementDef, isNew) {
+function renderGachaResult(outcome) {
   if (!elements.gachaResult) return;
-  if (!rarityDef || !elementDef) {
-    elements.gachaResult.textContent = 'Synthèse indisponible pour le moment.';
-    elements.gachaResult.style.removeProperty('--rarity-color');
+  const container = elements.gachaResult;
+  container.innerHTML = '';
+  container.style.removeProperty('--rarity-color');
+
+  if (!outcome || !Array.isArray(outcome.focus) || !outcome.focus.length) {
+    container.textContent = 'Synthèse indisponible pour le moment.';
     return;
   }
-  const rarityLabel = rarityDef.label || rarityDef.id;
-  const statusText = isNew ? 'NOUVEAU !' : 'Déjà possédé';
-  const parts = [
-    `<span class="gacha-result__rarity">${rarityLabel}</span>`,
-    `<span class="gacha-result__name">${elementDef.name} (${elementDef.symbol})</span>`,
-    `<span class="gacha-result__status">${statusText}</span>`
-  ];
-  elements.gachaResult.innerHTML = parts.join(' ');
-  if (rarityDef.color) {
-    elements.gachaResult.style.setProperty('--rarity-color', rarityDef.color);
-  } else {
-    elements.gachaResult.style.removeProperty('--rarity-color');
+
+  const grid = document.createElement('div');
+  grid.className = 'gacha-result__grid';
+  grid.setAttribute('role', 'list');
+
+  outcome.focus.forEach(entry => {
+    if (!entry?.elementDef) return;
+    const card = document.createElement('article');
+    card.className = 'gacha-result-card';
+    card.setAttribute('role', 'listitem');
+    if (entry.isNew) {
+      card.classList.add('is-new');
+    } else {
+      card.classList.add('is-duplicate');
+    }
+    if (entry.rarity?.color) {
+      card.style.setProperty('--rarity-color', entry.rarity.color);
+    }
+
+    const rarity = document.createElement('span');
+    rarity.className = 'gacha-result-card__rarity';
+    rarity.textContent = entry.rarity?.label || entry.rarity?.id || 'Rareté inconnue';
+
+    const name = document.createElement('span');
+    name.className = 'gacha-result-card__name';
+    const baseName = entry.elementDef.name || entry.elementDef.symbol || 'Élément inconnu';
+    const symbol = entry.elementDef.symbol && entry.elementDef.name ? ` (${entry.elementDef.symbol})` : '';
+    name.textContent = `${baseName}${symbol}`;
+
+    const status = document.createElement('span');
+    status.className = 'gacha-result-card__status';
+    status.textContent = entry.isNew ? 'NOUVEAU !' : 'Déjà possédé';
+
+    if (entry.count > 1) {
+      const count = document.createElement('span');
+      count.className = 'gacha-result-card__count';
+      count.textContent = `x${entry.count}`;
+      card.appendChild(count);
+    }
+
+    card.appendChild(rarity);
+    card.appendChild(name);
+    card.appendChild(status);
+
+    grid.appendChild(card);
+  });
+
+  if (!grid.children.length) {
+    container.textContent = 'Synthèse indisponible pour le moment.';
+    return;
+  }
+
+  container.appendChild(grid);
+
+  const drawCount = Math.max(1, Math.floor(Number(outcome.drawCount) || 0));
+  const summary = document.createElement('p');
+  summary.className = 'gacha-result__summary';
+  const drawLabel = drawCount > 1 ? `Tirage x${drawCount}` : 'Tirage x1';
+  const newCount = Number(outcome.newCount) || 0;
+  const duplicateCount = Number(outcome.duplicateCount) || 0;
+  const newLabel = newCount === 0
+    ? 'Aucun nouvel élément'
+    : newCount === 1
+      ? '1 nouvel élément'
+      : `${newCount} nouveaux éléments`;
+  const duplicateLabel = duplicateCount > 0
+    ? ` · ${duplicateCount === 1 ? '1 doublon' : `${duplicateCount} doublons`}`
+    : '';
+  const rarityNote = newCount === 0 && duplicateCount > 0 ? ' · Mise en avant des raretés' : '';
+  summary.textContent = `${drawLabel} · ${newLabel}${duplicateLabel}${rarityNote}`;
+  container.appendChild(summary);
+
+  if (newCount === 0 && duplicateCount > 0) {
+    const note = document.createElement('p');
+    note.className = 'gacha-result__note';
+    note.textContent = 'Les doublons les plus rares sont mis en avant.';
+    container.appendChild(note);
   }
 }
 
@@ -5575,6 +5646,83 @@ function formatTicketLabel(count) {
   const formatted = numeric.toLocaleString('fr-FR');
   const unit = numeric === 1 ? 'ticket' : 'tickets';
   return `${formatted} ${unit}`;
+}
+
+function getGachaRarityRank(rarity) {
+  if (!rarity) return -1;
+  const id = typeof rarity === 'string' ? rarity : rarity.id;
+  if (!id) return -1;
+  const rank = GACHA_RARITY_ORDER.has(id) ? GACHA_RARITY_ORDER.get(id) : -1;
+  return Number.isFinite(rank) ? rank : -1;
+}
+
+function compareGachaRaritiesDesc(a, b) {
+  const rankA = getGachaRarityRank(a);
+  const rankB = getGachaRarityRank(b);
+  if (rankA === rankB) return 0;
+  return rankB - rankA;
+}
+
+function compareGachaEntries(a, b) {
+  const rarityDiff = compareGachaRaritiesDesc(a?.rarity, b?.rarity);
+  if (rarityDiff !== 0) {
+    return rarityDiff;
+  }
+  const nameA = a?.elementDef?.name || '';
+  const nameB = b?.elementDef?.name || '';
+  if (nameA && nameB) {
+    return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+  }
+  const idA = a?.elementDef?.id || '';
+  const idB = b?.elementDef?.id || '';
+  return idA.localeCompare(idB, 'fr', { sensitivity: 'base' });
+}
+
+function buildGachaDisplayData(results) {
+  const aggregatedMap = new Map();
+  const rarityColorMap = new Map();
+
+  results.forEach(result => {
+    if (!result) return;
+    const { elementDef, rarity, isNew } = result;
+    if (rarity?.id && !rarityColorMap.has(rarity.id)) {
+      rarityColorMap.set(rarity.id, rarity.color || null);
+    }
+    if (!elementDef?.id) {
+      return;
+    }
+    let entry = aggregatedMap.get(elementDef.id);
+    if (!entry) {
+      entry = {
+        elementDef,
+        rarity,
+        count: 0,
+        isNew: false
+      };
+      aggregatedMap.set(elementDef.id, entry);
+    }
+    entry.count += 1;
+    if (isNew) {
+      entry.isNew = true;
+    }
+    if (!entry.rarity && rarity) {
+      entry.rarity = rarity;
+    }
+  });
+
+  const aggregated = Array.from(aggregatedMap.values()).sort(compareGachaEntries);
+  const newEntries = aggregated.filter(entry => entry.isNew);
+  const duplicateEntries = aggregated.filter(entry => !entry.isNew);
+
+  let focus = newEntries.slice();
+  if (!focus.length && duplicateEntries.length) {
+    focus = duplicateEntries.slice(0, Math.min(3, duplicateEntries.length));
+  }
+  if (!focus.length && aggregated.length) {
+    focus = aggregated.slice(0, Math.min(3, aggregated.length));
+  }
+
+  return { aggregated, focus, newEntries, rarityColorMap };
 }
 
 const GACHA_ANIMATION_CONFETTI_COUNT = 110;
@@ -5593,6 +5741,7 @@ const GACHA_CONFETTI_SHAPES = [
   { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
 ];
 let gachaAnimationInProgress = false;
+let gachaRollMode = 1;
 
 function updateGachaUI() {
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
@@ -5601,22 +5750,35 @@ function updateGachaUI() {
   } else if (elements.gachaTicketCounter) {
     elements.gachaTicketCounter.textContent = formatTicketLabel(available);
   }
+  if (elements.gachaTicketModeLabel) {
+    elements.gachaTicketModeLabel.textContent = `Tirage x${gachaRollMode}`;
+  }
+  if (elements.gachaTicketModeButton) {
+    const modeLabel = `Tirage x${gachaRollMode}`;
+    elements.gachaTicketModeButton.setAttribute('aria-label', `Basculer le mode de tirage (actuel\u00a0: ${modeLabel})`);
+    elements.gachaTicketModeButton.title = `Mode actuel\u00a0: ${modeLabel}`;
+  }
   if (elements.gachaSunButton) {
     const gachaFree = isDevKitGachaFree();
-    const affordable = gachaFree || available >= GACHA_TICKET_COST;
+    const totalCost = gachaRollMode * GACHA_TICKET_COST;
+    const affordable = gachaFree || available >= totalCost;
     const busy = gachaAnimationInProgress;
-    const costLabel = gachaFree ? 'Gratuit' : formatTicketLabel(GACHA_TICKET_COST);
-    const label = busy
-      ? 'Tirage cosmique en cours'
-      : gachaFree
-        ? 'Déclencher un tirage cosmique (gratuit)'
-        : affordable
-          ? 'Déclencher un tirage cosmique'
-          : 'Tickets insuffisants';
+    const costLabel = gachaFree ? 'Gratuit' : formatTicketLabel(totalCost);
+    const drawLabel = gachaRollMode > 1 ? `tirage cosmique x${gachaRollMode}` : 'tirage cosmique';
+    let label;
+    if (busy) {
+      label = 'Tirage cosmique en cours';
+    } else if (gachaFree) {
+      label = `Déclencher un ${drawLabel} (gratuit)`;
+    } else if (affordable) {
+      label = `Déclencher un ${drawLabel}`;
+    } else {
+      label = `Tickets insuffisants pour un ${drawLabel}`;
+    }
     elements.gachaSunButton.classList.toggle('is-locked', !affordable || busy);
     elements.gachaSunButton.setAttribute('aria-disabled', !affordable || busy ? 'true' : 'false');
     elements.gachaSunButton.setAttribute('aria-label', label);
-    elements.gachaSunButton.title = `${label} (${costLabel})`;
+    elements.gachaSunButton.title = gachaFree ? label : `${label} (${costLabel})`;
     if (busy) {
       elements.gachaSunButton.disabled = true;
     } else if (elements.gachaSunButton.disabled) {
@@ -5625,74 +5787,163 @@ function updateGachaUI() {
   }
 }
 
-function performGachaRoll() {
+function performGachaRoll(count = 1) {
+  const drawCount = Math.max(1, Math.floor(Number(count) || 1));
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
   const gachaFree = isDevKitGachaFree();
-  if (!gachaFree && available < GACHA_TICKET_COST) {
-    showToast('Pas assez de tickets de tirage.');
+  const totalCost = drawCount * GACHA_TICKET_COST;
+
+  if (!gachaFree && available < totalCost) {
+    showToast(`Pas assez de tickets de tirage (nécessaire\u00a0: ${formatTicketLabel(totalCost)}).`);
     return null;
   }
 
-  const rarity = pickGachaRarity();
-  if (!rarity) {
+  const hasAvailableElements = GACHA_RARITIES.some(def => {
+    const pool = gachaPools.get(def.id);
+    return Array.isArray(pool) && pool.length > 0;
+  });
+  if (!hasAvailableElements) {
     showToast('Aucun élément disponible dans les chambres de synthèse.');
     return null;
   }
 
-  const elementDef = pickRandomElementFromRarity(rarity.id);
-  if (!elementDef) {
-    showToast('Flux instable, impossible de matérialiser un élément.');
+  if (!gachaFree) {
+    gameState.gachaTickets = available - totalCost;
+  }
+
+  const results = [];
+  for (let rollIndex = 0; rollIndex < drawCount; rollIndex += 1) {
+    const rarity = pickGachaRarity();
+    if (!rarity) {
+      showToast('Aucun élément disponible dans les chambres de synthèse.');
+      break;
+    }
+
+    const elementDef = pickRandomElementFromRarity(rarity.id);
+    if (!elementDef) {
+      showToast('Flux instable, impossible de matérialiser un élément.');
+      continue;
+    }
+
+    let entry = gameState.elements[elementDef.id];
+    if (!entry) {
+      entry = {
+        id: elementDef.id,
+        gachaId: elementDef.gachaId ?? elementDef.id,
+        owned: false,
+        count: 0,
+        rarity: rarity.id,
+        effects: [],
+        bonuses: []
+      };
+      gameState.elements[elementDef.id] = entry;
+    }
+
+    const previousCount = Number(entry.count) || 0;
+    entry.count = previousCount + 1;
+
+    if (!entry.rarity) {
+      entry.rarity = rarity.id;
+    }
+    if (!entry.owned && entry.count > 0) {
+      entry.owned = true;
+    }
+
+    const isNew = previousCount === 0;
+    results.push({ rarity, elementDef, isNew });
+  }
+
+  if (!results.length) {
+    if (!gachaFree) {
+      gameState.gachaTickets = available;
+      updateGachaUI();
+    }
     return null;
   }
-
-  if (!gachaFree) {
-    gameState.gachaTickets = available - GACHA_TICKET_COST;
-  }
-
-  let entry = gameState.elements[elementDef.id];
-  if (!entry) {
-    entry = {
-      id: elementDef.id,
-      gachaId: elementDef.gachaId ?? elementDef.id,
-      owned: false,
-      count: 0,
-      rarity: rarity.id,
-      effects: [],
-      bonuses: []
-    };
-    gameState.elements[elementDef.id] = entry;
-  }
-
-  const previousCount = Number(entry.count) || 0;
-  entry.count = previousCount + 1;
-
-  if (!entry.rarity) {
-    entry.rarity = rarity.id;
-  }
-  if (!entry.owned && entry.count > 0) {
-    entry.owned = true;
-  }
-
-  const isNew = previousCount === 0;
 
   recalcProduction();
   updateUI();
   saveGame();
   evaluateTrophies();
 
-  return { rarity, elementDef, isNew };
+  const { aggregated, focus, newEntries, rarityColorMap } = buildGachaDisplayData(results);
+  const confettiColors = [];
+  rarityColorMap.forEach(color => {
+    if (color != null) {
+      confettiColors.push(color);
+    }
+  });
+  const newCount = results.reduce((sum, result) => sum + (result.isNew ? 1 : 0), 0);
+  const duplicateCount = Math.max(0, results.length - newCount);
+
+  return {
+    drawCount: results.length,
+    results,
+    aggregated,
+    focus,
+    newEntries,
+    confettiColors,
+    newCount,
+    duplicateCount
+  };
 }
 
 function displayGachaResult(outcome) {
   if (!outcome) return;
-  setGachaResult(outcome.rarity, outcome.elementDef, outcome.isNew);
+  renderGachaResult(outcome);
 }
 
 function getGachaToastMessage(outcome) {
   if (!outcome) return '';
-  return outcome.isNew
-    ? `Nouvel élément obtenu : ${outcome.elementDef.name} !`
-    : `${outcome.elementDef.name} rejoint à nouveau votre collection.`;
+  const results = Array.isArray(outcome.results) ? outcome.results : [];
+  if (!results.length) {
+    return '';
+  }
+
+  if (results.length === 1) {
+    const single = results[0];
+    if (!single?.elementDef) return '';
+    return single.isNew
+      ? `Nouvel élément obtenu : ${single.elementDef.name} !`
+      : `${single.elementDef.name} rejoint à nouveau votre collection.`;
+  }
+
+  const newCount = Number.isFinite(Number(outcome.newCount))
+    ? Number(outcome.newCount)
+    : results.reduce((sum, result) => sum + (result.isNew ? 1 : 0), 0);
+
+  if (newCount > 1) {
+    return `${newCount} nouveaux éléments découverts !`;
+  }
+
+  if (newCount === 1) {
+    const focusNew = Array.isArray(outcome.focus)
+      ? outcome.focus.find(entry => entry?.isNew && entry.elementDef)
+      : null;
+    const rawNew = results.find(result => result.isNew && result.elementDef);
+    const target = focusNew || rawNew;
+    if (target?.elementDef) {
+      return `Nouvel élément obtenu : ${target.elementDef.name} !`;
+    }
+  }
+
+  const focusEntry = Array.isArray(outcome.focus) && outcome.focus.length
+    ? outcome.focus[0]
+    : null;
+  if (focusEntry?.elementDef) {
+    const rarityLabel = focusEntry.rarity?.label || focusEntry.rarity?.id;
+    if (rarityLabel) {
+      return `${focusEntry.elementDef.name} (${rarityLabel}) rejoint à nouveau votre collection.`;
+    }
+    return `${focusEntry.elementDef.name} rejoint à nouveau votre collection.`;
+  }
+
+  const fallback = results[0];
+  if (fallback?.elementDef) {
+    return `${fallback.elementDef.name} rejoint à nouveau votre collection.`;
+  }
+
+  return '';
 }
 
 function wait(duration) {
@@ -5854,12 +6105,39 @@ function startGachaConfettiAnimation(outcome) {
     DEFAULT_GACHA_CONFETTI_COLOR
   );
   const baseColor = baseRarityColor || DEFAULT_GACHA_CONFETTI_COLOR;
-  const targetColor = resolveGachaConfettiColor(outcome?.rarity?.color, baseColor);
+
+  const paletteSet = new Set();
+  if (Array.isArray(outcome?.confettiColors)) {
+    outcome.confettiColors.forEach(color => {
+      const normalized = resolveGachaConfettiColor(color, baseColor);
+      if (normalized) {
+        paletteSet.add(normalized);
+      }
+    });
+  }
+
+  if (!paletteSet.size && Array.isArray(outcome?.focus)) {
+    outcome.focus.forEach(entry => {
+      if (!entry?.rarity?.color) return;
+      const normalized = resolveGachaConfettiColor(entry.rarity.color, baseColor);
+      if (normalized) {
+        paletteSet.add(normalized);
+      }
+    });
+  }
+
+  if (!paletteSet.size) {
+    paletteSet.add(baseColor);
+  }
+
+  const palette = Array.from(paletteSet);
+  const shouldShift = palette.length === 1 && palette[0] !== baseColor;
 
   const fragment = document.createDocumentFragment();
   const nodes = [];
   for (let i = 0; i < GACHA_ANIMATION_CONFETTI_COUNT; i += 1) {
-    const confetti = createGachaConfettiNode(baseColor);
+    const color = shouldShift ? baseColor : palette[i % palette.length] || baseColor;
+    const confetti = createGachaConfettiNode(color);
     fragment.appendChild(confetti);
     nodes.push(confetti);
   }
@@ -5867,16 +6145,16 @@ function startGachaConfettiAnimation(outcome) {
 
   gachaConfettiState.container = container;
   gachaConfettiState.nodes = nodes;
-  gachaConfettiState.baseColor = baseColor;
-  gachaConfettiState.targetColor = targetColor;
+  gachaConfettiState.baseColor = shouldShift ? baseColor : null;
+  gachaConfettiState.targetColor = shouldShift ? palette[0] : null;
 
-  if (targetColor !== baseColor) {
+  if (shouldShift && palette[0] !== baseColor) {
     gachaConfettiState.colorShiftTimeoutId = window.setTimeout(() => {
       gachaConfettiState.colorShiftTimeoutId = null;
       if (!gachaConfettiState.nodes.length) {
         return;
       }
-      gachaConfettiState.nodes.forEach(node => applyGachaConfettiColor(node, targetColor));
+      gachaConfettiState.nodes.forEach(node => applyGachaConfettiColor(node, palette[0]));
     }, GACHA_ANIMATION_COLOR_SHIFT_DELAY);
   }
 }
@@ -6036,7 +6314,7 @@ async function playGachaAnimation(outcome) {
 }
 
 function handleGachaRoll() {
-  const outcome = performGachaRoll();
+  const outcome = performGachaRoll(gachaRollMode);
   if (!outcome) return;
   displayGachaResult(outcome);
   const message = getGachaToastMessage(outcome);
@@ -6045,9 +6323,14 @@ function handleGachaRoll() {
   }
 }
 
+function toggleGachaRollMode() {
+  gachaRollMode = gachaRollMode === 1 ? 10 : 1;
+  updateGachaUI();
+}
+
 async function handleGachaSunClick() {
   if (gachaAnimationInProgress) return;
-  const outcome = performGachaRoll();
+  const outcome = performGachaRoll(gachaRollMode);
   if (!outcome) {
     return;
   }
@@ -7967,6 +8250,14 @@ if (elements.gachaSunButton) {
     handleGachaSunClick().catch(error => {
       console.error('Erreur lors du tirage cosmique', error);
     });
+  });
+}
+
+if (elements.gachaTicketModeButton) {
+  elements.gachaTicketModeButton.addEventListener('click', event => {
+    event.preventDefault();
+    if (gachaAnimationInProgress) return;
+    toggleGachaRollMode();
   });
 }
 

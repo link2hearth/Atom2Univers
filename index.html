@@ -74,13 +74,21 @@
     <section id="gacha" class="page page--gacha" aria-labelledby="gacha-title">
       <h2 id="gacha-title" class="visually-hidden">Portail de tirage cosmique</h2>
       <div class="gacha-ticket-counter" id="gachaTicketCounter" aria-live="polite">
-        <img
-          src="Assets/Image/ministar.png"
-          alt=""
-          class="gacha-ticket-counter__icon"
-          aria-hidden="true"
-          draggable="false"
-        />
+        <button
+          class="gacha-ticket-mode"
+          id="gachaTicketModeButton"
+          type="button"
+          aria-label="Basculer le mode de tirage (actuel : Tirage x1)"
+        >
+          <img
+            src="Assets/Image/ministar.png"
+            alt=""
+            class="gacha-ticket-counter__icon"
+            aria-hidden="true"
+            draggable="false"
+          />
+          <span class="gacha-ticket-mode__label" id="gachaTicketModeLabel">Tirage x1</span>
+        </button>
         <span class="gacha-ticket-counter__value" id="gachaTicketValue">0 ticket</span>
       </div>
       <button
