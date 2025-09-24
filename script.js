@@ -525,6 +525,26 @@ function readNumberProperty(source, candidates) {
   return undefined;
 }
 
+function coerceFiniteNumber(raw, options = {}) {
+  if (raw == null) {
+    return null;
+  }
+  const { allowZero = true, positiveOnly = false } = options;
+  const numeric = typeof raw === 'number'
+    ? raw
+    : (typeof raw === 'string' ? Number(raw) : Number.NaN);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  if (!allowZero && numeric === 0) {
+    return null;
+  }
+  if (positiveOnly && numeric <= 0) {
+    return null;
+  }
+  return numeric;
+}
+
 function readBooleanProperty(source, candidates) {
   if (!source || typeof source !== 'object') {
     return undefined;
@@ -552,91 +572,72 @@ function readBooleanProperty(source, candidates) {
   return undefined;
 }
 
-function normalizeElementGroupAddConfig(raw, options = {}) {
+function createElementGroupAddConfig(values, options = {}) {
   const {
     defaultMinCopies = 0,
     defaultMinUnique = 0,
     defaultRequireAllUnique = false
   } = options;
+  return {
+    clickAdd: values.clickAdd ?? 0,
+    autoAdd: values.autoAdd ?? 0,
+    uniqueClickAdd: values.uniqueClickAdd ?? 0,
+    uniqueAutoAdd: values.uniqueAutoAdd ?? 0,
+    duplicateClickAdd: values.duplicateClickAdd ?? 0,
+    duplicateAutoAdd: values.duplicateAutoAdd ?? 0,
+    rarityFlatMultipliers: values.rarityFlatMultipliers ?? null,
+    minCopies: values.minCopies ?? defaultMinCopies,
+    minUnique: values.minUnique ?? defaultMinUnique,
+    requireAllUnique: values.requireAllUnique ?? defaultRequireAllUnique,
+    label: values.label ?? null
+  };
+}
+
+function createFlatAddConfig(value, options = {}) {
+  return createElementGroupAddConfig({ clickAdd: value }, options);
+}
+
+function normalizeElementGroupAddConfig(raw, options = {}) {
   if (raw == null) {
     return null;
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw === 0) {
-      return null;
-    }
-    return {
-      clickAdd: raw,
-      autoAdd: 0,
-      uniqueClickAdd: 0,
-      uniqueAutoAdd: 0,
-      duplicateClickAdd: 0,
-      duplicateAutoAdd: 0,
-      rarityFlatMultipliers: null,
-      minCopies: defaultMinCopies,
-      minUnique: defaultMinUnique,
-      requireAllUnique: defaultRequireAllUnique,
-      label: null
-    };
-  }
-  if (typeof raw === 'string') {
-    const numeric = Number(raw);
-    if (!Number.isFinite(numeric) || numeric === 0) {
-      return null;
-    }
-    return {
-      clickAdd: numeric,
-      autoAdd: 0,
-      uniqueClickAdd: 0,
-      uniqueAutoAdd: 0,
-      duplicateClickAdd: 0,
-      duplicateAutoAdd: 0,
-      rarityFlatMultipliers: null,
-      minCopies: defaultMinCopies,
-      minUnique: defaultMinUnique,
-      requireAllUnique: defaultRequireAllUnique,
-      label: null
-    };
+  const numericValue = coerceFiniteNumber(raw, { allowZero: false });
+  if (numericValue != null) {
+    return createFlatAddConfig(numericValue, options);
   }
   if (typeof raw !== 'object') {
     return null;
   }
-  const click = readNumberProperty(raw, ['clickAdd', 'apc', 'perClick', 'manual', 'click']);
-  const auto = readNumberProperty(raw, ['autoAdd', 'aps', 'perSecond', 'auto', 'automatic']);
-  const uniqueClick = readNumberProperty(raw, [
+  const clickAdd = coerceFiniteNumber(readNumberProperty(raw, ['clickAdd', 'apc', 'perClick', 'manual', 'click'])) ?? 0;
+  const autoAdd = coerceFiniteNumber(readNumberProperty(raw, ['autoAdd', 'aps', 'perSecond', 'auto', 'automatic'])) ?? 0;
+  const uniqueClickAdd = coerceFiniteNumber(readNumberProperty(raw, [
     'uniqueClickAdd',
     'clickAddUnique',
     'perUniqueClick',
     'uniquePerClick',
     'uniqueApc'
-  ]);
-  const uniqueAuto = readNumberProperty(raw, [
+  ])) ?? 0;
+  const uniqueAutoAdd = coerceFiniteNumber(readNumberProperty(raw, [
     'uniqueAutoAdd',
     'autoAddUnique',
     'perUniqueAuto',
     'uniquePerSecond',
     'uniqueAps'
-  ]);
-  const duplicateClick = readNumberProperty(raw, [
+  ])) ?? 0;
+  const duplicateClickAdd = coerceFiniteNumber(readNumberProperty(raw, [
     'duplicateClickAdd',
     'clickAddDuplicate',
     'perDuplicateClick',
     'duplicatePerClick',
     'duplicateApc'
-  ]);
-  const duplicateAuto = readNumberProperty(raw, [
+  ])) ?? 0;
+  const duplicateAutoAdd = coerceFiniteNumber(readNumberProperty(raw, [
     'duplicateAutoAdd',
     'autoAddDuplicate',
     'perDuplicateAuto',
     'duplicatePerSecond',
     'duplicateAps'
-  ]);
-  const clickAdd = Number.isFinite(click) ? click : 0;
-  const autoAdd = Number.isFinite(auto) ? auto : 0;
-  const uniqueClickAdd = Number.isFinite(uniqueClick) ? uniqueClick : 0;
-  const uniqueAutoAdd = Number.isFinite(uniqueAuto) ? uniqueAuto : 0;
-  const duplicateClickAdd = Number.isFinite(duplicateClick) ? duplicateClick : 0;
-  const duplicateAutoAdd = Number.isFinite(duplicateAuto) ? duplicateAuto : 0;
+  ])) ?? 0;
   const rarityFlatMultipliers = normalizeRarityFlatMultipliers(
     raw.rarityFlatMultipliers
       ?? raw.targetRarityFlatMultipliers
@@ -652,7 +653,7 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
     uniqueAutoAdd,
     duplicateClickAdd,
     duplicateAutoAdd
-  ].some(value => Number.isFinite(value) && value !== 0);
+  ].some(value => value !== 0);
   const hasRarityFlatMultiplier = Array.isArray(rarityFlatMultipliers) && rarityFlatMultipliers.length > 0;
   if (!hasFlatEffect && !hasRarityFlatMultiplier) {
     return null;
@@ -684,17 +685,15 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
     'fullSet',
     'completeSet'
   ]);
-  const minCopies = Number.isFinite(minCopiesCandidate) && minCopiesCandidate > 0
-    ? Math.floor(minCopiesCandidate)
-    : defaultMinCopies;
-  const minUnique = Number.isFinite(minUniqueCandidate) && minUniqueCandidate > 0
-    ? Math.floor(minUniqueCandidate)
-    : defaultMinUnique;
+  const minCopiesValue = coerceFiniteNumber(minCopiesCandidate, { positiveOnly: true });
+  const minUniqueValue = coerceFiniteNumber(minUniqueCandidate, { positiveOnly: true });
+  const minCopies = minCopiesValue != null ? Math.floor(minCopiesValue) : undefined;
+  const minUnique = minUniqueValue != null ? Math.floor(minUniqueValue) : undefined;
   const requireAllUnique = requireAllUniqueCandidate != null
     ? requireAllUniqueCandidate
-    : defaultRequireAllUnique;
+    : undefined;
   const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
-  return {
+  return createElementGroupAddConfig({
     clickAdd,
     autoAdd,
     uniqueClickAdd,
@@ -706,7 +705,7 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
     minUnique,
     requireAllUnique,
     label
-  };
+  }, options);
 }
 
 function normalizeElementGroupAddConfigList(raw, options = {}) {
@@ -827,11 +826,9 @@ function normalizeElementGroupMultiplier(raw) {
   if (raw == null) {
     return null;
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw <= 0) {
-      return null;
-    }
-    const base = raw;
+  const baseValue = coerceFiniteNumber(raw, { positiveOnly: true });
+  if (baseValue != null) {
+    const base = baseValue;
     return {
       base,
       every: 0,
@@ -845,15 +842,14 @@ function normalizeElementGroupMultiplier(raw) {
     return null;
   }
   const baseCandidate = readNumberProperty(raw, ['base', 'start', 'initial', 'value']);
-  const base = Number.isFinite(baseCandidate) && baseCandidate > 0 ? baseCandidate : 1;
+  const base = coerceFiniteNumber(baseCandidate, { positiveOnly: true }) ?? 1;
   const everyCandidate = readNumberProperty(raw, ['every', 'each', 'per', 'step', 'threshold', 'interval']);
-  const every = Number.isFinite(everyCandidate) && everyCandidate > 0
-    ? Math.floor(everyCandidate)
-    : 0;
+  const everyValue = coerceFiniteNumber(everyCandidate, { positiveOnly: true });
+  const every = everyValue != null ? Math.floor(everyValue) : 0;
   const incrementCandidate = readNumberProperty(raw, ['increment', 'gain', 'stepValue', 'bonus', 'amount', 'increase']);
-  const increment = Number.isFinite(incrementCandidate) ? incrementCandidate : 0;
+  const increment = coerceFiniteNumber(incrementCandidate) ?? 0;
   const capCandidate = readNumberProperty(raw, ['cap', 'max', 'maximum', 'limit']);
-  let cap = Number.isFinite(capCandidate) && capCandidate > 0 ? capCandidate : Number.POSITIVE_INFINITY;
+  let cap = coerceFiniteNumber(capCandidate, { positiveOnly: true }) ?? Number.POSITIVE_INFINITY;
   if (Number.isFinite(cap)) {
     cap = Math.max(cap, base);
   }
@@ -897,18 +893,9 @@ function normalizeCritBonusEffect(raw) {
   if (raw == null) {
     return null;
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw === 0) {
-      return null;
-    }
-    return { chanceAdd: raw };
-  }
-  if (typeof raw === 'string') {
-    const numeric = Number(raw);
-    if (!Number.isFinite(numeric) || numeric === 0) {
-      return null;
-    }
-    return { chanceAdd: numeric };
+  const numericValue = coerceFiniteNumber(raw, { allowZero: false });
+  if (numericValue != null) {
+    return { chanceAdd: numericValue };
   }
   if (typeof raw !== 'object') {
     return null;
@@ -916,95 +903,95 @@ function normalizeCritBonusEffect(raw) {
   const effectSource = raw.effect && typeof raw.effect === 'object' ? raw.effect : raw;
   const effect = {};
 
-  const chanceSet = readNumberProperty(effectSource, [
+  const chanceSetValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'chanceSet',
     'chanceBase',
     'setChance',
     'critChanceSet',
     'critChance'
-  ]);
-  if (Number.isFinite(chanceSet)) {
-    effect.chanceSet = Math.max(0, chanceSet);
+  ]));
+  if (chanceSetValue != null) {
+    effect.chanceSet = Math.max(0, chanceSetValue);
   }
 
-  const chanceAdd = readNumberProperty(effectSource, [
+  const chanceAddValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'chanceAdd',
     'chanceBonus',
     'critChanceAdd',
     'bonusChance',
     'addChance'
-  ]);
-  if (Number.isFinite(chanceAdd) && chanceAdd !== 0) {
-    effect.chanceAdd = chanceAdd;
+  ]));
+  if (chanceAddValue != null && chanceAddValue !== 0) {
+    effect.chanceAdd = chanceAddValue;
   }
 
-  const chanceMult = readNumberProperty(effectSource, [
+  const chanceMultValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'chanceMult',
     'chanceMultiplier',
     'critChanceMult',
     'multChance'
-  ]);
-  if (Number.isFinite(chanceMult) && chanceMult > 0 && chanceMult !== 1) {
-    effect.chanceMult = chanceMult;
+  ]), { positiveOnly: true });
+  if (chanceMultValue != null && chanceMultValue !== 1) {
+    effect.chanceMult = chanceMultValue;
   }
 
-  const multiplierSet = readNumberProperty(effectSource, [
+  const multiplierSetValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'multiplierSet',
     'setMultiplier',
     'critMultiplierSet',
     'critMultiplier'
-  ]);
-  if (Number.isFinite(multiplierSet)) {
-    effect.multiplierSet = Math.max(0, multiplierSet);
+  ]));
+  if (multiplierSetValue != null) {
+    effect.multiplierSet = Math.max(0, multiplierSetValue);
   }
 
-  const multiplierAdd = readNumberProperty(effectSource, [
+  const multiplierAddValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'multiplierAdd',
     'damageAdd',
     'critMultiplierAdd',
     'bonusMultiplier',
     'bonusDamage'
-  ]);
-  if (Number.isFinite(multiplierAdd) && multiplierAdd !== 0) {
-    effect.multiplierAdd = multiplierAdd;
+  ]));
+  if (multiplierAddValue != null && multiplierAddValue !== 0) {
+    effect.multiplierAdd = multiplierAddValue;
   }
 
-  const multiplierMult = readNumberProperty(effectSource, [
+  const multiplierMultValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'multiplierMult',
     'multiplierMultiplier',
     'critMultiplierMult',
     'damageMult'
-  ]);
-  if (Number.isFinite(multiplierMult) && multiplierMult > 0 && multiplierMult !== 1) {
-    effect.multiplierMult = multiplierMult;
+  ]), { positiveOnly: true });
+  if (multiplierMultValue != null && multiplierMultValue !== 1) {
+    effect.multiplierMult = multiplierMultValue;
   }
 
-  const maxMultiplierSet = readNumberProperty(effectSource, [
+  const maxMultiplierSetValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'maxMultiplierSet',
     'capSet',
     'critMaxMultiplierSet',
     'maxMultiplier'
-  ]);
-  if (Number.isFinite(maxMultiplierSet)) {
-    effect.maxMultiplierSet = Math.max(0, maxMultiplierSet);
+  ]));
+  if (maxMultiplierSetValue != null) {
+    effect.maxMultiplierSet = Math.max(0, maxMultiplierSetValue);
   }
 
-  const maxMultiplierAdd = readNumberProperty(effectSource, [
+  const maxMultiplierAddValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'maxMultiplierAdd',
     'capAdd',
     'critMaxMultiplierAdd'
-  ]);
-  if (Number.isFinite(maxMultiplierAdd) && maxMultiplierAdd !== 0) {
-    effect.maxMultiplierAdd = maxMultiplierAdd;
+  ]));
+  if (maxMultiplierAddValue != null && maxMultiplierAddValue !== 0) {
+    effect.maxMultiplierAdd = maxMultiplierAddValue;
   }
 
-  const maxMultiplierMult = readNumberProperty(effectSource, [
+  const maxMultiplierMultValue = coerceFiniteNumber(readNumberProperty(effectSource, [
     'maxMultiplierMult',
     'capMult',
     'critMaxMultiplierMult'
-  ]);
-  if (Number.isFinite(maxMultiplierMult) && maxMultiplierMult > 0 && maxMultiplierMult !== 1) {
-    effect.maxMultiplierMult = maxMultiplierMult;
+  ]), { positiveOnly: true });
+  if (maxMultiplierMultValue != null && maxMultiplierMultValue !== 1) {
+    effect.maxMultiplierMult = maxMultiplierMultValue;
   }
 
   return Object.keys(effect).length ? effect : null;
@@ -1057,28 +1044,37 @@ function normalizeElementGroupCritConfig(raw) {
   };
 }
 
+function createRarityMultiplierBonusConfig(amount, details = {}) {
+  const {
+    uniqueThreshold = 0,
+    copyThreshold = 0,
+    targets,
+    label = null
+  } = details;
+  return {
+    amount,
+    uniqueThreshold,
+    copyThreshold,
+    targets: targets ?? new Set(['perClick', 'perSecond']),
+    label
+  };
+}
+
 function normalizeRarityMultiplierBonus(raw) {
   if (raw == null) {
     return null;
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw) || raw === 0) {
-      return null;
-    }
-    return {
-      amount: raw,
-      uniqueThreshold: 0,
-      copyThreshold: 0,
-      targets: new Set(['perClick', 'perSecond']),
-      label: null
-    };
+  const numericValue = coerceFiniteNumber(raw, { allowZero: false });
+  if (numericValue != null) {
+    return createRarityMultiplierBonusConfig(numericValue);
   }
   if (typeof raw !== 'object') {
     return null;
   }
-  const amountCandidate = readNumberProperty(raw, ['amount', 'value', 'add', 'increase', 'bonus']);
-  const amount = Number.isFinite(amountCandidate) ? amountCandidate : 0;
-  if (amount === 0) {
+  const amountValue = coerceFiniteNumber(readNumberProperty(raw, ['amount', 'value', 'add', 'increase', 'bonus']), {
+    allowZero: false
+  });
+  if (amountValue == null) {
     return null;
   }
   const uniqueThresholdCandidate = readNumberProperty(raw, [
@@ -1099,12 +1095,10 @@ function normalizeRarityMultiplierBonus(raw) {
     'requiresCopies',
     'copies'
   ]);
-  const uniqueThreshold = Number.isFinite(uniqueThresholdCandidate) && uniqueThresholdCandidate > 0
-    ? Math.floor(uniqueThresholdCandidate)
-    : 0;
-  const copyThreshold = Number.isFinite(copyThresholdCandidate) && copyThresholdCandidate > 0
-    ? Math.floor(copyThresholdCandidate)
-    : 0;
+  const uniqueThresholdValue = coerceFiniteNumber(uniqueThresholdCandidate, { positiveOnly: true });
+  const copyThresholdValue = coerceFiniteNumber(copyThresholdCandidate, { positiveOnly: true });
+  const uniqueThreshold = uniqueThresholdValue != null ? Math.floor(uniqueThresholdValue) : 0;
+  const copyThreshold = copyThresholdValue != null ? Math.floor(copyThresholdValue) : 0;
   const rawTargets = raw.targets ?? raw.appliesTo ?? raw.scope ?? raw.types;
   const targets = new Set();
   const registerTarget = target => {
@@ -1128,13 +1122,12 @@ function normalizeRarityMultiplierBonus(raw) {
     targets.add('perSecond');
   }
   const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
-  return {
-    amount,
+  return createRarityMultiplierBonusConfig(amountValue, {
     uniqueThreshold,
     copyThreshold,
     targets,
     label
-  };
+  });
 }
 
 function normalizeElementGroupBonus(raw) {
@@ -3571,37 +3564,29 @@ function normalizeTrophyCondition(raw) {
   };
 }
 
+function createTicketStarAutoCollectConfig(delaySeconds) {
+  return { delaySeconds };
+}
+
 function normalizeTicketStarAutoCollectConfig(raw) {
-  if (raw == null) {
-    return null;
-  }
-  if (raw === false) {
+  if (raw == null || raw === false) {
     return null;
   }
   if (raw === true) {
-    return { delaySeconds: 0 };
+    return createTicketStarAutoCollectConfig(0);
   }
-  if (typeof raw === 'number') {
-    if (!Number.isFinite(raw)) {
-      return null;
-    }
-    return { delaySeconds: Math.max(0, raw) };
-  }
-  if (typeof raw === 'string') {
-    const numeric = Number(raw);
-    if (!Number.isFinite(numeric)) {
-      return null;
-    }
-    return { delaySeconds: Math.max(0, numeric) };
+  const numericValue = coerceFiniteNumber(raw);
+  if (numericValue != null) {
+    return createTicketStarAutoCollectConfig(Math.max(0, numericValue));
   }
   if (typeof raw === 'object') {
     if (raw.enabled === false) {
       return null;
     }
     const value = raw.delaySeconds ?? raw.delay ?? raw.seconds ?? raw.value ?? raw.time;
-    const numeric = Number(value);
-    const delaySeconds = Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
-    return { delaySeconds };
+    const delayValue = coerceFiniteNumber(value);
+    const delaySeconds = Math.max(0, delayValue ?? 0);
+    return createTicketStarAutoCollectConfig(delaySeconds);
   }
   return null;
 }
