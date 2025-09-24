@@ -9507,34 +9507,22 @@ function buildShopItem(def) {
 
 function updateShopVisibility() {
   if (!shopRows.size) return;
-  const shopFree = isDevKitShopFree();
   const unlocks = getShopUnlockSet();
 
   let visibleLimit = -1;
-  if (shopFree) {
-    visibleLimit = UPGRADE_DEFS.length - 1;
-  } else {
-    unlocks.forEach(id => {
-      const unlockIndex = UPGRADE_INDEX_MAP.get(id);
-      if (unlockIndex != null && unlockIndex > visibleLimit) {
-        visibleLimit = unlockIndex;
-      }
-    });
-    if (visibleLimit < 0 && UPGRADE_DEFS.length > 0) {
-      visibleLimit = 0;
+  unlocks.forEach(id => {
+    const unlockIndex = UPGRADE_INDEX_MAP.get(id);
+    if (unlockIndex != null && unlockIndex > visibleLimit) {
+      visibleLimit = unlockIndex;
     }
+  });
+  if (visibleLimit < 0 && UPGRADE_DEFS.length > 0) {
+    visibleLimit = 0;
   }
 
   UPGRADE_DEFS.forEach((def, index) => {
     const row = shopRows.get(def.id);
     if (!row) return;
-
-    if (shopFree) {
-      row.root.hidden = false;
-      row.root.classList.remove('shop-item--locked');
-      unlocks.add(def.id);
-      return;
-    }
 
     const shouldReveal = index <= visibleLimit;
     row.root.hidden = !shouldReveal;
