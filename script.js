@@ -9681,7 +9681,11 @@ function attemptPurchase(def, quantity = 1) {
   if (!shopFree) {
     gameState.atoms = gameState.atoms.subtract(cost);
   }
-  gameState.upgrades[def.id] = (gameState.upgrades[def.id] || 0) + buyAmount;
+  const currentLevel = Number(gameState.upgrades[def.id]);
+  const normalizedLevel = Number.isFinite(currentLevel) && currentLevel > 0
+    ? Math.floor(currentLevel)
+    : 0;
+  gameState.upgrades[def.id] = normalizedLevel + buyAmount;
   recalcProduction();
   updateUI();
   showToast(shopFree
@@ -10059,7 +10063,23 @@ function loadGame() {
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     const tickets = Number(data.gachaTickets);
     gameState.gachaTickets = Number.isFinite(tickets) && tickets > 0 ? Math.floor(tickets) : 0;
-    gameState.upgrades = data.upgrades || {};
+    const storedUpgrades = data.upgrades;
+    if (storedUpgrades && typeof storedUpgrades === 'object') {
+      const normalizedUpgrades = {};
+      Object.entries(storedUpgrades).forEach(([id, value]) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        const sanitized = Math.max(0, Math.floor(numeric));
+        if (sanitized > 0) {
+          normalizedUpgrades[id] = sanitized;
+        }
+      });
+      gameState.upgrades = normalizedUpgrades;
+    } else {
+      gameState.upgrades = {};
+    }
     const storedShopUnlocks = data.shopUnlocks;
     if (Array.isArray(storedShopUnlocks)) {
       gameState.shopUnlocks = new Set(storedShopUnlocks);
