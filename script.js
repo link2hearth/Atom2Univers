@@ -472,6 +472,12 @@ const periodicElementIndex = new Map(
   periodicElements.map(def => [def.id, def])
 );
 
+const periodicElementByAtomicNumber = new Map(
+  periodicElements
+    .map(def => [Number(def.atomicNumber), def])
+    .filter(([atomicNumber]) => Number.isFinite(atomicNumber))
+);
+
 const configElements = Array.isArray(CONFIG.elements) ? CONFIG.elements : [];
 
 const elementConfigByAtomicNumber = new Map();
@@ -507,6 +513,84 @@ periodicElements.forEach(def => {
 });
 
 const configuredRarityIds = new Set(elementRarityIndex.values());
+
+function normalizeFusionDefinition(entry, index = 0) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const rawId = entry.id ?? entry.key ?? entry.identifier ?? null;
+  let id = typeof rawId === 'string' ? rawId.trim() : '';
+  if (!id) {
+    id = `fusion-${index + 1}`;
+  }
+  const name = typeof entry.name === 'string' && entry.name.trim()
+    ? entry.name.trim()
+    : `Fusion ${index + 1}`;
+  const description = typeof entry.description === 'string' ? entry.description.trim() : '';
+  const inputSource = Array.isArray(entry.inputs)
+    ? entry.inputs
+    : (Array.isArray(entry.ingredients) ? entry.ingredients : []);
+  const inputs = [];
+  inputSource.forEach(rawInput => {
+    if (!rawInput || typeof rawInput !== 'object') {
+      return;
+    }
+    let elementDef = null;
+    let elementId = typeof rawInput.elementId === 'string' ? rawInput.elementId.trim() : '';
+    const atomicNumber = Number(rawInput.atomicNumber ?? rawInput.numero ?? rawInput.number);
+    const symbol = typeof rawInput.symbol === 'string' ? rawInput.symbol.trim() : '';
+    if (elementId && periodicElementIndex.has(elementId)) {
+      elementDef = periodicElementIndex.get(elementId);
+    } else if (Number.isFinite(atomicNumber) && periodicElementByAtomicNumber.has(atomicNumber)) {
+      elementDef = periodicElementByAtomicNumber.get(atomicNumber);
+    } else if (symbol) {
+      elementDef = periodicElements.find(
+        def => typeof def.symbol === 'string' && def.symbol.toLowerCase() === symbol.toLowerCase()
+      );
+    }
+    if (!elementDef) {
+      return;
+    }
+    elementId = elementDef.id;
+    const rawCount = Number(rawInput.count ?? rawInput.quantity ?? rawInput.amount ?? 1);
+    const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 1;
+    inputs.push({ elementId, elementDef, count });
+  });
+  if (!inputs.length) {
+    return null;
+  }
+  let successChance = Number(entry.successChance ?? entry.chance ?? entry.probability);
+  if (!Number.isFinite(successChance)) {
+    successChance = 0;
+  } else if (successChance > 1) {
+    successChance = Math.max(0, Math.min(successChance, 100)) / 100;
+  } else if (successChance < 0) {
+    successChance = 0;
+  }
+  successChance = Math.max(0, Math.min(successChance, 1));
+  const rewardsRaw = entry.rewards ?? entry.reward ?? {};
+  const rawApc = Number(rewardsRaw.apcFlat ?? rewardsRaw.apc ?? rewardsRaw.perClick ?? rewardsRaw.click ?? 0);
+  const rawAps = Number(rewardsRaw.apsFlat ?? rewardsRaw.aps ?? rewardsRaw.perSecond ?? rewardsRaw.auto ?? 0);
+  const apcFlat = Number.isFinite(rawApc) ? rawApc : 0;
+  const apsFlat = Number.isFinite(rawAps) ? rawAps : 0;
+  return {
+    id,
+    name,
+    description,
+    inputs,
+    successChance,
+    rewards: {
+      apcFlat,
+      apsFlat
+    }
+  };
+}
+
+const rawFusionList = Array.isArray(CONFIG.fusions) ? CONFIG.fusions : [];
+const FUSION_DEFS = rawFusionList
+  .map((entry, index) => normalizeFusionDefinition(entry, index))
+  .filter(Boolean);
+const FUSION_DEFINITION_MAP = new Map(FUSION_DEFS.map(def => [def.id, def]));
 
 function readNumberProperty(source, candidates) {
   if (!source || typeof source !== 'object') {
@@ -1546,6 +1630,18 @@ function createInitialElementCollection() {
     };
   });
   return collection;
+}
+
+function createInitialFusionState() {
+  const state = {};
+  FUSION_DEFS.forEach(def => {
+    state[def.id] = { attempts: 0, successes: 0 };
+  });
+  return state;
+}
+
+function createInitialFusionBonuses() {
+  return { apcFlat: 0, apsFlat: 0 };
 }
 
 function getElementCurrentCount(entry) {
@@ -3073,6 +3169,7 @@ function createEmptyProductionEntry() {
         baseFlat: LayeredNumber.zero(),
         shopFlat: LayeredNumber.zero(),
         elementFlat: LayeredNumber.zero(),
+        fusionFlat: LayeredNumber.zero(),
         devkitFlat: LayeredNumber.zero()
       },
       multipliers: {
@@ -3537,6 +3634,8 @@ const DEFAULT_STATE = {
   upgrades: {},
   shopUnlocks: [],
   elements: createInitialElementCollection(),
+  fusions: createInitialFusionState(),
+  fusionBonuses: createInitialFusionBonuses(),
   lastSave: Date.now(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
@@ -3572,6 +3671,8 @@ const gameState = {
   upgrades: {},
   shopUnlocks: new Set(),
   elements: createInitialElementCollection(),
+  fusions: createInitialFusionState(),
+  fusionBonuses: createInitialFusionBonuses(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
@@ -4052,6 +4153,8 @@ const elements = {
   starfield: document.querySelector('.starfield'),
   shopList: document.getElementById('shopList'),
   periodicTable: document.getElementById('periodicTable'),
+  fusionList: document.getElementById('fusionList'),
+  fusionLog: document.getElementById('fusionLog'),
   elementInfoPanel: document.getElementById('elementInfoPanel'),
   elementInfoPlaceholder: document.getElementById('elementInfoPlaceholder'),
   elementInfoContent: document.getElementById('elementInfoContent'),
@@ -5812,6 +5915,310 @@ function updateGachaRarityProgress() {
       ? `${owned} / ${total} éléments`
       : 'Aucun élément';
   });
+}
+
+const fusionCards = new Map();
+
+function formatFusionChance(chance) {
+  const ratio = Math.max(0, Math.min(1, Number(chance) || 0));
+  const percent = ratio * 100;
+  const digits = percent < 10 ? 1 : 0;
+  return `${percent.toFixed(digits).replace('.', ',')} %`;
+}
+
+function getFusionStateById(fusionId) {
+  if (!gameState.fusions || typeof gameState.fusions !== 'object') {
+    gameState.fusions = createInitialFusionState();
+  }
+  if (!gameState.fusions[fusionId]) {
+    gameState.fusions[fusionId] = { attempts: 0, successes: 0 };
+  }
+  const state = gameState.fusions[fusionId];
+  const attempts = Number(state.attempts);
+  const successes = Number(state.successes);
+  state.attempts = Number.isFinite(attempts) && attempts > 0 ? Math.floor(attempts) : 0;
+  state.successes = Number.isFinite(successes) && successes > 0 ? Math.floor(successes) : 0;
+  return state;
+}
+
+function getFusionBonusState() {
+  if (!gameState.fusionBonuses || typeof gameState.fusionBonuses !== 'object') {
+    gameState.fusionBonuses = createInitialFusionBonuses();
+  }
+  const bonuses = gameState.fusionBonuses;
+  const apc = Number(bonuses.apcFlat);
+  const aps = Number(bonuses.apsFlat);
+  bonuses.apcFlat = Number.isFinite(apc) ? apc : 0;
+  bonuses.apsFlat = Number.isFinite(aps) ? aps : 0;
+  return bonuses;
+}
+
+function setFusionLog(message, status = null) {
+  if (!elements.fusionLog) return;
+  elements.fusionLog.textContent = message;
+  elements.fusionLog.classList.remove('fusion-log--success', 'fusion-log--failure');
+  if (status === 'success') {
+    elements.fusionLog.classList.add('fusion-log--success');
+  } else if (status === 'failure') {
+    elements.fusionLog.classList.add('fusion-log--failure');
+  }
+}
+
+function canAttemptFusion(definition) {
+  if (!definition) return false;
+  if (!Array.isArray(definition.inputs) || !definition.inputs.length) {
+    return false;
+  }
+  return definition.inputs.every(input => {
+    const entry = gameState.elements?.[input.elementId];
+    return getElementCurrentCount(entry) >= input.count;
+  });
+}
+
+function applyFusionRewards(rewards) {
+  if (!rewards || typeof rewards !== 'object') {
+    return [];
+  }
+  const bonuses = getFusionBonusState();
+  const summaries = [];
+  const apcIncrement = Number(rewards.apcFlat);
+  if (Number.isFinite(apcIncrement) && apcIncrement !== 0) {
+    bonuses.apcFlat += apcIncrement;
+    const formatted = apcIncrement.toLocaleString('fr-FR');
+    summaries.push(`+${formatted} APC`);
+  }
+  const apsIncrement = Number(rewards.apsFlat);
+  if (Number.isFinite(apsIncrement) && apsIncrement !== 0) {
+    bonuses.apsFlat += apsIncrement;
+    const formatted = apsIncrement.toLocaleString('fr-FR');
+    summaries.push(`+${formatted} APS`);
+  }
+  return summaries;
+}
+
+function buildFusionCard(definition) {
+  const card = document.createElement('article');
+  card.className = 'fusion-card';
+  card.dataset.fusionId = definition.id;
+  card.setAttribute('role', 'listitem');
+
+  const header = document.createElement('div');
+  header.className = 'fusion-card__header';
+
+  const title = document.createElement('h3');
+  title.className = 'fusion-card__title';
+  title.textContent = definition.name;
+
+  const chance = document.createElement('p');
+  chance.className = 'fusion-card__chance';
+  chance.textContent = `Chance de réussite : ${formatFusionChance(definition.successChance)}`;
+
+  header.append(title, chance);
+
+  const bodyFragment = document.createDocumentFragment();
+  bodyFragment.appendChild(header);
+
+  if (definition.description) {
+    const description = document.createElement('p');
+    description.className = 'fusion-card__description';
+    description.textContent = definition.description;
+    bodyFragment.appendChild(description);
+  }
+
+  const requirementList = document.createElement('ul');
+  requirementList.className = 'fusion-card__requirements';
+
+  const requirements = definition.inputs.map(input => {
+    const item = document.createElement('li');
+    item.className = 'fusion-requirement';
+
+    const symbol = document.createElement('span');
+    symbol.className = 'fusion-requirement__symbol';
+    symbol.textContent = input.elementDef?.symbol ?? input.elementId;
+
+    const name = document.createElement('span');
+    name.className = 'fusion-requirement__name';
+    name.textContent = input.elementDef?.name ?? input.elementId;
+
+    const count = document.createElement('span');
+    count.className = 'fusion-requirement__count';
+    count.textContent = `×${input.count}`;
+
+    const availability = document.createElement('span');
+    availability.className = 'fusion-requirement__availability';
+    availability.textContent = 'Disponible : 0';
+
+    item.append(symbol, name, count, availability);
+    requirementList.appendChild(item);
+    return {
+      elementId: input.elementId,
+      requiredCount: input.count,
+      availabilityLabel: availability
+    };
+  });
+
+  bodyFragment.appendChild(requirementList);
+
+  const actions = document.createElement('div');
+  actions.className = 'fusion-card__actions';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'fusion-card__button';
+  button.textContent = 'Tenter la fusion';
+  button.setAttribute('aria-label', `Tenter la fusion ${definition.name}`);
+  button.addEventListener('click', () => {
+    handleFusionAttempt(definition.id);
+  });
+
+  const status = document.createElement('span');
+  status.className = 'fusion-card__feedback fusion-card__status';
+  status.textContent = 'Vérification des ingrédients…';
+
+  actions.append(button, status);
+
+  const stats = document.createElement('p');
+  stats.className = 'fusion-card__stats';
+  stats.textContent = 'Tentatives : 0 · Succès : 0';
+
+  const bonusParts = [];
+  if (definition.rewards.apcFlat) {
+    bonusParts.push(`+${definition.rewards.apcFlat.toLocaleString('fr-FR')} APC`);
+  }
+  if (definition.rewards.apsFlat) {
+    bonusParts.push(`+${definition.rewards.apsFlat.toLocaleString('fr-FR')} APS`);
+  }
+  const bonus = document.createElement('p');
+  bonus.className = 'fusion-card__bonus';
+  bonus.textContent = bonusParts.length
+    ? `Bonus par réussite : ${bonusParts.join(' · ')}`
+    : 'Aucun bonus défini';
+
+  const totalBonus = document.createElement('p');
+  totalBonus.className = 'fusion-card__feedback fusion-card__total';
+  totalBonus.textContent = 'Bonus cumulé : —';
+
+  card.append(bodyFragment, actions, stats, bonus, totalBonus);
+
+  return {
+    root: card,
+    button,
+    requirements,
+    stats,
+    status,
+    bonus,
+    totalBonus
+  };
+}
+
+function renderFusionList() {
+  if (!elements.fusionList) return;
+  fusionCards.clear();
+  elements.fusionList.innerHTML = '';
+  if (!FUSION_DEFS.length) {
+    const empty = document.createElement('p');
+    empty.className = 'fusion-empty';
+    empty.textContent = 'Aucune fusion disponible pour le moment.';
+    empty.setAttribute('role', 'listitem');
+    elements.fusionList.appendChild(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  FUSION_DEFS.forEach(def => {
+    const card = buildFusionCard(def);
+    fragment.appendChild(card.root);
+    fusionCards.set(def.id, card);
+  });
+  elements.fusionList.appendChild(fragment);
+  if (elements.fusionLog && !elements.fusionLog.textContent.trim()) {
+    setFusionLog('Sélectionnez une recette pour tenter votre première fusion.');
+  }
+  updateFusionUI();
+}
+
+function updateFusionUI() {
+  if (!elements.fusionList || !FUSION_DEFS.length) {
+    return;
+  }
+  FUSION_DEFS.forEach(def => {
+    const card = fusionCards.get(def.id);
+    if (!card) {
+      return;
+    }
+    const state = getFusionStateById(def.id);
+    card.stats.textContent = `Tentatives : ${state.attempts} · Succès : ${state.successes}`;
+    let canAttempt = true;
+    card.requirements.forEach(requirement => {
+      const entry = gameState.elements?.[requirement.elementId];
+      const available = getElementCurrentCount(entry);
+      const availableText = available.toLocaleString('fr-FR');
+      const requiredText = requirement.requiredCount.toLocaleString('fr-FR');
+      requirement.availabilityLabel.textContent = `Disponible : ${availableText} / ${requiredText}`;
+      if (available < requirement.requiredCount) {
+        canAttempt = false;
+      }
+    });
+    card.button.disabled = !canAttempt;
+    card.button.setAttribute('aria-disabled', canAttempt ? 'false' : 'true');
+    card.status.textContent = canAttempt
+      ? 'Ingrédients disponibles'
+      : 'Ressources insuffisantes';
+    const totalParts = [];
+    if (def.rewards.apcFlat) {
+      const totalApc = def.rewards.apcFlat * state.successes;
+      totalParts.push(`+${totalApc.toLocaleString('fr-FR')} APC cumulés`);
+    }
+    if (def.rewards.apsFlat) {
+      const totalAps = def.rewards.apsFlat * state.successes;
+      totalParts.push(`+${totalAps.toLocaleString('fr-FR')} APS cumulés`);
+    }
+    card.totalBonus.textContent = `Bonus cumulé : ${totalParts.length ? totalParts.join(' · ') : '—'}`;
+  });
+}
+
+function handleFusionAttempt(fusionId) {
+  const definition = FUSION_DEFINITION_MAP.get(fusionId);
+  if (!definition) {
+    return;
+  }
+  if (!canAttemptFusion(definition)) {
+    setFusionLog('Vous n’avez pas assez de ressources pour cette fusion.', 'failure');
+    showToast('Ressources insuffisantes pour cette fusion.');
+    return;
+  }
+
+  definition.inputs.forEach(input => {
+    const entry = gameState.elements?.[input.elementId];
+    if (!entry) {
+      return;
+    }
+    const current = getElementCurrentCount(entry);
+    const nextCount = Math.max(0, current - input.count);
+    entry.count = nextCount;
+  });
+
+  const state = getFusionStateById(definition.id);
+  state.attempts += 1;
+
+  const success = Math.random() < definition.successChance;
+  let rewardSummary = [];
+  if (success) {
+    state.successes += 1;
+    rewardSummary = applyFusionRewards(definition.rewards);
+  }
+
+  recalcProduction();
+  updateUI();
+  saveGame();
+
+  if (success) {
+    const rewardText = rewardSummary.length ? rewardSummary.join(' · ') : 'Aucun bonus.';
+    setFusionLog(`Fusion ${definition.name} réussie ! Bonus obtenu : ${rewardText}`, 'success');
+    showToast('Fusion réussie !');
+  } else {
+    setFusionLog(`La fusion ${definition.name} a échoué. Les éléments ont été consommés.`, 'failure');
+    showToast('Fusion échouée.');
+  }
 }
 
 function pickGachaRarity() {
@@ -9158,6 +9565,7 @@ elements.navButtons.forEach(btn => {
 
 renderPeriodicTable();
 renderGachaRarityList();
+renderFusionList();
 
 if (elements.atomButton) {
   elements.atomButton.addEventListener('click', event => {
@@ -9276,6 +9684,8 @@ function recalcProduction() {
   let autoShopAddition = LayeredNumber.zero();
   let clickElementAddition = LayeredNumber.zero();
   let autoElementAddition = LayeredNumber.zero();
+  let clickFusionAddition = LayeredNumber.zero();
+  let autoFusionAddition = LayeredNumber.zero();
   const critAccumulator = createCritAccumulator();
 
   const clickMultiplierSlots = {
@@ -10266,10 +10676,43 @@ function recalcProduction() {
     applyCritModifiersFromEffect(critAccumulator, effects);
   });
 
+  if (FUSION_DEFS.length) {
+    const fusionBonusState = getFusionBonusState();
+    const fusionLabel = 'Fusions moléculaires';
+    const apcBonus = Number(fusionBonusState.apcFlat);
+    if (Number.isFinite(apcBonus) && apcBonus !== 0) {
+      const value = new LayeredNumber(apcBonus);
+      if (!value.isZero()) {
+        clickFusionAddition = clickFusionAddition.add(value);
+        clickDetails.additions.push({
+          id: 'fusion:perClick',
+          label: fusionLabel,
+          value: value.clone(),
+          source: 'fusion'
+        });
+      }
+    }
+    const apsBonus = Number(fusionBonusState.apsFlat);
+    if (Number.isFinite(apsBonus) && apsBonus !== 0) {
+      const value = new LayeredNumber(apsBonus);
+      if (!value.isZero()) {
+        autoFusionAddition = autoFusionAddition.add(value);
+        autoDetails.additions.push({
+          id: 'fusion:perSecond',
+          label: fusionLabel,
+          value: value.clone(),
+          source: 'fusion'
+        });
+      }
+    }
+  }
+
   clickDetails.sources.flats.shopFlat = clickShopAddition.clone();
   autoDetails.sources.flats.shopFlat = autoShopAddition.clone();
   clickDetails.sources.flats.elementFlat = clickElementAddition.clone();
   autoDetails.sources.flats.elementFlat = autoElementAddition.clone();
+  clickDetails.sources.flats.fusionFlat = clickFusionAddition.clone();
+  autoDetails.sources.flats.fusionFlat = autoFusionAddition.clone();
   const devkitAutoFlat = getDevKitAutoFlatBonus();
   if (devkitAutoFlat instanceof LayeredNumber && !devkitAutoFlat.isZero()) {
     autoDetails.sources.flats.devkitFlat = devkitAutoFlat.clone();
@@ -10298,8 +10741,12 @@ function recalcProduction() {
   const clickRarityProduct = computeRarityMultiplierProduct(clickRarityMultipliers);
   const autoRarityProduct = computeRarityMultiplierProduct(autoRarityMultipliers);
 
-  const clickTotalAddition = clickShopAddition.add(clickElementAddition);
-  let autoTotalAddition = autoShopAddition.add(autoElementAddition);
+  const clickTotalAddition = clickShopAddition
+    .add(clickElementAddition)
+    .add(clickFusionAddition);
+  let autoTotalAddition = autoShopAddition
+    .add(autoElementAddition)
+    .add(autoFusionAddition);
   if (devkitAutoFlat instanceof LayeredNumber && !devkitAutoFlat.isZero()) {
     autoTotalAddition = autoTotalAddition.add(devkitAutoFlat);
   }
@@ -10323,10 +10770,12 @@ function recalcProduction() {
 
   const clickFlatBase = clickDetails.sources.flats.baseFlat
     .add(clickDetails.sources.flats.shopFlat)
-    .add(clickDetails.sources.flats.elementFlat);
+    .add(clickDetails.sources.flats.elementFlat)
+    .add(clickDetails.sources.flats.fusionFlat || LayeredNumber.zero());
   const autoFlatBase = autoDetails.sources.flats.baseFlat
     .add(autoDetails.sources.flats.shopFlat)
     .add(autoDetails.sources.flats.elementFlat)
+    .add(autoDetails.sources.flats.fusionFlat || LayeredNumber.zero())
     .add(autoDetails.sources.flats.devkitFlat || LayeredNumber.zero());
 
   let perClick = clickFlatBase.clone();
@@ -10652,6 +11101,7 @@ function updateUI() {
   updateFrenzyIndicators();
   updateGachaUI();
   updateCollectionDisplay();
+  updateFusionUI();
   updateShopAffordability();
   updateMilestone();
   updateGoalsUI();
@@ -10768,6 +11218,30 @@ function serializeState() {
     upgrades: gameState.upgrades,
     shopUnlocks: Array.from(getShopUnlockSet()),
     elements: gameState.elements,
+    fusions: (() => {
+      const base = createInitialFusionState();
+      const source = gameState.fusions && typeof gameState.fusions === 'object'
+        ? gameState.fusions
+        : {};
+      const result = {};
+      FUSION_DEFS.forEach(def => {
+        const entry = source[def.id] || base[def.id] || { attempts: 0, successes: 0 };
+        const attempts = Number(entry.attempts);
+        const successes = Number(entry.successes);
+        result[def.id] = {
+          attempts: Number.isFinite(attempts) && attempts > 0 ? Math.floor(attempts) : 0,
+          successes: Number.isFinite(successes) && successes > 0 ? Math.floor(successes) : 0
+        };
+      });
+      return result;
+    })(),
+    fusionBonuses: (() => {
+      const bonuses = getFusionBonusState();
+      return {
+        apcFlat: Number.isFinite(Number(bonuses.apcFlat)) ? Number(bonuses.apcFlat) : 0,
+        apsFlat: Number.isFinite(Number(bonuses.apsFlat)) ? Number(bonuses.apsFlat) : 0
+      };
+    })(),
     theme: gameState.theme,
     stats: {
       session: {
@@ -10883,6 +11357,8 @@ function resetGame() {
     upgrades: {},
     shopUnlocks: new Set(),
     elements: createInitialElementCollection(),
+    fusions: createInitialFusionState(),
+    fusionBonuses: createInitialFusionBonuses(),
     theme: DEFAULT_THEME,
     stats: createInitialStats(),
     production: createEmptyProductionBreakdown(),
@@ -10915,6 +11391,7 @@ function resetGame() {
   recalcProduction();
   renderShop();
   updateUI();
+  setFusionLog('Sélectionnez une recette pour tenter votre première fusion.');
   saveGame();
 }
 
@@ -11087,6 +11564,56 @@ function loadGame() {
       });
     }
     gameState.elements = baseCollection;
+    const fusionState = createInitialFusionState();
+    if (data.fusions && typeof data.fusions === 'object') {
+      Object.keys(fusionState).forEach(id => {
+        const stored = data.fusions[id];
+        if (!stored || typeof stored !== 'object') {
+          fusionState[id] = { attempts: 0, successes: 0 };
+          return;
+        }
+        const attemptsRaw = Number(
+          stored.attempts
+            ?? stored.tries
+            ?? stored.tentatives
+            ?? stored.total
+            ?? 0
+        );
+        const successesRaw = Number(
+          stored.successes
+            ?? stored.success
+            ?? stored.victories
+            ?? stored.wins
+            ?? 0
+        );
+        fusionState[id] = {
+          attempts: Number.isFinite(attemptsRaw) && attemptsRaw > 0 ? Math.floor(attemptsRaw) : 0,
+          successes: Number.isFinite(successesRaw) && successesRaw > 0 ? Math.floor(successesRaw) : 0
+        };
+      });
+    }
+    gameState.fusions = fusionState;
+    const fusionBonuses = createInitialFusionBonuses();
+    const storedFusionBonuses = data.fusionBonuses;
+    if (storedFusionBonuses && typeof storedFusionBonuses === 'object') {
+      const apc = Number(
+        storedFusionBonuses.apcFlat
+          ?? storedFusionBonuses.apc
+          ?? storedFusionBonuses.perClick
+          ?? storedFusionBonuses.click
+          ?? 0
+      );
+      const aps = Number(
+        storedFusionBonuses.apsFlat
+          ?? storedFusionBonuses.aps
+          ?? storedFusionBonuses.perSecond
+          ?? storedFusionBonuses.auto
+          ?? 0
+      );
+      fusionBonuses.apcFlat = Number.isFinite(apc) ? apc : 0;
+      fusionBonuses.apsFlat = Number.isFinite(aps) ? aps : 0;
+    }
+    gameState.fusionBonuses = fusionBonuses;
     gameState.theme = data.theme || DEFAULT_THEME;
     const parseStoredVolume = raw => {
       const numeric = Number(raw);
