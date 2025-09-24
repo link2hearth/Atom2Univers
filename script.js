@@ -1664,26 +1664,124 @@ const GACHA_TICKET_COST = Math.max(
   )
 );
 
-const GACHA_RARITIES = sanitizeGachaRarities(rawGachaConfig.rarities).map(entry => ({
+const BASE_GACHA_RARITIES = sanitizeGachaRarities(rawGachaConfig.rarities).map(entry => ({
   ...entry,
   weight: Math.max(0, Number(entry.weight) || 0)
 }));
 
-const GACHA_RARITY_MAP = new Map();
-GACHA_RARITIES.forEach(entry => {
-  GACHA_RARITY_MAP.set(entry.id, entry);
+BASE_GACHA_RARITIES.forEach(entry => {
   configuredRarityIds.delete(entry.id);
 });
 
 configuredRarityIds.forEach(id => {
   const fallback = { id, label: id, description: '', weight: 0, color: null };
-  GACHA_RARITIES.push(fallback);
-  GACHA_RARITY_MAP.set(id, fallback);
+  BASE_GACHA_RARITIES.push(fallback);
 });
 
-const RARITY_IDS = GACHA_RARITIES.map(entry => entry.id);
+const BASE_GACHA_RARITY_ID_SET = new Set(BASE_GACHA_RARITIES.map(entry => entry.id));
+
+const WEEKDAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function sanitizeWeeklyRarityWeights(rawWeights) {
+  const sanitized = {};
+  WEEKDAY_KEYS.forEach(day => {
+    sanitized[day] = {};
+  });
+  if (!rawWeights || typeof rawWeights !== 'object') {
+    return sanitized;
+  }
+  Object.entries(rawWeights).forEach(([rawDay, value]) => {
+    if (!rawDay) return;
+    const dayKey = WEEKDAY_KEYS.find(day => day === String(rawDay).toLowerCase());
+    if (!dayKey) return;
+    if (!value || typeof value !== 'object') return;
+    Object.entries(value).forEach(([rawRarity, rawWeight]) => {
+      if (!rawRarity) return;
+      const rarityId = String(rawRarity).trim();
+      if (!rarityId) return;
+      if (BASE_GACHA_RARITY_ID_SET.size && !BASE_GACHA_RARITY_ID_SET.has(rarityId)) {
+        return;
+      }
+      const numericWeight = Number(rawWeight);
+      if (!Number.isFinite(numericWeight)) return;
+      sanitized[dayKey][rarityId] = numericWeight;
+    });
+  });
+  return sanitized;
+}
+
+const WEEKLY_RARITY_WEIGHTS = sanitizeWeeklyRarityWeights(
+  rawGachaConfig.weeklyRarityWeights
+    ?? rawGachaConfig.weeklyWeights
+    ?? rawGachaConfig.dailyRarityWeights
+    ?? {}
+);
+
+function getEffectiveGachaRaritiesForDate(date = new Date()) {
+  const targetDate = date instanceof Date && !Number.isNaN(date.getTime())
+    ? date
+    : new Date();
+  const dayKey = WEEKDAY_KEYS[targetDate.getDay()] ?? null;
+  const overrides = dayKey ? WEEKLY_RARITY_WEIGHTS[dayKey] ?? {} : {};
+  const effective = BASE_GACHA_RARITIES.map(entry => {
+    const hasOverride = Object.prototype.hasOwnProperty.call(overrides, entry.id);
+    const overrideValue = hasOverride ? Number(overrides[entry.id]) : null;
+    const resolvedWeight = Number.isFinite(overrideValue) ? overrideValue : entry.weight;
+    return {
+      ...entry,
+      weight: Math.max(0, Number(resolvedWeight) || 0)
+    };
+  });
+  if (dayKey) {
+    Object.entries(overrides).forEach(([rarityId, rawWeight]) => {
+      if (BASE_GACHA_RARITY_ID_SET.has(rarityId)) {
+        return;
+      }
+      const numericWeight = Number(rawWeight);
+      if (!Number.isFinite(numericWeight)) {
+        return;
+      }
+      effective.push({
+        id: rarityId,
+        label: rarityId,
+        description: '',
+        weight: Math.max(0, numericWeight),
+        color: null
+      });
+    });
+  }
+  return effective;
+}
+
+let GACHA_RARITIES = [];
+const GACHA_RARITY_MAP = new Map();
+let activeGachaWeightDayKey = null;
+
+function refreshGachaRarities(date = new Date(), { force = false } = {}) {
+  const targetDate = date instanceof Date && !Number.isNaN(date.getTime())
+    ? date
+    : new Date();
+  const dayKey = WEEKDAY_KEYS[targetDate.getDay()] ?? null;
+  if (!force && dayKey && dayKey === activeGachaWeightDayKey) {
+    return false;
+  }
+  const effective = getEffectiveGachaRaritiesForDate(targetDate);
+  GACHA_RARITIES = effective;
+  GACHA_RARITY_MAP.clear();
+  GACHA_RARITIES.forEach(entry => {
+    GACHA_RARITY_MAP.set(entry.id, entry);
+  });
+  activeGachaWeightDayKey = dayKey;
+  return true;
+}
+
+function getCurrentGachaTotalWeight() {
+  return GACHA_RARITIES.reduce((total, entry) => total + (entry.weight || 0), 0);
+}
+
+const RARITY_IDS = BASE_GACHA_RARITIES.map(entry => entry.id);
 const GACHA_RARITY_ORDER = new Map(RARITY_IDS.map((id, index) => [id, index]));
-const RARITY_LABEL_MAP = new Map(GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
+const RARITY_LABEL_MAP = new Map(BASE_GACHA_RARITIES.map(entry => [entry.id, entry.label || entry.id]));
 const INFO_BONUS_RARITIES = RARITY_IDS.length > 0
   ? [...RARITY_IDS]
   : ['commun', 'essentiel', 'stellaire', 'singulier', 'mythique', 'irreel'];
@@ -1844,8 +1942,6 @@ function resolveProductionStepOrder(configOrder) {
 
 const PRODUCTION_STEP_ORDER = resolveProductionStepOrder(CONFIG.infoPanels?.productionOrder);
 
-const GACHA_TOTAL_WEIGHT = GACHA_RARITIES.reduce((total, entry) => total + (entry.weight || 0), 0);
-
 const gachaPools = new Map();
 const gachaRarityRows = new Map();
 
@@ -1864,6 +1960,7 @@ function rebuildGachaPools() {
   });
 }
 
+refreshGachaRarities(new Date(), { force: true });
 rebuildGachaPools();
 
 function getRarityPoolSize(rarityId) {
@@ -5585,9 +5682,13 @@ function updateCollectionDisplay() {
 
 function renderGachaRarityList() {
   if (!elements.gachaRarityList) return;
+  const weightsUpdated = refreshGachaRarities(new Date());
+  if (weightsUpdated) {
+    rebuildGachaPools();
+  }
   elements.gachaRarityList.innerHTML = '';
   gachaRarityRows.clear();
-  const totalWeight = GACHA_TOTAL_WEIGHT;
+  const totalWeight = getCurrentGachaTotalWeight();
   GACHA_RARITIES.forEach(def => {
     const item = document.createElement('li');
     item.className = 'gacha-rarity';
@@ -5952,6 +6053,13 @@ function updateGachaUI() {
 }
 
 function performGachaRoll(count = 1) {
+  const weightsUpdated = refreshGachaRarities(new Date());
+  if (weightsUpdated) {
+    rebuildGachaPools();
+    if (elements.gachaRarityList) {
+      renderGachaRarityList();
+    }
+  }
   const drawCount = Math.max(1, Math.floor(Number(count) || 1));
   const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
   const gachaFree = isDevKitGachaFree();
@@ -8876,6 +8984,13 @@ function showPage(pageId) {
     gamePageVisibleSince = now;
   } else {
     gamePageVisibleSince = null;
+  }
+  if (pageId === 'gacha') {
+    const weightsUpdated = refreshGachaRarities(new Date());
+    if (weightsUpdated) {
+      rebuildGachaPools();
+      renderGachaRarityList();
+    }
   }
 }
 

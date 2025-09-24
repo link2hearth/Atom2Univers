@@ -829,7 +829,65 @@ const GAME_CONFIG = {
         weight: 5,
         color: '#7f8c8d'
       }
-    ]
+    ],
+    weeklyRarityWeights: {
+      monday: {
+        commun: 40,
+        essentiel: 24,
+        stellaire: 18,
+        singulier: 8,
+        mythique: 6,
+        irreel: 4
+      },
+      tuesday: {
+        commun: 33,
+        essentiel: 30,
+        stellaire: 19,
+        singulier: 8,
+        mythique: 6,
+        irreel: 4
+      },
+      wednesday: {
+        commun: 32,
+        essentiel: 23,
+        stellaire: 23,
+        singulier: 9,
+        mythique: 7,
+        irreel: 6
+      },
+      thursday: {
+        commun: 34,
+        essentiel: 22,
+        stellaire: 19,
+        singulier: 11,
+        mythique: 8,
+        irreel: 6
+      },
+      friday: {
+        commun: 30,
+        essentiel: 22,
+        stellaire: 20,
+        singulier: 10,
+        mythique: 10,
+        irreel: 8
+      },
+      saturday: {
+        commun: 28,
+        essentiel: 23,
+        stellaire: 19,
+        singulier: 10,
+        mythique: 9,
+        irreel: 11
+      },
+      sunday: {
+        commun: 35,
+        essentiel: 25,
+        stellaire: 20,
+        singulier: 8,
+        mythique: 7,
+        irreel: 5
+      }
+    }
   },
 
   /**
