@@ -1596,6 +1596,11 @@ body.theme-neon .page--void {
   transition: border var(--transition), box-shadow var(--transition), background var(--transition);
 }
 
+.shop-item[hidden],
+.shop-item--locked {
+  display: none !important;
+}
+
 .shop-item--ready {
   border-color: rgba(76, 141, 255, 0.38);
   box-shadow: 0 10px 22px rgba(76, 141, 255, 0.18);
