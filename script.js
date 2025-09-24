@@ -5261,6 +5261,18 @@ function updateElementInfoPanel(definition) {
     const rarityLabel = rarityDef?.label || rarityId || '—';
     const hasRarityLabel = Boolean(rarityLabel && rarityLabel !== '—');
     const bonusDetails = [];
+    const seenDetailTexts = new Set();
+    const addDetail = detail => {
+      const normalized = normalizeCollectionDetailText(detail);
+      if (!normalized) {
+        return;
+      }
+      if (seenDetailTexts.has(normalized)) {
+        return;
+      }
+      seenDetailTexts.add(normalized);
+      bonusDetails.push(detail.trim());
+    };
     if (rarityId) {
       const summaryStore = gameState.elementBonusSummary || {};
       const summary = summaryStore[rarityId];
@@ -5276,11 +5288,8 @@ function updateElementInfoPanel(definition) {
               return;
             }
             const labelText = stripBonusLabelPrefix(trimmed, rarityLabel);
-            if (labelText && labelText.trim()) {
-              bonusDetails.push(labelText.trim());
-            } else if (trimmed) {
-              bonusDetails.push(trimmed);
-            }
+            const detail = labelText && labelText.trim() ? labelText.trim() : trimmed;
+            addDetail(detail);
             return;
           }
           if (typeof raw === 'object') {
@@ -5308,12 +5317,12 @@ function updateElementInfoPanel(definition) {
             if (labelText && labelText.trim()) {
               const trimmedLabel = labelText.trim();
               if (descriptionParts.length) {
-                bonusDetails.push(`${trimmedLabel} : ${descriptionParts.join(' · ')}`);
+                addDetail(`${trimmedLabel} : ${descriptionParts.join(' · ')}`);
               } else {
-                bonusDetails.push(trimmedLabel);
+                addDetail(trimmedLabel);
               }
             } else if (descriptionParts.length) {
-              bonusDetails.push(descriptionParts.join(' · '));
+              addDetail(descriptionParts.join(' · '));
             }
             return;
           }
@@ -5365,10 +5374,12 @@ function updateElementInfoPanel(definition) {
             }
           }
           if (fallbackParts.length) {
-            bonusDetails.push(fallbackParts.join(' · '));
+            addDetail(fallbackParts.join(' · '));
           }
         }
       }
+      const overview = getCollectionBonusOverview(rarityId);
+      overview.forEach(addDetail);
     }
 
     if (!bonusDetails.length) {
@@ -5379,7 +5390,7 @@ function updateElementInfoPanel(definition) {
     }
 
     if (!bonusDetails.length && rarityDef?.description) {
-      bonusDetails.push(rarityDef.description);
+      addDetail(rarityDef.description);
     }
 
     if (bonusDetails.length) {
@@ -7438,10 +7449,22 @@ function getCollectionBonusOverview(rarityId) {
     return [];
   }
   const overview = [];
+  const overviewSet = new Set();
+  const pushOverview = text => {
+    const normalized = normalizeCollectionDetailText(text);
+    if (!normalized) {
+      return;
+    }
+    if (overviewSet.has(normalized)) {
+      return;
+    }
+    overviewSet.add(normalized);
+    overview.push(text);
+  };
   const labelOverrides = config.labels && typeof config.labels === 'object' ? config.labels : {};
 
   describeAddConfig(config.perCopy, 'perCopy', { overrideLabel: labelOverrides.perCopy })
-    .forEach(text => overview.push(text));
+    .forEach(text => pushOverview(text));
 
   if (Array.isArray(config.setBonuses) && config.setBonuses.length) {
     config.setBonuses.forEach(entry => {
@@ -7450,32 +7473,38 @@ function getCollectionBonusOverview(rarityId) {
         ? null
         : labelOverrides.setBonus;
       describeAddConfig(entry, 'setBonus', { overrideLabel })
-        .forEach(text => overview.push(text));
+        .forEach(text => pushOverview(text));
     });
   } else if (config.setBonus) {
     const overrideLabel = (typeof config.setBonus.label === 'string' && config.setBonus.label.trim())
       ? null
       : labelOverrides.setBonus;
     describeAddConfig(config.setBonus, 'setBonus', { overrideLabel })
-      .forEach(text => overview.push(text));
+      .forEach(text => pushOverview(text));
   }
 
   const multiplierLabel = config.multiplier?.label || labelOverrides.multiplier || null;
   const multiplierText = describeMultiplierConfig(config.multiplier, multiplierLabel);
   if (multiplierText) {
-    overview.push(multiplierText);
+    pushOverview(multiplierText);
   }
 
-  describeCritConfig(config.crit).forEach(text => overview.push(text));
+  describeCritConfig(config.crit).forEach(text => pushOverview(text));
 
   const rarityMultiplierLabel = labelOverrides.rarityMultiplier || null;
   const rarityMultiplierText = describeRarityMultiplierBonus(config.rarityMultiplierBonus, rarityMultiplierLabel);
   if (rarityMultiplierText) {
-    overview.push(rarityMultiplierText);
+    pushOverview(rarityMultiplierText);
   }
 
   if (rarityId === MYTHIQUE_RARITY_ID) {
-    describeMythiqueSpecials(config).forEach(text => overview.push(text));
+    describeMythiqueSpecials(config).forEach(text => pushOverview(text));
+  }
+
+  if (rarityId === 'stellaire') {
+    pushOverview('Synergie Singularité : Bonus ×2 si la collection Singularité minérale est complète');
+  } else if (rarityId === 'singulier') {
+    pushOverview('Synergie Forge stellaire : Compléter la collection double tous les bonus Forge stellaire');
   }
 
   COLLECTION_BONUS_OVERVIEW_CACHE.set(rarityId, overview);
@@ -7493,6 +7522,17 @@ function stripBonusLabelPrefix(label, rarityLabel) {
     return trimmed.slice(prefix.length);
   }
   return trimmed;
+}
+
+function normalizeCollectionDetailText(text) {
+  if (typeof text !== 'string') {
+    return null;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.replace(/\s+/g, ' ').toLocaleLowerCase('fr-FR');
 }
 
 function renderElementBonuses() {
