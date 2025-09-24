@@ -8221,6 +8221,8 @@ const atomAnimationState = {
   lastTime: null
 };
 
+const ATOM_REBOUND_AMPLITUDE_SCALE = 0.5;
+
 function getAtomVisualElement() {
   const current = elements.atomVisual;
   if (current?.isConnected) {
@@ -8475,15 +8477,24 @@ function updateAtomSpring(now = performance.now(), drive = 0) {
   if (Math.abs(state.tilt) < 0.0005) state.tilt = 0;
   if (Math.abs(state.squash) < 0.0005) state.squash = 0;
 
-  const offsetX = state.posX;
-  const offsetY = state.posY;
-  const squash = Math.max(-0.75, Math.min(0.75, state.squash));
-  const scaleY = Math.max(0.75, Math.min(1.25, 1 + squash * 0.28 + intensity * 0.02));
-  const scaleX = Math.max(0.75, Math.min(1.25, 1 - squash * 0.18 - intensity * 0.015));
+  const offsetX = state.posX * ATOM_REBOUND_AMPLITUDE_SCALE;
+  const offsetY = state.posY * ATOM_REBOUND_AMPLITUDE_SCALE;
+  const squash = Math.max(-0.75, Math.min(0.75, state.squash * ATOM_REBOUND_AMPLITUDE_SCALE));
+  const scaleY = Math.max(
+    0.75,
+    Math.min(1.25, 1 + squash * 0.28 + intensity * 0.02 * ATOM_REBOUND_AMPLITUDE_SCALE)
+  );
+  const scaleX = Math.max(
+    0.75,
+    Math.min(1.25, 1 - squash * 0.18 - intensity * 0.015 * ATOM_REBOUND_AMPLITUDE_SCALE)
+  );
 
   visual.style.setProperty('--shake-x', `${offsetX.toFixed(2)}px`);
   visual.style.setProperty('--shake-y', `${offsetY.toFixed(2)}px`);
-  visual.style.setProperty('--shake-rot', `${(state.tilt + spin).toFixed(2)}deg`);
+  visual.style.setProperty(
+    '--shake-rot',
+    `${((state.tilt + spin) * ATOM_REBOUND_AMPLITUDE_SCALE).toFixed(2)}deg`
+  );
   visual.style.setProperty('--shake-scale-x', scaleX.toFixed(4));
   visual.style.setProperty('--shake-scale-y', scaleY.toFixed(4));
 }
