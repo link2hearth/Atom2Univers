@@ -1217,6 +1217,12 @@ const ELEMENT_GROUP_BONUS_CONFIG = (() => {
 })();
 
 const MYTHIQUE_RARITY_ID = 'mythique';
+const COMPACT_COLLECTION_RARITIES = new Set([
+  'essentiel',
+  'stellaire',
+  'singulier',
+  MYTHIQUE_RARITY_ID
+]);
 const RAW_MYTHIQUE_GROUP_CONFIG = (() => {
   const raw = RAW_ELEMENT_GROUP_BONUS_GROUPS[MYTHIQUE_RARITY_ID];
   return raw && typeof raw === 'object' ? raw : null;
@@ -5254,73 +5260,75 @@ function updateElementInfoPanel(definition) {
       const summaryStore = gameState.elementBonusSummary || {};
       const summary = summaryStore[rarityId];
       if (summary) {
-        const activeLabels = Array.isArray(summary.activeLabels) ? summary.activeLabels : [];
-        activeLabels.forEach(raw => {
-          if (raw == null) {
-            return;
-          }
-          if (typeof raw === 'string') {
-            const trimmed = raw.trim();
-            if (!trimmed) {
+        if (!COMPACT_COLLECTION_RARITIES.has(rarityId)) {
+          const activeLabels = Array.isArray(summary.activeLabels) ? summary.activeLabels : [];
+          activeLabels.forEach(raw => {
+            if (raw == null) {
               return;
             }
-            const labelText = stripBonusLabelPrefix(trimmed, rarityLabel);
-            const detail = labelText && labelText.trim() ? labelText.trim() : trimmed;
-            addDetail(detail);
-            return;
-          }
-          if (typeof raw === 'object') {
-            const rawLabel = typeof raw.label === 'string' ? raw.label : '';
-            const labelText = stripBonusLabelPrefix(rawLabel, rarityLabel) || rawLabel?.trim();
-            const types = Array.isArray(raw.types) ? raw.types : [];
-            const suppressEffects = types.some(type => (
-              type === 'perCopy'
-              || type === 'setBonus'
-              || type === 'multiplier'
-              || type === 'rarityMultiplier'
-              || type === 'overflow'
-            ));
-            const descriptionParts = [];
-            const seenDescriptions = new Set();
-            const pushDescription = text => {
-              const normalized = normalizeCollectionDetailText(text);
-              if (!normalized || seenDescriptions.has(normalized)) {
+            if (typeof raw === 'string') {
+              const trimmed = raw.trim();
+              if (!trimmed) {
                 return;
               }
-              seenDescriptions.add(normalized);
-              descriptionParts.push(text.trim());
-            };
-            if (typeof raw.description === 'string' && raw.description.trim()) {
-              pushDescription(raw.description.trim());
-            } else {
-              if (!suppressEffects && Array.isArray(raw.effects)) {
-                raw.effects.forEach(effect => {
-                  if (typeof effect === 'string' && effect.trim()) {
-                    pushDescription(effect.trim());
-                  }
-                });
-              }
-              if (Array.isArray(raw.notes)) {
-                raw.notes.forEach(note => {
-                  if (typeof note === 'string' && note.trim()) {
-                    pushDescription(note.trim());
-                  }
-                });
-              }
+              const labelText = stripBonusLabelPrefix(trimmed, rarityLabel);
+              const detail = labelText && labelText.trim() ? labelText.trim() : trimmed;
+              addDetail(detail);
+              return;
             }
-            if (labelText && labelText.trim()) {
-              const trimmedLabel = labelText.trim();
-              if (descriptionParts.length) {
-                addDetail(`${trimmedLabel} : ${descriptionParts.join(' · ')}`);
+            if (typeof raw === 'object') {
+              const rawLabel = typeof raw.label === 'string' ? raw.label : '';
+              const labelText = stripBonusLabelPrefix(rawLabel, rarityLabel) || rawLabel?.trim();
+              const types = Array.isArray(raw.types) ? raw.types : [];
+              const suppressEffects = types.some(type => (
+                type === 'perCopy'
+                || type === 'setBonus'
+                || type === 'multiplier'
+                || type === 'rarityMultiplier'
+                || type === 'overflow'
+              ));
+              const descriptionParts = [];
+              const seenDescriptions = new Set();
+              const pushDescription = text => {
+                const normalized = normalizeCollectionDetailText(text);
+                if (!normalized || seenDescriptions.has(normalized)) {
+                  return;
+                }
+                seenDescriptions.add(normalized);
+                descriptionParts.push(text.trim());
+              };
+              if (typeof raw.description === 'string' && raw.description.trim()) {
+                pushDescription(raw.description.trim());
               } else {
-                addDetail(trimmedLabel);
+                if (!suppressEffects && Array.isArray(raw.effects)) {
+                  raw.effects.forEach(effect => {
+                    if (typeof effect === 'string' && effect.trim()) {
+                      pushDescription(effect.trim());
+                    }
+                  });
+                }
+                if (Array.isArray(raw.notes)) {
+                  raw.notes.forEach(note => {
+                    if (typeof note === 'string' && note.trim()) {
+                      pushDescription(note.trim());
+                    }
+                  });
+                }
               }
-            } else if (descriptionParts.length) {
-              addDetail(descriptionParts.join(' · '));
+              if (labelText && labelText.trim()) {
+                const trimmedLabel = labelText.trim();
+                if (descriptionParts.length) {
+                  addDetail(`${trimmedLabel} : ${descriptionParts.join(' · ')}`);
+                } else {
+                  addDetail(trimmedLabel);
+                }
+              } else if (descriptionParts.length) {
+                addDetail(descriptionParts.join(' · '));
+              }
+              return;
             }
-            return;
-          }
-        });
+          });
+        }
 
         if (!bonusDetails.length) {
           const fallbackParts = [];
@@ -7322,14 +7330,6 @@ function describeRarityMultiplierBonus(bonusConfig, labelOverride = null) {
 }
 
 function describeMythiqueSpecials(groupConfig) {
-  const labels = groupConfig?.labels && typeof groupConfig.labels === 'object'
-    ? groupConfig.labels
-    : {};
-  const resolveLabel = (key, fallback) => {
-    const raw = typeof labels[key] === 'string' ? labels[key].trim() : '';
-    return raw || fallback;
-  };
-  const rarityLabel = RARITY_LABEL_MAP.get(MYTHIQUE_RARITY_ID) || 'Mythe quantique';
   const results = [];
 
   const formatSmallNumber = value => {
@@ -7365,8 +7365,7 @@ function describeMythiqueSpecials(groupConfig) {
       }
     }
     if (parts.length) {
-      const label = resolveLabel('ticketBonus', `${rarityLabel} · accélération quantique`);
-      results.push(`${label} : ${parts.join(' · ')}`);
+      results.push(parts.join(' · '));
     }
   }
 
@@ -7393,8 +7392,7 @@ function describeMythiqueSpecials(groupConfig) {
       }
     }
     if (parts.length) {
-      const label = resolveLabel('offlineBonus', `${rarityLabel} · collecte hors ligne`);
-      results.push(`${label} : Collecte hors ligne ${parts.join(' · ')}`);
+      results.push(`Collecte hors ligne ${parts.join(' · ')}`);
     }
   }
 
@@ -7413,8 +7411,7 @@ function describeMythiqueSpecials(groupConfig) {
       if (Number.isFinite(threshold) && threshold > 0 && thresholdText) {
         parts.push(`au-delà de ${thresholdText} ${unit}`);
       }
-      const label = resolveLabel('duplicateOverflow', `${rarityLabel} · surcharge fractale`);
-      results.push(`${label} : ${parts.join(' · ')}`);
+      results.push(parts.join(' · '));
     }
   }
 
@@ -7424,8 +7421,7 @@ function describeMythiqueSpecials(groupConfig) {
   ) {
     const frenzyText = formatMultiplier(MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER);
     if (frenzyText && frenzyText !== '×—') {
-      const label = resolveLabel('setBonus', `${rarityLabel} · convergence ultime`);
-      results.push(`${label} : Chance de frénésie ${frenzyText} (collection complète requise)`);
+      results.push(`Chance de frénésie ${frenzyText} (collection complète requise)`);
     }
   }
 
@@ -7501,8 +7497,40 @@ function getCollectionBonusOverview(rarityId) {
     pushOverview('Synergie Forge stellaire : Compléter la collection double tous les bonus Forge stellaire');
   }
 
-  COLLECTION_BONUS_OVERVIEW_CACHE.set(rarityId, overview);
-  return overview;
+  let finalOverview = overview;
+  if (COMPACT_COLLECTION_RARITIES.has(rarityId)) {
+    const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || '';
+    const transformed = [];
+    const transformedSet = new Set();
+    overview.forEach(text => {
+      if (!text) return;
+      let trimmed = String(text).trim();
+      if (!trimmed) return;
+      if (rarityLabel) {
+        const stripped = stripBonusLabelPrefix(trimmed, rarityLabel);
+        if (stripped && stripped.trim()) {
+          trimmed = stripped.trim();
+        }
+      }
+      trimmed = trimmed.replace(/^·\s*/, '');
+      const colonIndex = trimmed.indexOf(':');
+      if (colonIndex !== -1) {
+        trimmed = trimmed.slice(colonIndex + 1).trim();
+      }
+      trimmed = trimmed.replace(/^·\s*/, '');
+      if (!trimmed) return;
+      const normalized = normalizeCollectionDetailText(trimmed);
+      if (!normalized || transformedSet.has(normalized)) {
+        return;
+      }
+      transformedSet.add(normalized);
+      transformed.push(trimmed);
+    });
+    finalOverview = transformed;
+  }
+
+  COLLECTION_BONUS_OVERVIEW_CACHE.set(rarityId, finalOverview);
+  return finalOverview;
 }
 
 function stripBonusLabelPrefix(label, rarityLabel) {
