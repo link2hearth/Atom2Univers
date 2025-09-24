@@ -710,6 +710,27 @@ const GAME_CONFIG = {
    */
   upgrades: createShopBuildingDefinitions(),
 
+  /**
+   * Recettes de fusion moléculaire disponibles dans l'onglet dédié.
+   * Chaque recette consomme des éléments du stock courant et applique des
+   * bonus immédiats en cas de réussite.
+   */
+  fusions: [
+    {
+      id: 'water',
+      name: 'Molécule d’eau (H₂O)',
+      description: 'Combinez 2 Hydrogènes et 1 Oxygène pour tenter de former de l’eau.',
+      inputs: [
+        { elementId: 'element-001-hydrogene', count: 2 },
+        { elementId: 'element-008-oxygene', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    }
+  ],
+
 
   /**
    * Liste des trophées et succès spéciaux.
