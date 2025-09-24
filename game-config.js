@@ -766,6 +766,22 @@ const GAME_CONFIG = {
         description: 'Active la triple frénésie et ajoute un bonus global ×1,05.'
       },
       order: 1020
+    },
+    {
+      id: 'ticketHarvester',
+      name: 'Collecteur d’étoiles',
+      description: 'Complétez les collections Commun cosmique et Essentiel planétaire.',
+      condition: {
+        type: 'collectionRarities',
+        rarities: ['commun', 'essentiel']
+      },
+      reward: {
+        ticketStarAutoCollect: {
+          delaySeconds: 3
+        },
+        description: 'Sur l’écran principal, les étoiles à tickets se récoltent seules après 3 secondes.'
+      },
+      order: 1030
     }
   ],
 
