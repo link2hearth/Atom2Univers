@@ -172,7 +172,7 @@ function createShopBuildingDefinitions() {
       name: 'Sonde interstellaire',
       description: 'Explorez la galaxie pour récolter toujours plus.',
       effectSummary:
-        'Production passive : +5 000 APS par niveau (boostée par Réacteurs). À 150 exemplaires : chaque sonde ajoute +1 APC.',
+        'Production passive : +5 000 APS par niveau (boostée par Réacteurs). À 150 exemplaires : chaque sonde ajoute +10 APC.',
       category: 'hybrid',
       baseCost: 5e6,
       costScale: 1.2,
@@ -186,7 +186,7 @@ function createShopBuildingDefinitions() {
         const baseAmount = 5000 * level;
         const rawAutoAdd = baseAmount * productionMultiplier;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
-        const clickAdd = level >= 150 ? level : 0;
+        const clickAdd = level >= 150 ? level * 10 : 0;
         const result = { autoAdd };
         if (clickAdd > 0) {
           result.clickAdd = clickAdd;
