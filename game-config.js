@@ -582,14 +582,10 @@ function formatAtomScaleBonus(value) {
 }
 
 function createAtomScaleTrophies() {
-  const minBonus = 1;
-  const maxBonus = 50;
-  const count = ATOM_SCALE_TROPHY_PRESETS.length;
-  const step = count > 1 ? (maxBonus - minBonus) / (count - 1) : 0;
+  const bonusPerTrophy = 2;
   return ATOM_SCALE_TROPHY_PRESETS.map((entry, index) => {
-    const rawBonus = count > 1 ? minBonus + step * index : maxBonus;
-    const roundedBonus = Math.round(rawBonus * 100) / 100;
-    const displayBonus = formatAtomScaleBonus(roundedBonus);
+    const displayBonus = formatAtomScaleBonus(bonusPerTrophy);
+    const displayTotal = formatAtomScaleBonus(1 + bonusPerTrophy);
     return {
       id: entry.id,
       name: entry.name,
@@ -599,8 +595,8 @@ function createAtomScaleTrophies() {
         amount: entry.amount
       },
       reward: {
-        trophyMultiplierAdd: roundedBonus,
-        description: `Fait progresser le multiplicateur de trophées à +${displayBonus}.`
+        trophyMultiplierAdd: bonusPerTrophy,
+        description: `Ajoute +${displayBonus} au Boost global sur la production manuelle et automatique (×${displayTotal} pour ce palier).`
       },
       order: index
     };
@@ -729,10 +725,8 @@ const GAME_CONFIG = {
         amount: { type: 'number', value: 1_000_000 }
       },
       reward: {
-        multiplier: {
-          global: 1.5
-        },
-        description: 'Boost global ×1,50 sur la production manuelle et automatique.'
+        trophyMultiplierAdd: 0.5,
+        description: 'Ajoute +0,5 au Boost global sur la production manuelle et automatique (×1,50 une fois ce succès débloqué).'
       },
       order: -1
     },
