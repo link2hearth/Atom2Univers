@@ -5382,6 +5382,13 @@ function updateElementInfoPanel(definition) {
       overview.forEach(addDetail);
     }
 
+    if (!bonusDetails.length) {
+      const overview = getCollectionBonusOverview(rarityId);
+      if (overview.length) {
+        bonusDetails.push(...overview);
+      }
+    }
+
     if (!bonusDetails.length && rarityDef?.description) {
       addDetail(rarityDef.description);
     }
