@@ -572,6 +572,14 @@ function readBooleanProperty(source, candidates) {
   return undefined;
 }
 
+function normalizeLabel(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function createElementGroupAddConfig(values, options = {}) {
   const {
     defaultMinCopies = 0,
@@ -692,7 +700,7 @@ function normalizeElementGroupAddConfig(raw, options = {}) {
   const requireAllUnique = requireAllUniqueCandidate != null
     ? requireAllUniqueCandidate
     : undefined;
-  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  const label = normalizeLabel(raw.label);
   return createElementGroupAddConfig({
     clickAdd,
     autoAdd,
@@ -875,7 +883,7 @@ function normalizeElementGroupMultiplier(raw) {
     targets.add('perClick');
     targets.add('perSecond');
   }
-  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  const label = normalizeLabel(raw.label);
   if (increment === 0 && every === 0 && base === 1) {
     return null;
   }
@@ -1026,12 +1034,12 @@ function normalizeElementGroupCritConfig(raw) {
   );
   const labels = {};
   if (raw.labels && typeof raw.labels === 'object') {
-    if (typeof raw.labels.perUnique === 'string' && raw.labels.perUnique.trim()) {
-      labels.perUnique = raw.labels.perUnique.trim();
-    }
-    if (typeof raw.labels.perDuplicate === 'string' && raw.labels.perDuplicate.trim()) {
-      labels.perDuplicate = raw.labels.perDuplicate.trim();
-    }
+    ['perUnique', 'perDuplicate'].forEach(key => {
+      const normalized = normalizeLabel(raw.labels[key]);
+      if (normalized) {
+        labels[key] = normalized;
+      }
+    });
   }
   const hasLabels = Object.keys(labels).length > 0;
   if (!perUnique && !perDuplicate) {
@@ -1121,7 +1129,7 @@ function normalizeRarityMultiplierBonus(raw) {
     targets.add('perClick');
     targets.add('perSecond');
   }
-  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null;
+  const label = normalizeLabel(raw.label);
   return createRarityMultiplierBonusConfig(amountValue, {
     uniqueThreshold,
     copyThreshold,
@@ -1157,18 +1165,12 @@ function normalizeElementGroupBonus(raw) {
   );
   const labels = {};
   if (raw.labels && typeof raw.labels === 'object') {
-    if (typeof raw.labels.perCopy === 'string' && raw.labels.perCopy.trim()) {
-      labels.perCopy = raw.labels.perCopy.trim();
-    }
-    if (typeof raw.labels.setBonus === 'string' && raw.labels.setBonus.trim()) {
-      labels.setBonus = raw.labels.setBonus.trim();
-    }
-    if (typeof raw.labels.multiplier === 'string' && raw.labels.multiplier.trim()) {
-      labels.multiplier = raw.labels.multiplier.trim();
-    }
-    if (typeof raw.labels.rarityMultiplier === 'string' && raw.labels.rarityMultiplier.trim()) {
-      labels.rarityMultiplier = raw.labels.rarityMultiplier.trim();
-    }
+    ['perCopy', 'setBonus', 'multiplier', 'rarityMultiplier'].forEach(key => {
+      const normalized = normalizeLabel(raw.labels[key]);
+      if (normalized) {
+        labels[key] = normalized;
+      }
+    });
   }
   const hasLabels = Object.keys(labels).length > 0;
   if (!perCopy && (!setBonuses || setBonuses.length === 0) && !multiplier && !crit && !rarityMultiplierBonus) {
