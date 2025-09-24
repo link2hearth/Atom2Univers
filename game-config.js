@@ -465,7 +465,7 @@ const ATOM_SCALE_TROPHY_PRESETS = [
     id: 'scaleWaterLitre',
     name: 'Échelle : litre d’eau',
     targetText: '10^26',
-    flavor: 'l’équivalent d’un litre d’eau (~300 g)',
+    flavor: 'l’équivalent d’un litre d’eau',
     amount: { type: 'layer0', mantissa: 1, exponent: 26 }
   },
   {
