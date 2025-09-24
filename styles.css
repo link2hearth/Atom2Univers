@@ -2432,6 +2432,10 @@ body.theme-light .element-bonus-specials__item {
   transition: border var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
+.goal-card--locked {
+  display: none;
+}
+
 .goal-card::before {
   content: '';
   position: absolute;
