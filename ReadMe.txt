@@ -109,6 +109,55 @@ Chaque groupe de rareté dispose d’une configuration propre. Les bonus sont cu
 
 ---
 
+## 🧰 Encart spécial : bonus & modificateurs cumulés
+
+Ce mémo récapitule l’ensemble des bonus actuellement en jeu. Il couvre les bâtiments de la boutique, les collections d’éléments, les succès et la fusion moléculaire, ainsi que leurs effets sur l’APC, l’APS, les frénésies, les critiques ou la génération de tickets.
+
+### 🏪 Boutique scientifique
+
+| Bâtiment | Rôle | Bonus principaux |
+| --- | --- | --- |
+| **Électrons libres** | Manuel | +1 APC plat/niveau, +5 % APC tous les 25 niveaux, chaque palier ×2/×4 ajoute +2 % APC supplémentaires.【F:config/config.js†L47-L68】 |
+| **Laboratoire de Physique** | Automatique | +1 APS plat/niveau (paliers ×2/×4), +5 % APC tous les 10 labos, +20 % APS si l’Accélérateur ≥200.【F:config/config.js†L71-L123】 |
+| **Réacteur nucléaire** | Automatique | +10 APS plat/niveau (paliers ×2/×4), +1 % APS par 50 Électrons, +20 % APS si les Labos ≥200, palier 150 : APC global ×2.【F:config/config.js†L96-L123】 |
+| **Accélérateur de particules** | Hybride | +50 APS plat/niveau (boosté par ≥100 Supercalculateurs), +2 % APC par niveau, palier 200 : +20 % APS pour les Labos.【F:config/config.js†L125-L145】 |
+| **Supercalculateurs** | Automatique | +500 APS plat/niveau (paliers ×2/×4), doublés par les Stations ≥300, +1 % APS global tous les 25 niveaux.【F:config/config.js†L147-L170】 |
+| **Sonde interstellaire** | Hybride | +5 000 APS plat/niveau (boosté par les Réacteurs), palier 150 : +10 APC plats par sonde.【F:config/config.js†L172-L197】 |
+| **Station spatiale** | Hybride | +50 000 APS plat/niveau (paliers ×2/×4), +5 % APC par station, palier 300 : Supercalculateurs ×2.【F:config/config.js†L199-L216】 |
+| **Forgeron d’étoiles** | Hybride | +500 000 APS plat/niveau (+2 % APS par Station), palier 150 : +25 % APC global.【F:config/config.js†L217-L241】 |
+| **Galaxie artificielle** | Automatique | +5 000 000 APS plat/niveau (doublée par Bibliothèque ≥300), +10 % APS multiplicatif par niveau, palier 100 : +50 % APC global.【F:config/config.js†L242-L271】 |
+| **Simulateur de Multivers** | Automatique | +500 000 000 APS plat/niveau (paliers ×2/×4) et +0,5 % APS global par bâtiment possédé, palier 200 : coûts −5 %.【F:config/config.js†L273-L293】 |
+| **Tisseur de Réalité** | Hybride | +10 000 000 000 APS plat/niveau (paliers ×2/×4), bonus de clic plat = 0,1 × bâtiments × niveau, palier 300 : production totale ×2.【F:config/config.js†L295-L321】 |
+| **Architecte Cosmique** | Hybride | +1 000 000 000 000 APS plat/niveau (paliers ×2/×4), −1 % coût futur par Architecte, palier 150 : +20 % APC global.【F:config/config.js†L323-L341】 |
+| **Univers parallèle** | Automatique | +100 000 000 000 000 APS plat/niveau (paliers ×2/×4).【F:config/config.js†L343-L358】 |
+| **Bibliothèque de l’Omnivers** | Hybride | +10 000 000 000 000 000 APS plat/niveau (paliers ×2/×4), +2 % boost global par Univers parallèle, palier 300 : Galaxies artificielles ×2.【F:config/config.js†L360-L384】 |
+| **Grand Ordonnateur Quantique** | Hybride | +1 000 000 000 000 000 000 APS plat/niveau (paliers ×2/×4), palier 100 : double définitivement APC & APS.【F:config/config.js†L386-L403】 |
+
+### 🧬 Collections d’éléments
+
+* **Commun cosmique** : +1 APC plat par copie, set complet : +500 APC, multiplicateur global (APC & APS) +1 tous les 50 exemplaires (jusqu’à +100).【F:config/config.js†L910-L928】
+* **Essentiel planétaire** : +10 APC plats par élément unique ou doublon, set complet : +1 000 APC, multiplicateur global +1 tous les 30 exemplaires (cap 100).【F:config/config.js†L929-L948】
+* **Forge stellaire** : +50 APC plats par unique, +25 APC par doublon, set complet : double les bonus plats des Commun cosmique, multiplicateur global +1 tous les 20 exemplaires (cap 100).【F:config/config.js†L949-L968】
+* **Singularité minérale** : +25 APC/APS plats par unique, +20 APC/APS par doublon, multiplicateur global +1 tous les 10 exemplaires (cap 100).【F:config/config.js†L969-L989】
+* **Mythe quantique** : −1 s sur l’intervalle de l’étoile à tickets par élément unique (min 5 s), +1 % de gains hors-ligne par doublon (jusqu’à +100 %), puis +50 APC/APS plats au-delà, set complet : +50 % de chances de frénésie.【F:config/config.js†L990-L1014】
+* **Irréel** : +1 % de chance de critique par unique, +1 % sur le multiplicateur de critique par doublon, multiplicateur global +1 tous les 5 exemplaires (cap 100).【F:config/config.js†L1015-L1034】
+
+### 🏆 Succès & trophées
+
+* **Échelles atomiques (21 paliers)** : de la cellule humaine (10^14) à l’univers observable (10^80), chaque trophée ajoute +2 au boost global de production (soit ×3 par palier obtenu).【F:config/config.js†L409-L608】
+* **Ruée vers le million** : atteindre 1 000 000 d’atomes synthétisés ajoute +0,5 au boost global (×1,5 une fois débloqué).【F:config/config.js†L745-L776】
+* **Convergence frénétique** : déclencher 100 frénésies augmente la réserve maximale de frénésies simultanées à 2.【F:config/config.js†L777-L793】
+* **Tempête tri-phasée** : déclencher 1 000 frénésies porte la réserve à 3 et applique un multiplicateur global ×1,05.【F:config/config.js†L794-L809】
+* **Collecteur d’étoiles** : compléter les raretés Commun cosmique & Essentiel planétaire active la collecte automatique des étoiles à tickets après 3 s.【F:config/config.js†L810-L827】
+
+### ⚗️ Fusion moléculaire
+
+* **Molécule d’eau (H₂O)** : consomme 2 Hydrogènes et 1 Oxygène avec 50 % de réussite pour octroyer +100 APC plats immédiats.【F:config/config.js†L713-L741】
+
+Combinez ces leviers pour orchestrer vos pics de production, maximiser les frénésies et sécuriser les ressources critiques tout au long de la montée vers 10^80 atomes.
+
+---
+
 ## 🛠️ Implémentation
 
 * **Technologies** : HTML, CSS et JavaScript vanilla.
