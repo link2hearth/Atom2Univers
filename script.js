@@ -10240,34 +10240,13 @@ function buildGoalCard(def) {
   title.textContent = def.name;
   title.className = 'goal-card__title';
 
-  const status = document.createElement('span');
-  status.className = 'goal-card__status';
-  status.textContent = '0%';
-
-  header.append(title, status);
+  header.append(title);
 
   const description = document.createElement('p');
   description.className = 'goal-card__description';
   description.textContent = def.description || '';
 
-  const progress = document.createElement('div');
-  progress.className = 'goal-card__progress';
-
-  const bar = document.createElement('div');
-  bar.className = 'goal-card__progress-bar';
-
-  const barFill = document.createElement('span');
-  barFill.className = 'goal-card__progress-fill';
-  barFill.style.width = '0%';
-  bar.appendChild(barFill);
-
-  const progressValue = document.createElement('span');
-  progressValue.className = 'goal-card__progress-value';
-  progressValue.textContent = '0 / 0';
-
-  progress.append(bar, progressValue);
-
-  card.append(header, description, progress);
+  card.append(header, description);
 
   if (def.rewardText) {
     const reward = document.createElement('p');
@@ -10276,7 +10255,7 @@ function buildGoalCard(def) {
     card.appendChild(reward);
   }
 
-  return { root: card, status, progressValue, barFill };
+  return { root: card };
 }
 
 function renderGoals() {
@@ -10343,13 +10322,6 @@ function updateGoalsUI() {
     const card = trophyCards.get(def.id);
     if (!card) return;
     const isUnlocked = unlocked.has(def.id);
-    const progress = formatTrophyProgress(def);
-    const percent = isUnlocked ? 1 : Math.max(0, Math.min(1, progress.percent || 0));
-    card.barFill.style.width = `${(percent * 100).toFixed(0)}%`;
-    card.progressValue.textContent = isUnlocked
-      ? `✓ ${progress.displayTarget}`
-      : `${progress.displayCurrent} / ${progress.displayTarget}`;
-    card.status.textContent = isUnlocked ? 'Débloqué' : `${(percent * 100).toFixed(0)}%`;
     card.root.classList.toggle('goal-card--completed', isUnlocked);
   });
 }
