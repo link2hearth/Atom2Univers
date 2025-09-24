@@ -3709,8 +3709,14 @@ function computeTrophyEffects() {
     if (Number.isFinite(reward?.frenzyMaxStacks)) {
       maxStacks = Math.max(maxStacks, reward.frenzyMaxStacks);
     }
-    if (Number.isFinite(reward?.trophyMultiplierAdd)) {
-      trophyMultiplierBonus += Number(reward.trophyMultiplierAdd);
+    let trophyBonus = reward?.trophyMultiplierAdd;
+    if (trophyBonus instanceof LayeredNumber) {
+      trophyBonus = trophyBonus.toNumber();
+    } else if (trophyBonus != null) {
+      trophyBonus = Number(trophyBonus);
+    }
+    if (Number.isFinite(trophyBonus) && trophyBonus > 0) {
+      trophyMultiplierBonus += trophyBonus;
     }
     applyCritModifiersFromEffect(critAccumulator, reward);
     if (reward?.crit) {
