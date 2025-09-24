@@ -2592,21 +2592,21 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : cellule humaine',
     targetText: '10^14',
     flavor: 'l’équivalent d’une cellule humaine « moyenne »',
-    amount: { type: 'layer1', value: 14 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 14 }
   },
   {
     id: 'scaleSandGrain',
     name: 'Échelle : grain de sable',
     targetText: '10^19',
     flavor: 'la masse d’un grain de sable (~1 mm)',
-    amount: { type: 'layer1', value: 19 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 19 }
   },
   {
     id: 'scaleAnt',
     name: 'Échelle : fourmi',
     targetText: '10^20',
     flavor: 'comparable à une fourmi (~5 mg)',
-    amount: { type: 'layer1', value: 20 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 20 }
   },
   {
     id: 'scaleWaterDrop',
@@ -2620,21 +2620,21 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : trombone',
     targetText: '10^22',
     flavor: 'l’équivalent d’un trombone en fer (~1 g)',
-    amount: { type: 'layer1', value: 22 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 22 }
   },
   {
     id: 'scaleCoin',
     name: 'Échelle : pièce',
     targetText: '10^23',
     flavor: 'la masse atomique d’une pièce de monnaie (~7,5 g)',
-    amount: { type: 'layer1', value: 23 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 23 }
   },
   {
     id: 'scaleApple',
     name: 'Échelle : pomme',
     targetText: '10^25',
     flavor: 'la masse atomique d’une pomme (~100 g)',
-    amount: { type: 'layer1', value: 25 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 25 }
   },
   {
     id: 'scaleSmartphone',
@@ -2648,7 +2648,7 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : litre d’eau',
     targetText: '10^26',
     flavor: 'l’équivalent d’un litre d’eau (~300 g)',
-    amount: { type: 'layer1', value: 26 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 26 }
   },
   {
     id: 'scaleHuman',
@@ -2662,14 +2662,14 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : piano',
     targetText: '10^29',
     flavor: 'équivaut à un piano (~450 kg)',
-    amount: { type: 'layer1', value: 29 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 29 }
   },
   {
     id: 'scaleCar',
     name: 'Échelle : voiture compacte',
     targetText: '10^30',
     flavor: 'autant qu’une voiture compacte (~1,3 t)',
-    amount: { type: 'layer1', value: 30 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 30 }
   },
   {
     id: 'scaleElephant',
@@ -2683,7 +2683,7 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : Boeing 747',
     targetText: '10^33',
     flavor: 'autant qu’un Boeing 747',
-    amount: { type: 'layer1', value: 33 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 33 }
   },
   {
     id: 'scalePyramid',
@@ -2704,49 +2704,49 @@ const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     name: 'Échelle : océans terrestres',
     targetText: '10^47',
     flavor: 'autant que tous les océans de la Terre',
-    amount: { type: 'layer1', value: 47 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 47 }
   },
   {
     id: 'scaleEarth',
     name: 'Échelle : Terre',
     targetText: '10^50',
     flavor: 'égale la masse atomique de la planète Terre',
-    amount: { type: 'layer1', value: 50 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 50 }
   },
   {
     id: 'scaleSun',
     name: 'Échelle : Soleil',
     targetText: '10^57',
     flavor: 'équivaut au Soleil',
-    amount: { type: 'layer1', value: 57 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 57 }
   },
   {
     id: 'scaleMilkyWay',
     name: 'Échelle : Voie lactée',
     targetText: '10^69',
     flavor: 'comparable à la Voie lactée entière',
-    amount: { type: 'layer1', value: 69 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 69 }
   },
   {
     id: 'scaleLocalGroup',
     name: 'Échelle : Groupe local',
     targetText: '10^71',
     flavor: 'autant que le Groupe local de galaxies',
-    amount: { type: 'layer1', value: 71 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 71 }
   },
   {
     id: 'scaleVirgoCluster',
     name: 'Échelle : superamas de la Vierge',
     targetText: '10^74',
     flavor: 'équivaut au superamas de la Vierge',
-    amount: { type: 'layer1', value: 74 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 74 }
   },
   {
     id: 'scaleObservableUniverse',
     name: 'Échelle : univers observable',
     targetText: '10^80',
     flavor: 'atteignez le total estimé d’atomes de l’univers observable',
-    amount: { type: 'layer1', value: 80 }
+    amount: { type: 'layer0', mantissa: 1, exponent: 80 }
   }
 ];
 
@@ -2791,7 +2791,7 @@ const FALLBACK_MILESTONES = [
   { amount: 100, text: 'Collectez 100 atomes pour débloquer la synthèse automatique.' },
   { amount: 1_000, text: 'Atteignez 1 000 atomes pour améliorer vos gants quantiques.' },
   { amount: 1_000_000, text: 'Atteignez 1 million d’atomes pour accéder aux surcadences.' },
-  { amount: { type: 'layer1', value: 8 }, text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
+  { amount: { type: 'layer0', mantissa: 1, exponent: 8 }, text: 'Accumulez 10^8 atomes pour préparer la prochaine ère.' }
 ];
 
 const FALLBACK_TROPHIES = [
