@@ -3516,6 +3516,7 @@ function setDevKitAutoFlatBonus(value) {
 
 const UPGRADE_DEFS = Array.isArray(CONFIG.upgrades) ? CONFIG.upgrades : FALLBACK_UPGRADES;
 const UPGRADE_NAME_MAP = new Map(UPGRADE_DEFS.map(def => [def.id, def.name || def.id]));
+const UPGRADE_INDEX_MAP = new Map(UPGRADE_DEFS.map((def, index) => [def.id, index]));
 
 const PRODUCTION_MULTIPLIER_SLOT_MAP = {
   perClick: new Map(),
@@ -5077,27 +5078,48 @@ let selectedElementId = null;
 let gamePageVisibleSince = null;
 
 function getShopUnlockSet() {
+  let unlocks;
   if (gameState.shopUnlocks instanceof Set) {
-    const unlocks = gameState.shopUnlocks;
-    UPGRADE_DEFS.forEach(def => {
-      if (getUpgradeLevel(gameState.upgrades, def.id) > 0) {
-        unlocks.add(def.id);
-      }
-    });
+    unlocks = new Set(gameState.shopUnlocks);
+  } else {
+    let stored = [];
+    if (Array.isArray(gameState.shopUnlocks)) {
+      stored = gameState.shopUnlocks;
+    } else if (gameState.shopUnlocks && typeof gameState.shopUnlocks === 'object') {
+      stored = Object.keys(gameState.shopUnlocks);
+    }
+    unlocks = new Set(stored);
+  }
+
+  if (!UPGRADE_DEFS.length) {
+    unlocks.clear();
+    gameState.shopUnlocks = unlocks;
     return unlocks;
   }
-  let stored = [];
-  if (Array.isArray(gameState.shopUnlocks)) {
-    stored = gameState.shopUnlocks;
-  } else if (gameState.shopUnlocks && typeof gameState.shopUnlocks === 'object') {
-    stored = Object.keys(gameState.shopUnlocks);
-  }
-  const unlocks = new Set(stored);
-  UPGRADE_DEFS.forEach(def => {
-    if (getUpgradeLevel(gameState.upgrades, def.id) > 0) {
-      unlocks.add(def.id);
+
+  const highestPurchasedIndex = UPGRADE_DEFS.reduce((highest, def, index) => {
+    return getUpgradeLevel(gameState.upgrades, def.id) > 0 && index > highest ? index : highest;
+  }, -1);
+
+  const sequentialLimit = Math.min(
+    UPGRADE_DEFS.length - 1,
+    Math.max(0, highestPurchasedIndex + 1)
+  );
+
+  if (sequentialLimit >= 0) {
+    for (let i = 0; i <= sequentialLimit; i += 1) {
+      unlocks.add(UPGRADE_DEFS[i].id);
     }
-  });
+    unlocks.forEach(id => {
+      const index = UPGRADE_INDEX_MAP.get(id);
+      if (index == null || index > sequentialLimit) {
+        unlocks.delete(id);
+      }
+    });
+  } else {
+    unlocks.clear();
+  }
+
   gameState.shopUnlocks = unlocks;
   return unlocks;
 }
@@ -9483,30 +9505,25 @@ function buildShopItem(def) {
   return { root: item, level, description: desc, buttons: buttonMap };
 }
 
-function getShopUnlockThreshold(def) {
-  if (!def) {
-    return LayeredNumber.zero();
-  }
-  if (def.unlockCost instanceof LayeredNumber) {
-    return def.unlockCost.clone();
-  }
-  if (def.unlockCost != null) {
-    return toLayeredNumber(def.unlockCost, def.baseCost ?? 0);
-  }
-  if (def.baseCost instanceof LayeredNumber) {
-    return def.baseCost.clone();
-  }
-  const base = Number(def.baseCost);
-  if (Number.isFinite(base)) {
-    return new LayeredNumber(base);
-  }
-  return LayeredNumber.zero();
-}
-
 function updateShopVisibility() {
   if (!shopRows.size) return;
   const shopFree = isDevKitShopFree();
   const unlocks = getShopUnlockSet();
+
+  let visibleLimit = -1;
+  if (shopFree) {
+    visibleLimit = UPGRADE_DEFS.length - 1;
+  } else {
+    unlocks.forEach(id => {
+      const unlockIndex = UPGRADE_INDEX_MAP.get(id);
+      if (unlockIndex != null && unlockIndex > visibleLimit) {
+        visibleLimit = unlockIndex;
+      }
+    });
+    if (visibleLimit < 0 && UPGRADE_DEFS.length > 0) {
+      visibleLimit = 0;
+    }
+  }
 
   UPGRADE_DEFS.forEach((def, index) => {
     const row = shopRows.get(def.id);
@@ -9519,29 +9536,10 @@ function updateShopVisibility() {
       return;
     }
 
-    const unlockCost = getShopUnlockThreshold(def);
-    const level = getUpgradeLevel(gameState.upgrades, def.id);
-    const isUnlocked = unlocks.has(def.id) || level > 0;
-
-    let shouldReveal = false;
-    if (index === 0 || isUnlocked) {
-      shouldReveal = true;
-    } else {
-      const thresholdCost = unlockCost instanceof LayeredNumber
-        ? unlockCost.clone()
-        : toLayeredNumber(unlockCost, def.baseCost ?? 0);
-      shouldReveal = gameState.atoms.compare(thresholdCost) >= 0;
-    }
-
-    if (!shouldReveal) {
-      row.root.hidden = true;
-      row.root.classList.add('shop-item--locked');
-      return;
-    }
-
-    row.root.hidden = false;
-    row.root.classList.remove('shop-item--locked');
-    if (!isUnlocked) {
+    const shouldReveal = index <= visibleLimit;
+    row.root.hidden = !shouldReveal;
+    row.root.classList.toggle('shop-item--locked', !shouldReveal);
+    if (shouldReveal) {
       unlocks.add(def.id);
     }
   });
