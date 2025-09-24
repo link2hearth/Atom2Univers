@@ -3378,6 +3378,7 @@ const DEFAULT_STATE = {
   elementBonusSummary: {},
   trophies: [],
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
@@ -3406,6 +3407,7 @@ const gameState = {
   elementBonusSummary: {},
   trophies: new Set(),
   offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+  ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
@@ -3490,11 +3492,62 @@ function normalizeTrophyCondition(raw) {
       amount: Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0
     };
   }
+  if (
+    type === 'collectionRarities'
+    || type === 'rarityCollection'
+    || type === 'collectionRarity'
+    || type === 'rarityComplete'
+  ) {
+    const source = raw.rarities ?? raw.ids ?? raw.rarity ?? raw.id ?? [];
+    const list = Array.isArray(source) ? source : [source];
+    const rarities = Array.from(new Set(list
+      .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter(Boolean)));
+    return {
+      type: 'collectionRarities',
+      rarities
+    };
+  }
   const amount = toLayeredNumber(raw.amount ?? raw.value ?? 0, 0);
   return {
     type: 'lifetimeAtoms',
     amount
   };
+}
+
+function normalizeTicketStarAutoCollectConfig(raw) {
+  if (raw == null) {
+    return null;
+  }
+  if (raw === false) {
+    return null;
+  }
+  if (raw === true) {
+    return { delaySeconds: 0 };
+  }
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) {
+      return null;
+    }
+    return { delaySeconds: Math.max(0, raw) };
+  }
+  if (typeof raw === 'string') {
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    return { delaySeconds: Math.max(0, numeric) };
+  }
+  if (typeof raw === 'object') {
+    if (raw.enabled === false) {
+      return null;
+    }
+    const value = raw.delaySeconds ?? raw.delay ?? raw.seconds ?? raw.value ?? raw.time;
+    const numeric = Number(value);
+    const delaySeconds = Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+    return { delaySeconds };
+  }
+  return null;
 }
 
 function normalizeTrophyReward(raw) {
@@ -3503,7 +3556,8 @@ function normalizeTrophyReward(raw) {
       multiplier: null,
       frenzyMaxStacks: null,
       description: null,
-      trophyMultiplierAdd: 0
+      trophyMultiplierAdd: 0,
+      ticketStarAutoCollect: null
     };
   }
   let multiplier = null;
@@ -3542,11 +3596,17 @@ function normalizeTrophyReward(raw) {
   const trophyMultiplierAdd = Number.isFinite(Number(trophyBonusRaw))
     ? Math.max(0, Number(trophyBonusRaw))
     : 0;
+  const autoCollectCandidate = raw.ticketStarAutoCollect
+    ?? raw.autoCollectTicketStar
+    ?? raw.ticketAutoCollect
+    ?? raw.autoCollectTickets;
+  const ticketStarAutoCollect = normalizeTicketStarAutoCollectConfig(autoCollectCandidate);
   return {
     multiplier,
     frenzyMaxStacks,
     description,
-    trophyMultiplierAdd
+    trophyMultiplierAdd,
+    ticketStarAutoCollect
   };
 }
 
@@ -3593,6 +3653,29 @@ function getUnlockedTrophyIds() {
   return Array.from(getUnlockedTrophySet());
 }
 
+function getRarityCollectionTotals(rarityId) {
+  if (!rarityId) {
+    return { total: 0, owned: 0 };
+  }
+  const pool = gachaPools.get(rarityId);
+  if (!Array.isArray(pool) || pool.length === 0) {
+    return { total: Array.isArray(pool) ? pool.length : 0, owned: 0 };
+  }
+  let owned = 0;
+  pool.forEach(elementId => {
+    const entry = gameState.elements?.[elementId];
+    if (entry?.owned || (Number(entry?.count) || 0) > 0) {
+      owned += 1;
+    }
+  });
+  return { total: pool.length, owned };
+}
+
+function isRarityCollectionComplete(rarityId) {
+  const { total, owned } = getRarityCollectionTotals(rarityId);
+  return total > 0 && owned >= total;
+}
+
 function getTotalFrenzyTriggers() {
   const stats = gameState.stats?.global;
   if (!stats) return 0;
@@ -3607,6 +3690,7 @@ function computeTrophyEffects() {
   let maxStacks = FRENZY_CONFIG.baseMaxStacks;
   const critAccumulator = createCritAccumulator();
   let trophyMultiplierBonus = 0;
+  let ticketStarAutoCollect = null;
 
   unlocked.forEach(id => {
     const def = TROPHY_MAP.get(id);
@@ -3636,6 +3720,14 @@ function computeTrophyEffects() {
     if (reward?.crit) {
       applyCritModifiersFromEffect(critAccumulator, reward.crit);
     }
+    if (reward?.ticketStarAutoCollect) {
+      const normalized = normalizeTicketStarAutoCollectConfig(reward.ticketStarAutoCollect);
+      if (normalized) {
+        if (!ticketStarAutoCollect || normalized.delaySeconds < ticketStarAutoCollect.delaySeconds) {
+          ticketStarAutoCollect = normalized;
+        }
+      }
+    }
   });
 
   if (trophyMultiplierBonus > 0) {
@@ -3646,7 +3738,7 @@ function computeTrophyEffects() {
 
   const critEffect = finalizeCritEffect(critAccumulator);
 
-  return { clickMultiplier, autoMultiplier, maxStacks, critEffect };
+  return { clickMultiplier, autoMultiplier, maxStacks, critEffect, ticketStarAutoCollect };
 }
 
 function getTrophyFrenzyCap() {
@@ -3674,6 +3766,24 @@ function formatTrophyProgress(def) {
       percent,
       displayCurrent: current.toLocaleString('fr-FR'),
       displayTarget: clampedTarget.toLocaleString('fr-FR')
+    };
+  }
+  if (condition.type === 'collectionRarities') {
+    const rarities = Array.isArray(condition.rarities) ? condition.rarities : [];
+    let owned = 0;
+    let total = 0;
+    rarities.forEach(rarityId => {
+      const totals = getRarityCollectionTotals(rarityId);
+      owned += totals.owned;
+      total += totals.total;
+    });
+    const percent = total > 0 ? Math.max(0, Math.min(1, owned / total)) : 0;
+    return {
+      current: owned,
+      target: total,
+      percent,
+      displayCurrent: owned.toLocaleString('fr-FR'),
+      displayTarget: total.toLocaleString('fr-FR')
     };
   }
   const current = gameState.lifetime;
@@ -3707,6 +3817,13 @@ function isTrophyConditionMet(def) {
   if (!condition) return false;
   if (condition.type === 'frenzyTotal') {
     return getTotalFrenzyTriggers() >= (condition.amount || 0);
+  }
+  if (condition.type === 'collectionRarities') {
+    const rarities = Array.isArray(condition.rarities) ? condition.rarities : [];
+    if (!rarities.length) {
+      return false;
+    }
+    return rarities.every(rarityId => isRarityCollectionComplete(rarityId));
   }
   const target = condition.amount instanceof LayeredNumber
     ? condition.amount
@@ -4853,6 +4970,7 @@ function devkitUnlockAllElements() {
   });
   recalcProduction();
   updateUI();
+  evaluateTrophies();
   saveGame();
   updateDevKitUI();
   showToast(newlyOwned > 0
@@ -4883,6 +5001,7 @@ const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
 const periodicCells = new Map();
 let selectedElementId = null;
+let gamePageVisibleSince = null;
 
 function getShopUnlockSet() {
   if (gameState.shopUnlocks instanceof Set) {
@@ -5489,6 +5608,7 @@ function performGachaRoll() {
   recalcProduction();
   updateUI();
   saveGame();
+  evaluateTrophies();
 
   return { rarity, elementDef, isNew };
 }
@@ -5919,6 +6039,43 @@ function computeTicketStarDelay() {
   return average * jitter;
 }
 
+function getTicketStarAutoCollectDelayMs() {
+  const config = gameState.ticketStarAutoCollect;
+  if (!config) {
+    return null;
+  }
+  const rawDelay = config.delaySeconds ?? config.delay ?? config.seconds ?? config.value;
+  const delaySeconds = Number(rawDelay);
+  if (!Number.isFinite(delaySeconds) || delaySeconds < 0) {
+    return 0;
+  }
+  return delaySeconds * 1000;
+}
+
+function shouldAutoCollectTicketStar(now = performance.now()) {
+  const delayMs = getTicketStarAutoCollectDelayMs();
+  if (delayMs == null) {
+    return false;
+  }
+  if (!ticketStarState.active) {
+    return false;
+  }
+  if (!isGamePageActive()) {
+    return false;
+  }
+  if (typeof document !== 'undefined' && document.hidden) {
+    return false;
+  }
+  if (gamePageVisibleSince == null || now - gamePageVisibleSince < delayMs) {
+    return false;
+  }
+  const spawnTime = Number(ticketStarState.spawnTime) || 0;
+  if (spawnTime <= 0 || now - spawnTime < delayMs) {
+    return false;
+  }
+  return true;
+}
+
 const ticketStarState = {
   element: null,
   active: false,
@@ -5926,7 +6083,8 @@ const ticketStarState = {
   velocity: { x: 0, y: 0 },
   width: 0,
   height: 0,
-  nextSpawnTime: performance.now() + computeTicketStarDelay()
+  nextSpawnTime: performance.now() + computeTicketStarDelay(),
+  spawnTime: 0
 };
 
 function resetTicketStarState(options = {}) {
@@ -5941,6 +6099,7 @@ function resetTicketStarState(options = {}) {
   ticketStarState.velocity.y = 0;
   ticketStarState.width = 0;
   ticketStarState.height = 0;
+  ticketStarState.spawnTime = 0;
   const now = performance.now();
   if (options.reschedule) {
     ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
@@ -5964,6 +6123,7 @@ function collectTicketStar(event) {
   }
   ticketStarState.element = null;
   ticketStarState.active = false;
+  ticketStarState.spawnTime = 0;
   ticketStarState.width = 0;
   ticketStarState.height = 0;
   ticketStarState.velocity.x = 0;
@@ -6020,6 +6180,7 @@ function spawnTicketStar(now = performance.now()) {
   ticketStarState.velocity.x = Math.cos(angle) * speed;
   ticketStarState.velocity.y = Math.sin(angle) * speed;
   ticketStarState.nextSpawnTime = Number.POSITIVE_INFINITY;
+  ticketStarState.spawnTime = now;
 
   star.style.transform = `translate(${startX}px, ${startY}px)`;
 }
@@ -6038,12 +6199,17 @@ function updateTicketStar(deltaSeconds, now = performance.now()) {
   if (!star) {
     ticketStarState.active = false;
     ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+    ticketStarState.spawnTime = 0;
     return;
   }
   const layer = elements.ticketLayer;
   const width = layer.clientWidth;
   const height = layer.clientHeight;
   if (width <= 0 || height <= 0) {
+    return;
+  }
+  if (shouldAutoCollectTicketStar(now)) {
+    collectTicketStar();
     return;
   }
   const starWidth = star.offsetWidth || ticketStarState.width || TICKET_STAR_CONFIG.size;
@@ -7568,6 +7734,7 @@ function shouldTriggerGlobalClick(event) {
 }
 
 function showPage(pageId) {
+  const now = performance.now();
   elements.pages.forEach(page => {
     const isActive = page.id === pageId;
     page.classList.toggle('active', isActive);
@@ -7578,7 +7745,23 @@ function showPage(pageId) {
   });
   document.body.dataset.activePage = pageId;
   document.body.classList.toggle('view-game', pageId === 'game');
+  if (pageId === 'game' && (typeof document === 'undefined' || !document.hidden)) {
+    gamePageVisibleSince = now;
+  } else {
+    gamePageVisibleSince = null;
+  }
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  if (document.hidden) {
+    gamePageVisibleSince = null;
+  } else if (isGamePageActive()) {
+    gamePageVisibleSince = performance.now();
+  }
+});
 
 const initiallyActivePage = document.querySelector('.page.active') || elements.pages[0];
 if (initiallyActivePage) {
@@ -8728,6 +8911,10 @@ function recalcProduction() {
   if (trophyEffects.critEffect) {
     applyCritModifiersFromEffect(critAccumulator, trophyEffects.critEffect);
   }
+  const autoCollectConfig = normalizeTicketStarAutoCollectConfig(trophyEffects.ticketStarAutoCollect);
+  gameState.ticketStarAutoCollect = autoCollectConfig
+    ? { delaySeconds: Math.max(0, Number(autoCollectConfig.delaySeconds) || 0) }
+    : null;
 
   UPGRADE_DEFS.forEach(def => {
     const level = getUpgradeLevel(gameState.upgrades, def.id);
@@ -9365,6 +9552,16 @@ function serializeState() {
     offlineGainMultiplier: Number.isFinite(Number(gameState.offlineGainMultiplier))
       ? Math.max(0, Number(gameState.offlineGainMultiplier))
       : MYTHIQUE_OFFLINE_BASE,
+    ticketStarAutoCollect: gameState.ticketStarAutoCollect
+      ? {
+          delaySeconds: Math.max(
+            0,
+            Number.isFinite(Number(gameState.ticketStarAutoCollect.delaySeconds))
+              ? Number(gameState.ticketStarAutoCollect.delaySeconds)
+              : 0
+          )
+        }
+      : null,
     ticketStarIntervalSeconds: Number.isFinite(Number(gameState.ticketStarAverageIntervalSeconds))
       && Number(gameState.ticketStarAverageIntervalSeconds) > 0
       ? Number(gameState.ticketStarAverageIntervalSeconds)
@@ -9433,6 +9630,7 @@ function resetGame() {
     elementBonusSummary: {},
     trophies: new Set(),
     offlineGainMultiplier: MYTHIQUE_OFFLINE_BASE,
+    ticketStarAutoCollect: null,
     ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
     frenzySpawnBonus: { perClick: 1, perSecond: 1 },
     musicTrackId: null,
@@ -9499,6 +9697,23 @@ function loadGame() {
       gameState.ticketStarAverageIntervalSeconds = storedInterval;
     } else {
       gameState.ticketStarAverageIntervalSeconds = DEFAULT_TICKET_STAR_INTERVAL_SECONDS;
+    }
+    const storedAutoCollect = data.ticketStarAutoCollect;
+    if (storedAutoCollect && typeof storedAutoCollect === 'object') {
+      const rawDelay = storedAutoCollect.delaySeconds
+        ?? storedAutoCollect.delay
+        ?? storedAutoCollect.seconds
+        ?? storedAutoCollect.value;
+      const delaySeconds = Number(rawDelay);
+      gameState.ticketStarAutoCollect = Number.isFinite(delaySeconds) && delaySeconds >= 0
+        ? { delaySeconds }
+        : null;
+    } else if (storedAutoCollect === true) {
+      gameState.ticketStarAutoCollect = { delaySeconds: 0 };
+    } else if (typeof storedAutoCollect === 'number' && Number.isFinite(storedAutoCollect) && storedAutoCollect >= 0) {
+      gameState.ticketStarAutoCollect = { delaySeconds: storedAutoCollect };
+    } else {
+      gameState.ticketStarAutoCollect = null;
     }
     const storedFrenzyBonus = data.frenzySpawnBonus;
     if (storedFrenzyBonus && typeof storedFrenzyBonus === 'object') {
@@ -9672,6 +9887,7 @@ musicPlayer.ready().then(() => {
   refreshMusicControls();
 });
 recalcProduction();
+evaluateTrophies();
 renderShop();
 renderGoals();
 updateUI();
