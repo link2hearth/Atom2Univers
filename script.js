@@ -7048,9 +7048,8 @@ function formatRarityMultiplierNotes(entries) {
   return notes;
 }
 
-function describeAddConfig(addConfig, context) {
+function describeAddConfig(addConfig, context, options = {}) {
   if (!addConfig) return [];
-  const results = [];
   const {
     clickAdd = 0,
     autoAdd = 0,
@@ -7060,89 +7059,88 @@ function describeAddConfig(addConfig, context) {
     duplicateAutoAdd = 0,
     rarityFlatMultipliers
   } = addConfig;
+  const overrideLabel = typeof options.overrideLabel === 'string'
+    ? options.overrideLabel.trim()
+    : null;
 
-  let baseLabel = 'Bonus';
   let includeRequireAllUnique = true;
-  if (context === 'perCopy') {
-    baseLabel = 'Par copie';
-  } else if (context === 'setBonus') {
-    if (addConfig.requireAllUnique && (!Number.isFinite(addConfig.minCopies) || addConfig.minCopies <= 1) && (!Number.isFinite(addConfig.minUnique) || addConfig.minUnique <= 0)) {
-      baseLabel = 'Collection complète';
-      includeRequireAllUnique = false;
-    } else {
-      baseLabel = 'Bonus de collection';
+  let baseLabel = (() => {
+    if (typeof addConfig.label === 'string' && addConfig.label.trim()) {
+      return addConfig.label.trim();
     }
-  }
+    if (overrideLabel) {
+      return overrideLabel;
+    }
+    if (context === 'perCopy') {
+      return 'Par copie';
+    }
+    if (context === 'setBonus') {
+      if (
+        addConfig.requireAllUnique
+        && (!Number.isFinite(addConfig.minCopies) || addConfig.minCopies <= 1)
+        && (!Number.isFinite(addConfig.minUnique) || addConfig.minUnique <= 0)
+      ) {
+        includeRequireAllUnique = false;
+        return 'Collection complète';
+      }
+      return 'Bonus de collection';
+    }
+    return 'Bonus';
+  })();
 
   const thresholdText = formatBonusThreshold(addConfig, context, { includeRequireAllUnique });
-  const appendEntry = (label, parts) => {
-    const filtered = parts.filter(Boolean);
-    if (!filtered.length) {
-      return;
-    }
-    const text = `${label} : ${filtered.join(' · ')}`;
-    results.push(thresholdText ? `${text}${thresholdText}` : text);
-  };
+  const effects = [];
 
-  const baseParts = [];
   if (Number.isFinite(clickAdd) && clickAdd !== 0) {
     const value = formatElementFlatBonus(clickAdd);
     if (value) {
-      baseParts.push(`APC +${value}`);
+      effects.push(`APC +${value}`);
     }
   }
   if (Number.isFinite(autoAdd) && autoAdd !== 0) {
     const value = formatElementFlatBonus(autoAdd);
     if (value) {
-      baseParts.push(`APS +${value}`);
+      effects.push(`APS +${value}`);
     }
   }
-  appendEntry(baseLabel, baseParts);
 
-  const rarityNotes = formatRarityMultiplierNotes(rarityFlatMultipliers);
-  rarityNotes.forEach(note => {
-    const label = baseLabel;
-    const text = `${label} : ${note}`;
-    results.push(thresholdText ? `${text}${thresholdText}` : text);
-  });
-
-  const uniqueParts = [];
   if (Number.isFinite(uniqueClickAdd) && uniqueClickAdd !== 0) {
     const value = formatElementFlatBonus(uniqueClickAdd);
     if (value) {
-      uniqueParts.push(`APC +${value}`);
+      effects.push(`APC +${value} par élément unique`);
     }
   }
   if (Number.isFinite(uniqueAutoAdd) && uniqueAutoAdd !== 0) {
     const value = formatElementFlatBonus(uniqueAutoAdd);
     if (value) {
-      uniqueParts.push(`APS +${value}`);
+      effects.push(`APS +${value} par élément unique`);
     }
   }
-  if (uniqueParts.length) {
-    const label = context === 'setBonus' ? 'Bonus par unique' : 'Par élément unique';
-    appendEntry(label, uniqueParts);
-  }
 
-  const duplicateParts = [];
   if (Number.isFinite(duplicateClickAdd) && duplicateClickAdd !== 0) {
     const value = formatElementFlatBonus(duplicateClickAdd);
     if (value) {
-      duplicateParts.push(`APC +${value}`);
+      effects.push(`APC +${value} par doublon`);
     }
   }
   if (Number.isFinite(duplicateAutoAdd) && duplicateAutoAdd !== 0) {
     const value = formatElementFlatBonus(duplicateAutoAdd);
     if (value) {
-      duplicateParts.push(`APS +${value}`);
+      effects.push(`APS +${value} par doublon`);
     }
   }
-  if (duplicateParts.length) {
-    const label = context === 'setBonus' ? 'Bonus par doublon' : 'Par doublon';
-    appendEntry(label, duplicateParts);
+
+  const rarityNotes = formatRarityMultiplierNotes(rarityFlatMultipliers);
+  if (rarityNotes.length) {
+    effects.push(...rarityNotes);
   }
 
-  return results;
+  if (!effects.length) {
+    return [];
+  }
+
+  const text = `${baseLabel} : ${effects.join(' · ')}`;
+  return [thresholdText ? `${text}${thresholdText}` : text];
 }
 
 function describeCritEffect(effect, scopeLabel) {
@@ -7223,7 +7221,7 @@ function describeCritConfig(critConfig) {
   return results;
 }
 
-function describeMultiplierConfig(multiplierConfig) {
+function describeMultiplierConfig(multiplierConfig, labelOverride = null) {
   if (!multiplierConfig) return null;
   const targets = [];
   if (multiplierConfig.targets?.has('perClick')) {
@@ -7238,27 +7236,50 @@ function describeMultiplierConfig(multiplierConfig) {
       ? targets[0]
       : 'production';
   const parts = [];
-  const baseText = formatElementMultiplierDisplay(multiplierConfig.base);
-  if (baseText && baseText !== '×1') {
-    parts.push(`base ${baseText}`);
+  if (
+    Number.isFinite(multiplierConfig.base)
+    && Math.abs(multiplierConfig.base - 1) > 1e-9
+  ) {
+    const baseText = formatMultiplier(multiplierConfig.base);
+    if (baseText && baseText !== '×—') {
+      const prefix = targetLabel === 'production' ? '' : `${targetLabel} `;
+      parts.push(`${prefix}base ${baseText}`.trim());
+    }
   }
-  if (Number.isFinite(multiplierConfig.increment) && multiplierConfig.increment !== 0 && Number.isFinite(multiplierConfig.every) && multiplierConfig.every > 0) {
+  if (
+    Number.isFinite(multiplierConfig.increment)
+    && multiplierConfig.increment !== 0
+    && Number.isFinite(multiplierConfig.every)
+    && multiplierConfig.every > 0
+  ) {
     const incrementText = formatSignedBonus(multiplierConfig.increment);
     if (incrementText) {
       const unit = multiplierConfig.every === 1 ? 'copie' : 'copies';
-      parts.push(`${incrementText} toutes les ${multiplierConfig.every} ${unit}`);
+      const prefix = targetLabel === 'production' ? '' : `${targetLabel} `;
+      parts.push(`${prefix}${incrementText} toutes les ${multiplierConfig.every} ${unit}`.trim());
     }
   }
-  if (Number.isFinite(multiplierConfig.cap) && multiplierConfig.cap > 0 && multiplierConfig.cap !== Number.POSITIVE_INFINITY) {
-    const capText = formatElementMultiplierDisplay(multiplierConfig.cap);
-    if (capText) {
-      parts.push(`max ${capText}`);
+  if (
+    Number.isFinite(multiplierConfig.cap)
+    && multiplierConfig.cap > 0
+    && multiplierConfig.cap !== Number.POSITIVE_INFINITY
+  ) {
+    const capText = formatMultiplier(multiplierConfig.cap);
+    if (capText && capText !== '×—') {
+      const prefix = targetLabel === 'production' ? '' : `${targetLabel} `;
+      parts.push(`${prefix}max ${capText}`.trim());
     }
   }
-  return parts.length ? `Multiplicateur ${targetLabel} : ${parts.join(' · ')}` : null;
+  if (!parts.length) {
+    return null;
+  }
+  const prefix = labelOverride && labelOverride.trim()
+    ? labelOverride.trim()
+    : `Multiplicateur ${targetLabel}`;
+  return `${prefix} : ${parts.join(' · ')}`;
 }
 
-function describeRarityMultiplierBonus(bonusConfig) {
+function describeRarityMultiplierBonus(bonusConfig, labelOverride = null) {
   if (!bonusConfig) return null;
   const targets = [];
   if (bonusConfig.targets?.has('perClick')) {
@@ -7286,7 +7307,124 @@ function describeRarityMultiplierBonus(bonusConfig) {
     notes.push(`dès ${bonusConfig.copyThreshold} ${unit}`);
   }
   const suffix = notes.length ? ` (${notes.join(' · ')})` : '';
-  return `Multiplicateur de rareté ${targetLabel} ${amountText}${suffix}`;
+  const detail = targetLabel === 'production'
+    ? `${amountText}${suffix}`
+    : `${targetLabel} ${amountText}${suffix}`;
+  if (labelOverride && labelOverride.trim()) {
+    return `${labelOverride.trim()} : ${detail}`;
+  }
+  return `Multiplicateur de rareté ${detail}`;
+}
+
+function describeMythiqueSpecials(groupConfig) {
+  const labels = groupConfig?.labels && typeof groupConfig.labels === 'object'
+    ? groupConfig.labels
+    : {};
+  const resolveLabel = (key, fallback) => {
+    const raw = typeof labels[key] === 'string' ? labels[key].trim() : '';
+    return raw || fallback;
+  };
+  const rarityLabel = RARITY_LABEL_MAP.get(MYTHIQUE_RARITY_ID) || 'Mythe quantique';
+  const results = [];
+
+  const formatSmallNumber = value => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    const abs = Math.abs(numeric);
+    const options = abs >= 100
+      ? { maximumFractionDigits: 0 }
+      : abs >= 10
+        ? { maximumFractionDigits: 1 }
+        : { maximumFractionDigits: 2 };
+    return numeric.toLocaleString('fr-FR', options);
+  };
+
+  if (
+    Number.isFinite(MYTHIQUE_TICKET_UNIQUE_REDUCTION_SECONDS)
+    && MYTHIQUE_TICKET_UNIQUE_REDUCTION_SECONDS > 0
+  ) {
+    const reductionText = formatSmallNumber(MYTHIQUE_TICKET_UNIQUE_REDUCTION_SECONDS);
+    const parts = [];
+    if (reductionText) {
+      parts.push(`Réduit l’intervalle des étoiles à tickets de ${reductionText}s par élément unique`);
+    }
+    if (
+      Number.isFinite(MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS)
+      && MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS > 0
+    ) {
+      const minText = formatSmallNumber(MYTHIQUE_TICKET_MIN_INTERVAL_SECONDS);
+      if (minText) {
+        parts.push(`minimum ${minText}s`);
+      }
+    }
+    if (parts.length) {
+      const label = resolveLabel('ticketBonus', `${rarityLabel} · accélération quantique`);
+      results.push(`${label} : ${parts.join(' · ')}`);
+    }
+  }
+
+  if (Number.isFinite(MYTHIQUE_OFFLINE_PER_DUPLICATE) && MYTHIQUE_OFFLINE_PER_DUPLICATE > 0) {
+    const parts = [];
+    if (Number.isFinite(MYTHIQUE_OFFLINE_BASE) && Math.abs(MYTHIQUE_OFFLINE_BASE - 1) > 1e-9) {
+      const baseText = formatMultiplier(MYTHIQUE_OFFLINE_BASE);
+      if (baseText && baseText !== '×—') {
+        parts.push(`base ${baseText}`);
+      }
+    }
+    const incrementText = formatSignedBonus(MYTHIQUE_OFFLINE_PER_DUPLICATE);
+    if (incrementText) {
+      parts.push(`${incrementText} par doublon`);
+    }
+    if (
+      Number.isFinite(MYTHIQUE_OFFLINE_CAP)
+      && MYTHIQUE_OFFLINE_CAP > 0
+      && MYTHIQUE_OFFLINE_CAP !== Number.POSITIVE_INFINITY
+    ) {
+      const capText = formatMultiplier(MYTHIQUE_OFFLINE_CAP);
+      if (capText && capText !== '×—') {
+        parts.push(`max ${capText}`);
+      }
+    }
+    if (parts.length) {
+      const label = resolveLabel('offlineBonus', `${rarityLabel} · collecte hors ligne`);
+      results.push(`${label} : Collecte hors ligne ${parts.join(' · ')}`);
+    }
+  }
+
+  if (
+    Number.isFinite(MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS)
+    && MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS !== 0
+    && Number.isFinite(MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP)
+    && MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP !== Number.POSITIVE_INFINITY
+  ) {
+    const overflowValue = formatElementFlatBonus(MYTHIQUE_DUPLICATE_OVERFLOW_FLAT_BONUS);
+    if (overflowValue) {
+      const threshold = Math.max(0, Math.floor(MYTHIQUE_DUPLICATES_FOR_OFFLINE_CAP));
+      const thresholdText = formatSmallNumber(threshold);
+      const unit = threshold <= 1 ? 'doublon' : 'doublons';
+      const parts = [`APC/APS +${overflowValue} par doublon`];
+      if (Number.isFinite(threshold) && threshold > 0 && thresholdText) {
+        parts.push(`au-delà de ${thresholdText} ${unit}`);
+      }
+      const label = resolveLabel('duplicateOverflow', `${rarityLabel} · surcharge fractale`);
+      results.push(`${label} : ${parts.join(' · ')}`);
+    }
+  }
+
+  if (
+    Number.isFinite(MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER)
+    && Math.abs(MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER - 1) > 1e-9
+  ) {
+    const frenzyText = formatMultiplier(MYTHIQUE_FRENZY_SPAWN_BONUS_MULTIPLIER);
+    if (frenzyText && frenzyText !== '×—') {
+      const label = resolveLabel('setBonus', `${rarityLabel} · convergence ultime`);
+      results.push(`${label} : Chance de frénésie ${frenzyText} (collection complète requise)`);
+    }
+  }
+
+  return results;
 }
 
 function getCollectionBonusOverview(rarityId) {
@@ -7300,27 +7438,44 @@ function getCollectionBonusOverview(rarityId) {
     return [];
   }
   const overview = [];
+  const labelOverrides = config.labels && typeof config.labels === 'object' ? config.labels : {};
 
-  describeAddConfig(config.perCopy, 'perCopy').forEach(text => overview.push(text));
+  describeAddConfig(config.perCopy, 'perCopy', { overrideLabel: labelOverrides.perCopy })
+    .forEach(text => overview.push(text));
 
   if (Array.isArray(config.setBonuses) && config.setBonuses.length) {
     config.setBonuses.forEach(entry => {
-      describeAddConfig(entry, 'setBonus').forEach(text => overview.push(text));
+      if (!entry) return;
+      const overrideLabel = (typeof entry.label === 'string' && entry.label.trim())
+        ? null
+        : labelOverrides.setBonus;
+      describeAddConfig(entry, 'setBonus', { overrideLabel })
+        .forEach(text => overview.push(text));
     });
   } else if (config.setBonus) {
-    describeAddConfig(config.setBonus, 'setBonus').forEach(text => overview.push(text));
+    const overrideLabel = (typeof config.setBonus.label === 'string' && config.setBonus.label.trim())
+      ? null
+      : labelOverrides.setBonus;
+    describeAddConfig(config.setBonus, 'setBonus', { overrideLabel })
+      .forEach(text => overview.push(text));
   }
 
-  const multiplierText = describeMultiplierConfig(config.multiplier);
+  const multiplierLabel = config.multiplier?.label || labelOverrides.multiplier || null;
+  const multiplierText = describeMultiplierConfig(config.multiplier, multiplierLabel);
   if (multiplierText) {
     overview.push(multiplierText);
   }
 
   describeCritConfig(config.crit).forEach(text => overview.push(text));
 
-  const rarityMultiplierText = describeRarityMultiplierBonus(config.rarityMultiplierBonus);
+  const rarityMultiplierLabel = labelOverrides.rarityMultiplier || null;
+  const rarityMultiplierText = describeRarityMultiplierBonus(config.rarityMultiplierBonus, rarityMultiplierLabel);
   if (rarityMultiplierText) {
     overview.push(rarityMultiplierText);
+  }
+
+  if (rarityId === MYTHIQUE_RARITY_ID) {
+    describeMythiqueSpecials(config).forEach(text => overview.push(text));
   }
 
   COLLECTION_BONUS_OVERVIEW_CACHE.set(rarityId, overview);
