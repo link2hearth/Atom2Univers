@@ -459,6 +459,21 @@ class LayeredNumber {
 
 const CONFIG = typeof window !== 'undefined' && window.GAME_CONFIG ? window.GAME_CONFIG : {};
 
+const DEFAULT_UPGRADE_MAX_LEVEL = (function resolveDefaultUpgradeMaxLevel() {
+  const candidates = [
+    CONFIG?.shop?.defaultMaxPurchase,
+    CONFIG?.shop?.maxLevel,
+    CONFIG?.shop?.maxPurchase
+  ];
+  for (const value of candidates) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Math.max(1, Math.floor(numeric));
+    }
+  }
+  return 1000;
+})();
+
 const periodicElements = Array.isArray(globalThis.PERIODIC_ELEMENTS)
   ? globalThis.PERIODIC_ELEMENTS.map(def => ({
       ...def,
@@ -2497,6 +2512,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
     }, 0);
   };
 
+  const withDefaults = def => ({ maxLevel: DEFAULT_UPGRADE_MAX_LEVEL, ...def });
+
   return [
     {
       id: 'freeElectrons',
@@ -2855,7 +2872,7 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
           : { autoAdd };
       }
     }
-  ];
+  ].map(withDefaults);
 })();
 
 const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
@@ -9630,6 +9647,25 @@ function getUpgradeLevel(state, id) {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+function resolveUpgradeMaxLevel(definition) {
+  const raw = definition?.maxLevel ?? definition?.maxPurchase;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.max(1, Math.floor(numeric));
+  }
+  return DEFAULT_UPGRADE_MAX_LEVEL;
+}
+
+function getRemainingUpgradeCapacity(definition) {
+  const maxLevel = resolveUpgradeMaxLevel(definition);
+  if (!Number.isFinite(maxLevel)) {
+    return Infinity;
+  }
+  const currentLevel = getUpgradeLevel(gameState.upgrades, definition.id);
+  const remaining = Math.floor(maxLevel - currentLevel);
+  return Math.max(0, remaining);
+}
+
 function computeGlobalCostModifier(defId) {
   let modifier = 1;
   const architectLevel = getUpgradeLevel(gameState.upgrades, 'cosmicArchitect');
@@ -10861,7 +10897,12 @@ function buildShopItem(def) {
     });
 
     actions.appendChild(button);
-    buttonMap.set(quantity, { button, price: priceLabel });
+    buttonMap.set(quantity, {
+      button,
+      price: priceLabel,
+      quantityLabel,
+      baseQuantity: quantity
+    });
   });
 
   item.append(header, desc, actions);
@@ -10903,7 +10944,16 @@ function updateShopAffordability() {
     const row = shopRows.get(def.id);
     if (!row) return;
     const level = getUpgradeLevel(gameState.upgrades, def.id);
-    row.level.textContent = `Niveau ${level}`;
+    const maxLevel = resolveUpgradeMaxLevel(def);
+    const remainingLevels = getRemainingUpgradeCapacity(def);
+    const hasFiniteCap = Number.isFinite(maxLevel);
+    const capReached = Number.isFinite(remainingLevels) && remainingLevels <= 0;
+    if (hasFiniteCap) {
+      const baseLabel = `Niveau ${level} / ${maxLevel}`;
+      row.level.textContent = capReached ? `${baseLabel} (max)` : baseLabel;
+    } else {
+      row.level.textContent = `Niveau ${level}`;
+    }
     let anyAffordable = false;
     const actionLabel = level > 0 ? 'Améliorer' : 'Acheter';
     const shopFree = isDevKitShopFree();
@@ -10911,19 +10961,50 @@ function updateShopAffordability() {
     SHOP_PURCHASE_AMOUNTS.forEach(quantity => {
       const entry = row.buttons.get(quantity);
       if (!entry) return;
-      const cost = computeUpgradeCost(def, quantity);
+      const baseQuantity = entry.baseQuantity ?? quantity;
+
+      if (capReached) {
+        entry.quantityLabel.textContent = `x${baseQuantity}`;
+        entry.price.textContent = 'Limite atteinte';
+        entry.button.disabled = true;
+        entry.button.classList.remove('is-ready');
+        const ariaLabel = `${def.name} a atteint son niveau maximum`;
+        entry.button.setAttribute('aria-label', ariaLabel);
+        entry.button.title = ariaLabel;
+        return;
+      }
+
+      const effectiveQuantity = Number.isFinite(remainingLevels)
+        ? Math.min(baseQuantity, remainingLevels)
+        : baseQuantity;
+      const limited = Number.isFinite(remainingLevels) && effectiveQuantity !== baseQuantity;
+
+      entry.quantityLabel.textContent = `x${limited ? effectiveQuantity : baseQuantity}`;
+
+      const cost = computeUpgradeCost(def, effectiveQuantity);
       const affordable = shopFree || gameState.atoms.compare(cost) >= 0;
-      entry.price.textContent = shopFree ? 'Gratuit' : formatShopCost(cost);
-      entry.button.disabled = !affordable;
-      entry.button.classList.toggle('is-ready', affordable);
-      if (affordable) {
+      let priceText;
+      if (shopFree) {
+        priceText = 'Gratuit';
+      } else if (limited) {
+        priceText = `Limité à x${effectiveQuantity} — ${formatShopCost(cost)}`;
+      } else {
+        priceText = formatShopCost(cost);
+      }
+      entry.price.textContent = priceText;
+      const enabled = affordable && effectiveQuantity > 0;
+      entry.button.disabled = !enabled;
+      entry.button.classList.toggle('is-ready', enabled);
+      if (enabled) {
         anyAffordable = true;
       }
-      const ariaLabel = affordable
+      const displayQuantity = limited ? effectiveQuantity : baseQuantity;
+      const limitNote = limited ? ' (limité aux niveaux restants)' : '';
+      const ariaLabel = enabled
         ? shopFree
-          ? `${actionLabel} ${def.name} ×${quantity} (gratuit)`
-          : `${actionLabel} ${def.name} ×${quantity} (coût ${cost.toString()} atomes)`
-        : `${actionLabel} ${def.name} ×${quantity} (atomes insuffisants)`;
+          ? `${actionLabel} ${def.name} ×${displayQuantity}${limitNote} (gratuit)`
+          : `${actionLabel} ${def.name} ×${displayQuantity}${limitNote} (coût ${cost.toString()} atomes)`
+        : `${actionLabel} ${def.name} ×${displayQuantity}${limitNote} (atomes insuffisants)`;
       entry.button.setAttribute('aria-label', ariaLabel);
       entry.button.title = ariaLabel;
     });
@@ -11003,7 +11084,20 @@ function renderGoals() {
 
 function attemptPurchase(def, quantity = 1) {
   const buyAmount = Math.max(1, Math.floor(Number(quantity) || 0));
-  const cost = computeUpgradeCost(def, buyAmount);
+  const remainingLevels = getRemainingUpgradeCapacity(def);
+  const cappedOut = Number.isFinite(remainingLevels) && remainingLevels <= 0;
+  if (cappedOut) {
+    showToast('Niveau maximum atteint.');
+    return;
+  }
+  const finalAmount = Number.isFinite(remainingLevels)
+    ? Math.min(buyAmount, remainingLevels)
+    : buyAmount;
+  if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
+    showToast('Niveau maximum atteint.');
+    return;
+  }
+  const cost = computeUpgradeCost(def, finalAmount);
   const shopFree = isDevKitShopFree();
   if (!shopFree && gameState.atoms.compare(cost) < 0) {
     showToast('Pas assez d’atomes.');
@@ -11016,12 +11110,13 @@ function attemptPurchase(def, quantity = 1) {
   const normalizedLevel = Number.isFinite(currentLevel) && currentLevel > 0
     ? Math.floor(currentLevel)
     : 0;
-  gameState.upgrades[def.id] = normalizedLevel + buyAmount;
+  gameState.upgrades[def.id] = normalizedLevel + finalAmount;
   recalcProduction();
   updateUI();
+  const limitSuffix = finalAmount < buyAmount ? ' (limite atteinte)' : '';
   showToast(shopFree
-    ? `DevKit : "${def.name}" ×${buyAmount} débloqué gratuitement !`
-    : `Amélioration "${def.name}" x${buyAmount} achetée !`);
+    ? `DevKit : "${def.name}" ×${finalAmount} débloqué gratuitement !${limitSuffix}`
+    : `Amélioration "${def.name}" x${finalAmount} achetée !${limitSuffix}`);
 }
 
 function updateMilestone() {

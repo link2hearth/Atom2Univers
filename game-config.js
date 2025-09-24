@@ -5,6 +5,7 @@
  */
 const BUILDING_DOUBLE_THRESHOLDS = [10, 25, 50, 100, 150, 200];
 const BUILDING_QUAD_THRESHOLDS = [300, 400, 500];
+const SHOP_MAX_PURCHASE_DEFAULT = 1000;
 
 function computeBuildingTierMultiplier(level = 0) {
   let multiplier = 1;
@@ -40,6 +41,7 @@ function getTotalBuildings(context) {
 }
 
 function createShopBuildingDefinitions() {
+  const withDefaults = def => ({ maxLevel: SHOP_MAX_PURCHASE_DEFAULT, ...def });
   return [
     {
       id: 'freeElectrons',
@@ -401,7 +403,7 @@ function createShopBuildingDefinitions() {
           : { autoAdd };
       }
     }
-  ];
+  ].map(withDefaults);
 }
 
 const ATOM_SCALE_TROPHY_PRESETS = [
@@ -700,6 +702,14 @@ const GAME_CONFIG = {
       'trophyMultiplier',
       'total'
     ]
+  },
+
+  /**
+   * Paramètres généraux de la boutique.
+   * - defaultMaxPurchase : limite de niveaux achetables pour chaque bâtiment.
+   */
+  shop: {
+    defaultMaxPurchase: SHOP_MAX_PURCHASE_DEFAULT
   },
 
   /**
