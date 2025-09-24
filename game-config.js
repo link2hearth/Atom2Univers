@@ -687,6 +687,7 @@ const GAME_CONFIG = {
       'baseFlat',
       'shopFlat',
       'elementFlat',
+      'fusionFlat',
       'shopBonus1',
       'shopBonus2',
       'frenzy',
