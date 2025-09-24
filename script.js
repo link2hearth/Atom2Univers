@@ -1539,12 +1539,39 @@ function createInitialElementCollection() {
       gachaId,
       owned: false,
       count: 0,
+      lifetime: 0,
       rarity,
       effects,
       bonuses
     };
   });
   return collection;
+}
+
+function getElementCurrentCount(entry) {
+  if (!entry) return 0;
+  const rawCount = Number(entry.count);
+  if (Number.isFinite(rawCount) && rawCount > 0) {
+    return Math.floor(rawCount);
+  }
+  return 0;
+}
+
+function getElementLifetimeCount(entry) {
+  if (!entry) return 0;
+  const rawLifetime = Number(entry.lifetime);
+  if (Number.isFinite(rawLifetime) && rawLifetime > 0) {
+    return Math.floor(rawLifetime);
+  }
+  const fallbackCount = getElementCurrentCount(entry);
+  if (fallbackCount > 0) {
+    return fallbackCount;
+  }
+  return entry.owned ? 1 : 0;
+}
+
+function hasElementLifetime(entry) {
+  return getElementLifetimeCount(entry) > 0;
 }
 
 function toLayeredNumber(value, fallback = 0) {
@@ -3810,7 +3837,7 @@ function getRarityCollectionTotals(rarityId) {
   let owned = 0;
   pool.forEach(elementId => {
     const entry = gameState.elements?.[elementId];
-    if (entry?.owned || (Number(entry?.count) || 0) > 0) {
+    if (hasElementLifetime(entry)) {
       owned += 1;
     }
   });
@@ -5097,27 +5124,33 @@ function devkitUnlockAllElements() {
         ? {
             ...baseEntry,
             effects: Array.isArray(baseEntry.effects) ? [...baseEntry.effects] : [],
-            bonuses: Array.isArray(baseEntry.bonuses) ? [...baseEntry.bonuses] : []
+            bonuses: Array.isArray(baseEntry.bonuses) ? [...baseEntry.bonuses] : [],
+            lifetime: getElementLifetimeCount(baseEntry)
           }
         : {
             id: def.id,
             gachaId: def.gachaId ?? def.id,
             rarity: elementRarityIndex.get(def.id) || null,
             effects: [],
-            bonuses: []
+            bonuses: [],
+            lifetime: 0
           };
-      entry.owned = true;
       entry.count = 1;
+      entry.lifetime = Math.max(getElementLifetimeCount(entry), entry.count, 1);
+      entry.owned = entry.lifetime > 0;
       gameState.elements[def.id] = entry;
       newlyOwned += 1;
       return;
     }
-    const previouslyOwned = Boolean(entry.owned) || (Number(entry.count) || 0) > 0;
+    const previouslyOwned = hasElementLifetime(entry);
     if (!previouslyOwned) {
       newlyOwned += 1;
     }
-    entry.count = Math.max(1, Math.floor(Number(entry.count) || 0));
-    entry.owned = true;
+    const sanitizedCount = Math.max(1, getElementCurrentCount(entry));
+    entry.count = sanitizedCount;
+    const lifetimeCount = Math.max(getElementLifetimeCount(entry), sanitizedCount, 1);
+    entry.lifetime = lifetimeCount;
+    entry.owned = lifetimeCount > 0;
     if (!entry.rarity) {
       entry.rarity = elementRarityIndex.get(def.id) || entry.rarity || null;
     }
@@ -5325,15 +5358,19 @@ function updateElementInfoPanel(definition) {
     elements.elementInfoCategory.textContent = label;
   }
   const entry = gameState.elements?.[definition.id];
-  const rawCount = Number(entry?.count);
-  const count = Number.isFinite(rawCount) && rawCount > 0
-    ? Math.floor(rawCount)
-    : 0;
+  const count = getElementCurrentCount(entry);
+  const lifetimeCount = getElementLifetimeCount(entry);
   if (elements.elementInfoOwnedCount) {
     const displayCount = count.toLocaleString('fr-FR');
+    const lifetimeDisplay = lifetimeCount.toLocaleString('fr-FR');
     elements.elementInfoOwnedCount.textContent = displayCount;
-    elements.elementInfoOwnedCount.setAttribute('aria-label', `Copies possédées\u00a0: ${displayCount}`);
-    elements.elementInfoOwnedCount.setAttribute('title', `${displayCount} copie${count > 1 ? 's' : ''}`);
+    elements.elementInfoOwnedCount.setAttribute(
+      'aria-label',
+      `Copies actives\u00a0: ${displayCount}. Collectées au total\u00a0: ${lifetimeDisplay}`
+    );
+    const titleCountLabel = `${displayCount} copie${count > 1 ? 's' : ''} active${count > 1 ? 's' : ''}`;
+    const titleLifetimeLabel = `${lifetimeDisplay} collectée${lifetimeCount > 1 ? 's' : ''} au total`;
+    elements.elementInfoOwnedCount.setAttribute('title', `${titleCountLabel}\n${titleLifetimeLabel}`);
   }
   if (elements.elementInfoCollection) {
     const rarityId = entry?.rarity || elementRarityIndex.get(definition.id);
@@ -5618,7 +5655,7 @@ function renderPeriodicTable() {
     cell.addEventListener('focus', () => selectPeriodicElement(def.id));
 
     const state = gameState.elements[def.id];
-    if (state?.owned) {
+    if (hasElementLifetime(state)) {
       cell.classList.add('is-owned');
     }
 
@@ -5640,8 +5677,7 @@ function renderPeriodicTable() {
 function updateCollectionDisplay() {
   const elementEntries = Object.values(gameState.elements || {});
   const ownedCount = elementEntries.reduce((total, entry) => {
-    const isOwned = Boolean(entry?.owned) || (Number(entry?.count) || 0) > 0;
-    return total + (isOwned ? 1 : 0);
+    return total + (hasElementLifetime(entry) ? 1 : 0);
   }, 0);
   const total = TOTAL_ELEMENT_COUNT || elementEntries.length;
 
@@ -5669,8 +5705,7 @@ function updateCollectionDisplay() {
 
   periodicCells.forEach((cell, id) => {
     const entry = gameState.elements?.[id];
-    const isOwned = Boolean(entry?.owned) || (Number(entry?.count) || 0) > 0;
-    cell.classList.toggle('is-owned', isOwned);
+    cell.classList.toggle('is-owned', hasElementLifetime(entry));
   });
 
   if (selectedElementId && periodicElementIndex.has(selectedElementId)) {
@@ -5760,7 +5795,7 @@ function updateGachaRarityProgress() {
     const rarityId = entry.rarity || elementRarityIndex.get(entry.id);
     if (!rarityId || !totals.has(rarityId)) return;
     const bucket = totals.get(rarityId);
-    if (entry.owned || (Number(entry.count) || 0) > 0) {
+    if (hasElementLifetime(entry)) {
       bucket.owned += 1;
     }
   });
@@ -6104,6 +6139,7 @@ function performGachaRoll(count = 1) {
         gachaId: elementDef.gachaId ?? elementDef.id,
         owned: false,
         count: 0,
+        lifetime: 0,
         rarity: rarity.id,
         effects: [],
         bonuses: []
@@ -6111,17 +6147,17 @@ function performGachaRoll(count = 1) {
       gameState.elements[elementDef.id] = entry;
     }
 
-    const previousCount = Number(entry.count) || 0;
+    const previousCount = getElementCurrentCount(entry);
+    const previousLifetime = getElementLifetimeCount(entry);
     entry.count = previousCount + 1;
+    entry.lifetime = previousLifetime + 1;
 
     if (!entry.rarity) {
       entry.rarity = rarity.id;
     }
-    if (!entry.owned && entry.count > 0) {
-      entry.owned = true;
-    }
+    entry.owned = entry.lifetime > 0;
 
-    const isNew = previousCount === 0;
+    const isNew = previousLifetime === 0;
     results.push({ rarity, elementDef, isNew });
   }
 
@@ -9296,10 +9332,7 @@ function recalcProduction() {
     if (!entry) return;
     const rarityId = entry.rarity || elementRarityIndex.get(entry.id);
     if (!rarityId) return;
-    const rawCount = Number(entry.count);
-    const normalizedCount = Number.isFinite(rawCount) && rawCount > 0
-      ? Math.floor(rawCount)
-      : (entry.owned ? 1 : 0);
+    const normalizedCount = getElementLifetimeCount(entry);
     if (normalizedCount <= 0) return;
     const counter = getRarityCounter(rarityId);
     if (!counter) return;
@@ -11030,12 +11063,23 @@ function loadGame() {
         const savedCount = Number(saved?.count);
         const normalizedCount = Number.isFinite(savedCount) && savedCount > 0
           ? Math.floor(savedCount)
-          : (saved?.owned ? 1 : 0);
+          : 0;
+        const savedLifetime = Number(saved?.lifetime);
+        let normalizedLifetime = Number.isFinite(savedLifetime) && savedLifetime > 0
+          ? Math.floor(savedLifetime)
+          : 0;
+        if (normalizedLifetime === 0 && (saved?.owned || normalizedCount > 0)) {
+          normalizedLifetime = Math.max(normalizedCount, 1);
+        }
+        if (normalizedLifetime < normalizedCount) {
+          normalizedLifetime = normalizedCount;
+        }
         baseCollection[id] = {
           id,
           gachaId: reference.gachaId,
-          owned: Boolean(saved?.owned) || normalizedCount > 0,
+          owned: normalizedLifetime > 0,
           count: normalizedCount,
+          lifetime: normalizedLifetime,
           rarity: reference.rarity ?? (typeof saved?.rarity === 'string' ? saved.rarity : null),
           effects: Array.isArray(saved?.effects) ? [...saved.effects] : [],
           bonuses: Array.isArray(saved?.bonuses) ? [...saved.bonuses] : []
