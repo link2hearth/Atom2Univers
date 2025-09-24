@@ -175,7 +175,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +5 000 APS par niveau (boostée par Réacteurs). À 150 exemplaires : chaque sonde ajoute +1 APC.',
       category: 'hybrid',
       baseCost: 5e6,
-      costScale: 1.15,
+      costScale: 1.2,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const reactorLevel = getBuildingLevel(context, 'nuclearReactor');
@@ -202,7 +202,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +50 000 APS par niveau (paliers ×2/×4). Chaque Station accorde +5 % d’APC. Palier 300 : Supercalculateurs +100 %.',
       category: 'hybrid',
       baseCost: 1e8,
-      costScale: 1.15,
+      costScale: 1.2,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 50_000 * level;
@@ -220,7 +220,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +500 000 APS par niveau (+2 % APS par Station). Palier 150 : +25 % APC global.',
       category: 'hybrid',
       baseCost: 5e10,
-      costScale: 1.15,
+      costScale: 1.2,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const stationLevel = getBuildingLevel(context, 'spaceStation');
@@ -245,7 +245,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +5 000 000 APS par niveau (doublée par Bibliothèque ≥300). Chaque niveau augmente l’APS de 10 %. Palier 100 : +50 % APC global.',
       category: 'auto',
       baseCost: 1e13,
-      costScale: 1.15,
+      costScale: 1.2,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const libraryLevel = getBuildingLevel(context, 'omniverseLibrary');
@@ -276,7 +276,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +500 000 000 APS par niveau (paliers ×2/×4). Synergie : +0,5 % APS global par bâtiment possédé. Palier 200 : coûts des bâtiments −5 %.',
       category: 'auto',
       baseCost: 1e16,
-      costScale: 1.15,
+      costScale: 1.2,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 5e8 * level;
@@ -297,7 +297,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +10 000 000 000 APS par niveau (paliers ×2/×4). Bonus clic arrondi : +0,1 × bâtiments × niveau. Palier 300 : production totale ×2.',
       category: 'hybrid',
       baseCost: 1e20,
-      costScale: 1.15,
+      costScale: 1.25,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const totalBuildings = getTotalBuildings(context);
@@ -326,7 +326,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +1 000 000 000 000 APS par niveau (paliers ×2/×4). Réduction de 1 % du coût futur par Architecte. Palier 150 : +20 % APC global.',
       category: 'hybrid',
       baseCost: 1e25,
-      costScale: 1.15,
+      costScale: 1.25,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 1e12 * level;
@@ -346,7 +346,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4).',
       category: 'auto',
       baseCost: 1e30,
-      costScale: 1.15,
+      costScale: 1.25,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 1e14 * level;
@@ -363,7 +363,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +10 000 000 000 000 000 APS par niveau (paliers ×2/×4). +2 % boost global par Univers parallèle. Palier 300 : Galaxies artificielles ×2.',
       category: 'hybrid',
       baseCost: 1e36,
-      costScale: 1.15,
+      costScale: 1.25,
       effect: (level = 0, context = {}) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 1e16 * level;
@@ -389,7 +389,7 @@ function createShopBuildingDefinitions() {
         'Production passive : +1 000 000 000 000 000 000 APS par niveau (paliers ×2/×4). Palier 100 : double définitivement tous les gains.',
       category: 'hybrid',
       baseCost: 1e42,
-      costScale: 1.15,
+      costScale: 1.25,
       effect: (level = 0) => {
         const tierMultiplier = computeBuildingTierMultiplier(level);
         const baseAmount = 1e18 * level;
