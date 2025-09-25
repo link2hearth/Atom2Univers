@@ -8638,60 +8638,19 @@ function renderElementBonuses() {
     const copiesCount = Number(summary.copies || 0);
     const uniqueCount = Number(summary.uniques || 0);
     const totalUnique = Number(summary.totalUnique || 0);
-    const duplicatesCount = Number(
-      summary.duplicates != null
-        ? summary.duplicates
-        : Math.max(0, copiesCount - uniqueCount)
-    );
+    const activeCopies = Math.max(0, Number(summary.activeCopies || 0));
 
     const uniqueDisplay = totalUnique > 0
       ? `${uniqueCount.toLocaleString('fr-FR')} / ${totalUnique.toLocaleString('fr-FR')}`
       : uniqueCount.toLocaleString('fr-FR');
 
     addCountRow('Éléments uniques', uniqueDisplay);
-    addCountRow('Copies totales', copiesCount.toLocaleString('fr-FR'));
-    addCountRow('Doublons', duplicatesCount.toLocaleString('fr-FR'), {
-      highlight: duplicatesCount > 0
-    });
+    const lifetimeDisplay = copiesCount.toLocaleString('fr-FR');
+    const activeDisplay = activeCopies.toLocaleString('fr-FR');
+    addCountRow('Copies totales', `${lifetimeDisplay} · Actives ${activeDisplay}`);
 
     if (counts.children.length) {
       meta.appendChild(counts);
-    }
-
-    if (totalUnique > 0) {
-      const progress = document.createElement('div');
-      progress.className = 'element-bonus-progress';
-
-      const percentValue = Math.min(1, Math.max(0, uniqueCount / totalUnique));
-      const percent = percentValue * 100;
-      const percentOptions = percent >= 100
-        ? { maximumFractionDigits: 0 }
-        : percent >= 10
-          ? { maximumFractionDigits: 1 }
-          : { maximumFractionDigits: 2 };
-      const percentLabel = percent.toLocaleString('fr-FR', percentOptions);
-
-      const label = document.createElement('span');
-      label.className = 'element-bonus-progress__label';
-      label.textContent = `Progression de collection : ${percentLabel} %`;
-      progress.appendChild(label);
-
-      const track = document.createElement('div');
-      track.className = 'element-bonus-progress__track';
-      track.setAttribute('role', 'progressbar');
-      track.setAttribute('aria-valuemin', '0');
-      track.setAttribute('aria-valuemax', totalUnique.toString());
-      track.setAttribute('aria-valuenow', uniqueCount.toString());
-      track.setAttribute('aria-valuetext', `${uniqueCount.toLocaleString('fr-FR')} sur ${totalUnique.toLocaleString('fr-FR')}`);
-      track.setAttribute('aria-label', `Progression ${summary.label}`);
-
-      const fill = document.createElement('div');
-      fill.className = 'element-bonus-progress__fill';
-      fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-      track.appendChild(fill);
-
-      progress.appendChild(track);
-      meta.appendChild(progress);
     }
 
     card.appendChild(meta);
@@ -8721,38 +8680,6 @@ function renderElementBonuses() {
     }
     if (critParts.length) {
       appendProduction('Critiques', critParts.join(' · '));
-    }
-
-    if (productionEntries.length) {
-      const section = document.createElement('section');
-      section.className = 'element-bonus-section';
-
-      const sectionTitle = document.createElement('h5');
-      sectionTitle.className = 'element-bonus-section__title';
-      sectionTitle.textContent = 'Bonus de production';
-      section.appendChild(sectionTitle);
-
-      const list = document.createElement('ul');
-      list.className = 'element-bonus-effects';
-
-      productionEntries.forEach(entry => {
-        const item = document.createElement('li');
-        item.className = 'element-bonus-effects__item';
-
-        const labelEl = document.createElement('span');
-        labelEl.className = 'element-bonus-effects__label';
-        labelEl.textContent = entry.label;
-
-        const valueEl = document.createElement('span');
-        valueEl.className = 'element-bonus-effects__value';
-        valueEl.textContent = entry.value;
-
-        item.append(labelEl, valueEl);
-        list.appendChild(item);
-      });
-
-      section.appendChild(list);
-      details.appendChild(section);
     }
 
     const productionEffectSet = new Set();
@@ -10223,7 +10150,7 @@ function recalcProduction() {
     if (!rarityId) return null;
     let counter = elementCountsByRarity.get(rarityId);
     if (!counter) {
-      counter = { copies: 0, unique: 0 };
+      counter = { copies: 0, unique: 0, active: 0 };
       elementCountsByRarity.set(rarityId, counter);
     }
     return counter;
@@ -10238,23 +10165,26 @@ function recalcProduction() {
     if (normalizedCount <= 0) return;
     const counter = getRarityCounter(rarityId);
     if (!counter) return;
+    const activeCount = Math.max(0, getElementCurrentCount(entry));
     counter.copies += normalizedCount;
     counter.unique += 1;
+    counter.active += activeCount;
 
     const definition = periodicElementIndex.get(entry.id);
     const familyId = definition?.category;
     if (familyId) {
       let familyCounter = elementCountsByFamily.get(familyId);
       if (!familyCounter) {
-        familyCounter = { copies: 0, unique: 0 };
+        familyCounter = { copies: 0, unique: 0, active: 0 };
         elementCountsByFamily.set(familyId, familyCounter);
       }
       familyCounter.copies += normalizedCount;
       familyCounter.unique += 1;
+      familyCounter.active += activeCount;
     }
   });
 
-  const singularityCounts = elementCountsByRarity.get('singulier') || { copies: 0, unique: 0 };
+  const singularityCounts = elementCountsByRarity.get('singulier') || { copies: 0, unique: 0, active: 0 };
   const singularityPoolSize = getRarityPoolSize('singulier');
   const isSingularityComplete = singularityPoolSize > 0 && singularityCounts.unique >= singularityPoolSize;
   const stellaireSingularityBoost = isSingularityComplete ? 2 : 1;
@@ -10342,7 +10272,7 @@ function recalcProduction() {
 
   ELEMENT_GROUP_BONUS_CONFIG.forEach((groupConfig, rarityId) => {
     registerFlatMultiplierDefaults(rarityId);
-    const counts = elementCountsByRarity.get(rarityId) || { copies: 0, unique: 0 };
+    const counts = elementCountsByRarity.get(rarityId) || { copies: 0, unique: 0, active: 0 };
     const poolSize = getRarityPoolSize(rarityId);
     if (groupConfig?.perCopy) {
       evaluateFlatMultiplierEntry(rarityId, groupConfig.perCopy, 'perCopy', counts, poolSize);
@@ -10452,7 +10382,8 @@ function recalcProduction() {
   };
 
   ELEMENT_GROUP_BONUS_CONFIG.forEach((groupConfig, rarityId) => {
-    const { copies: copyCount = 0, unique: uniqueCount = 0 } = elementCountsByRarity.get(rarityId) || {};
+    const { copies: copyCount = 0, unique: uniqueCount = 0, active: activeCount = 0 } =
+      elementCountsByRarity.get(rarityId) || {};
     const rarityLabel = RARITY_LABEL_MAP.get(rarityId) || rarityId;
     const copyLabel = groupConfig.labels?.perCopy || `${rarityLabel} · copies`;
     const setBonusLabel = groupConfig.labels?.setBonus || `${rarityLabel} · bonus de groupe`;
@@ -10552,6 +10483,7 @@ function recalcProduction() {
       uniques: uniqueCount,
       duplicates: duplicateCount,
       totalUnique,
+      activeCopies: Math.max(0, Number(activeCount) || 0),
       isComplete: totalUnique > 0 && uniqueCount >= totalUnique,
       clickFlatTotal: 0,
       autoFlatTotal: 0,
@@ -11120,9 +11052,10 @@ function recalcProduction() {
 
   if (ELEMENT_FAMILY_CONFIG.size > 0) {
     ELEMENT_FAMILY_CONFIG.forEach((familyConfig, familyId) => {
-      const counts = elementCountsByFamily.get(familyId) || { copies: 0, unique: 0 };
+      const counts = elementCountsByFamily.get(familyId) || { copies: 0, unique: 0, active: 0 };
       const copyCount = Math.max(0, Number(counts.copies) || 0);
       const uniqueCount = Math.max(0, Number(counts.unique) || 0);
+      const activeCount = Math.max(0, Number(counts.active) || 0);
       const duplicateCount = Math.max(0, copyCount - uniqueCount);
       const totalUnique = getFamilyPoolSize(familyId);
       const label = normalizeLabel(familyConfig.label) || CATEGORY_LABELS[familyId] || familyId;
@@ -11134,6 +11067,7 @@ function recalcProduction() {
         uniques: uniqueCount,
         duplicates: duplicateCount,
         totalUnique,
+        activeCopies: activeCount,
         isComplete: totalUnique > 0 && uniqueCount >= totalUnique,
         clickFlatTotal: 0,
         autoFlatTotal: 0,
