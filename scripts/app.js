@@ -5692,6 +5692,7 @@ function toggleDevKitCheat(key) {
 
 const SHOP_PURCHASE_AMOUNTS = [1, 10, 100];
 const shopRows = new Map();
+let lastVisibleShopBonusIds = new Set();
 const periodicCells = new Map();
 let selectedElementId = null;
 let gamePageVisibleSince = null;
@@ -8976,21 +8977,44 @@ function renderShopBonuses() {
   container.innerHTML = '';
 
   const summaries = collectShopBonusSummaries();
-  if (!summaries.length) {
+  const summaryById = new Map();
+  summaries.forEach(summary => {
+    summaryById.set(summary.id, summary);
+  });
+
+  const unlocks = getShopUnlockSet();
+  const visibleDefs = UPGRADE_DEFS.filter(def => unlocks.has(def.id));
+  const visibleSummaries = visibleDefs
+    .map(def => summaryById.get(def.id))
+    .filter(Boolean);
+
+  if (!visibleSummaries.length) {
     const empty = document.createElement('p');
     empty.className = 'element-bonus-empty shop-bonus-empty';
     empty.textContent = 'Aucune amélioration disponible.';
     container.appendChild(empty);
+    lastVisibleShopBonusIds = new Set();
     return;
   }
 
-  summaries.forEach(summary => {
+  const previouslyVisibleIds = lastVisibleShopBonusIds;
+  const nextVisibleIds = new Set();
+
+  visibleSummaries.forEach(summary => {
+    nextVisibleIds.add(summary.id);
     const card = document.createElement('article');
     card.className = 'element-bonus-card shop-bonus-card';
     card.setAttribute('role', 'listitem');
     card.dataset.upgradeId = summary.id;
     if (!summary.level) {
       card.classList.add('shop-bonus-card--inactive');
+    }
+
+    if (!previouslyVisibleIds.has(summary.id)) {
+      card.classList.add('shop-bonus-card--revealed');
+      card.addEventListener('animationend', () => {
+        card.classList.remove('shop-bonus-card--revealed');
+      }, { once: true });
     }
 
     const header = document.createElement('header');
@@ -9060,6 +9084,8 @@ function renderShopBonuses() {
 
     container.appendChild(card);
   });
+
+  lastVisibleShopBonusIds = nextVisibleIds;
 }
 
 function computeRarityMultiplierProduct(store) {
