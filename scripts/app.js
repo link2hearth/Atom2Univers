@@ -3397,6 +3397,9 @@ function createInitialStats() {
   return {
     session: {
       atomsGained: LayeredNumber.zero(),
+      apcAtoms: LayeredNumber.zero(),
+      apsAtoms: LayeredNumber.zero(),
+      offlineAtoms: LayeredNumber.zero(),
       manualClicks: 0,
       onlineTimeMs: 0,
       startedAt: now,
@@ -3407,6 +3410,9 @@ function createInitialStats() {
       }
     },
     global: {
+      apcAtoms: LayeredNumber.zero(),
+      apsAtoms: LayeredNumber.zero(),
+      offlineAtoms: LayeredNumber.zero(),
       manualClicks: 0,
       playTimeMs: 0,
       startedAt: null,
@@ -3417,6 +3423,44 @@ function createInitialStats() {
       }
     }
   };
+}
+
+function getLayeredStat(store, key) {
+  if (!store || typeof store !== 'object') {
+    return LayeredNumber.zero();
+  }
+  const current = store[key];
+  if (current instanceof LayeredNumber) {
+    return current;
+  }
+  if (current && typeof current === 'object') {
+    try {
+      const normalized = LayeredNumber.fromJSON(current);
+      store[key] = normalized;
+      return normalized;
+    } catch (err) {
+      // Ignore malformed values and fall through to zero
+    }
+  }
+  if (current != null) {
+    const numeric = Number(current);
+    if (Number.isFinite(numeric) && numeric !== 0) {
+      const normalized = new LayeredNumber(numeric);
+      store[key] = normalized;
+      return normalized;
+    }
+  }
+  const zero = LayeredNumber.zero();
+  store[key] = zero;
+  return zero;
+}
+
+function incrementLayeredStat(store, key, amount) {
+  if (!store || typeof store !== 'object') {
+    return;
+  }
+  const current = getLayeredStat(store, key);
+  store[key] = current.add(amount);
 }
 
 function normalizeFrenzyStats(raw) {
@@ -3886,6 +3930,9 @@ function parseStats(saved) {
     stats.global.manualClicks = Number(saved.global.manualClicks) || 0;
     stats.global.playTimeMs = Number(saved.global.playTimeMs) || 0;
     stats.global.frenzyTriggers = normalizeFrenzyStats(saved.global.frenzyTriggers);
+    stats.global.apcAtoms = LayeredNumber.fromJSON(saved.global.apcAtoms);
+    stats.global.apsAtoms = LayeredNumber.fromJSON(saved.global.apsAtoms);
+    stats.global.offlineAtoms = LayeredNumber.fromJSON(saved.global.offlineAtoms);
     const globalStart = typeof saved.global.startedAt === 'number'
       ? Number(saved.global.startedAt)
       : null;
@@ -3901,6 +3948,9 @@ function parseStats(saved) {
   // Always start a fresh session when the game is (re)loaded.
   stats.session = {
     atomsGained: LayeredNumber.zero(),
+    apcAtoms: LayeredNumber.zero(),
+    apsAtoms: LayeredNumber.zero(),
+    offlineAtoms: LayeredNumber.zero(),
     manualClicks: 0,
     onlineTimeMs: 0,
     startedAt: Date.now(),
@@ -4483,9 +4533,15 @@ const elements = {
   infoApcBreakdown: document.getElementById('infoApcBreakdown'),
   infoSessionAtoms: document.getElementById('infoSessionAtoms'),
   infoSessionClicks: document.getElementById('infoSessionClicks'),
+  infoSessionApcAtoms: document.getElementById('infoSessionApcAtoms'),
+  infoSessionApsAtoms: document.getElementById('infoSessionApsAtoms'),
+  infoSessionOfflineAtoms: document.getElementById('infoSessionOfflineAtoms'),
   infoSessionDuration: document.getElementById('infoSessionDuration'),
   infoGlobalAtoms: document.getElementById('infoGlobalAtoms'),
   infoGlobalClicks: document.getElementById('infoGlobalClicks'),
+  infoGlobalApcAtoms: document.getElementById('infoGlobalApcAtoms'),
+  infoGlobalApsAtoms: document.getElementById('infoGlobalApsAtoms'),
+  infoGlobalOfflineAtoms: document.getElementById('infoGlobalOfflineAtoms'),
   infoGlobalDuration: document.getElementById('infoGlobalDuration'),
   infoBonusSubtitle: document.getElementById('infoBonusSubtitle'),
   infoElementBonuses: document.getElementById('infoElementBonuses'),
@@ -9098,6 +9154,18 @@ function updateSessionStats() {
   if (elements.infoSessionClicks) {
     elements.infoSessionClicks.textContent = Number(session.manualClicks || 0).toLocaleString('fr-FR');
   }
+  if (elements.infoSessionApcAtoms) {
+    const apc = getLayeredStat(session, 'apcAtoms');
+    elements.infoSessionApcAtoms.textContent = apc.toString();
+  }
+  if (elements.infoSessionApsAtoms) {
+    const aps = getLayeredStat(session, 'apsAtoms');
+    elements.infoSessionApsAtoms.textContent = aps.toString();
+  }
+  if (elements.infoSessionOfflineAtoms) {
+    const offline = getLayeredStat(session, 'offlineAtoms');
+    elements.infoSessionOfflineAtoms.textContent = offline.toString();
+  }
   if (elements.infoSessionDuration) {
     elements.infoSessionDuration.textContent = formatDuration(session.onlineTimeMs);
   }
@@ -9112,6 +9180,18 @@ function updateGlobalStats() {
   }
   if (elements.infoGlobalClicks) {
     elements.infoGlobalClicks.textContent = Number(global.manualClicks || 0).toLocaleString('fr-FR');
+  }
+  if (elements.infoGlobalApcAtoms) {
+    const apc = getLayeredStat(global, 'apcAtoms');
+    elements.infoGlobalApcAtoms.textContent = apc.toString();
+  }
+  if (elements.infoGlobalApsAtoms) {
+    const aps = getLayeredStat(global, 'apsAtoms');
+    elements.infoGlobalApsAtoms.textContent = aps.toString();
+  }
+  if (elements.infoGlobalOfflineAtoms) {
+    const offline = getLayeredStat(global, 'offlineAtoms');
+    elements.infoGlobalOfflineAtoms.textContent = offline.toString();
   }
   if (elements.infoGlobalDuration) {
     elements.infoGlobalDuration.textContent = formatDuration(global.playTimeMs);
@@ -9763,7 +9843,7 @@ function handleManualAtomClick() {
     ? gameState.perClick
     : toLayeredNumber(gameState.perClick ?? 0, 0);
   const critResult = applyCriticalHit(baseAmount);
-  gainAtoms(critResult.amount, true);
+  gainAtoms(critResult.amount, 'apc');
   registerManualClick();
   soundEffects.pop.play();
   if (critResult.isCritical) {
@@ -9983,13 +10063,26 @@ document.addEventListener('selectstart', event => {
   }
 });
 
-function gainAtoms(amount, fromClick = false) {
+function gainAtoms(amount, source = 'generic') {
   gameState.atoms = gameState.atoms.add(amount);
   gameState.lifetime = gameState.lifetime.add(amount);
   if (gameState.stats) {
     const session = gameState.stats.session;
+    const global = gameState.stats.global;
     if (session?.atomsGained) {
       session.atomsGained = session.atomsGained.add(amount);
+    }
+    if (source === 'apc') {
+      incrementLayeredStat(session, 'apcAtoms', amount);
+      incrementLayeredStat(global, 'apcAtoms', amount);
+    } else if (source === 'offline') {
+      incrementLayeredStat(session, 'apsAtoms', amount);
+      incrementLayeredStat(session, 'offlineAtoms', amount);
+      incrementLayeredStat(global, 'apsAtoms', amount);
+      incrementLayeredStat(global, 'offlineAtoms', amount);
+    } else if (source === 'aps') {
+      incrementLayeredStat(session, 'apsAtoms', amount);
+      incrementLayeredStat(global, 'apsAtoms', amount);
     }
   }
   evaluateTrophies();
@@ -12052,6 +12145,12 @@ if (elements.bigBangOptionToggle) {
 
 function serializeState() {
   const stats = gameState.stats || createInitialStats();
+  const sessionApc = getLayeredStat(stats.session, 'apcAtoms');
+  const sessionAps = getLayeredStat(stats.session, 'apsAtoms');
+  const sessionOffline = getLayeredStat(stats.session, 'offlineAtoms');
+  const globalApc = getLayeredStat(stats.global, 'apcAtoms');
+  const globalAps = getLayeredStat(stats.global, 'apsAtoms');
+  const globalOffline = getLayeredStat(stats.global, 'offlineAtoms');
   return {
     atoms: gameState.atoms.toJSON(),
     lifetime: gameState.lifetime.toJSON(),
@@ -12091,6 +12190,9 @@ function serializeState() {
     stats: {
       session: {
         atomsGained: stats.session.atomsGained.toJSON(),
+        apcAtoms: sessionApc.toJSON(),
+        apsAtoms: sessionAps.toJSON(),
+        offlineAtoms: sessionOffline.toJSON(),
         manualClicks: stats.session.manualClicks,
         onlineTimeMs: stats.session.onlineTimeMs,
         startedAt: stats.session.startedAt,
@@ -12101,6 +12203,9 @@ function serializeState() {
         }
       },
       global: {
+        apcAtoms: globalApc.toJSON(),
+        apsAtoms: globalAps.toJSON(),
+        offlineAtoms: globalOffline.toJSON(),
         manualClicks: stats.global.manualClicks,
         playTimeMs: stats.global.playTimeMs,
         startedAt: stats.global.startedAt,
@@ -12544,7 +12649,7 @@ function loadGame() {
           : MYTHIQUE_OFFLINE_BASE;
         if (multiplier > 0) {
           const offlineGain = gameState.perSecond.multiplyNumber(capped * multiplier);
-          gainAtoms(offlineGain);
+          gainAtoms(offlineGain, 'offline');
           showToast(`Progression hors ligne : +${offlineGain.toString()} atomes`);
         }
       }
@@ -12612,7 +12717,7 @@ function loop(now) {
 
   if (!gameState.perSecond.isZero()) {
     const gain = gameState.perSecond.multiplyNumber(delta);
-    gainAtoms(gain);
+    gainAtoms(gain, 'aps');
   }
 
   updateClickVisuals(now);
