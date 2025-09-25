@@ -1921,6 +1921,20 @@ function createInitialFusionBonuses() {
   return { apcFlat: 0, apsFlat: 0 };
 }
 
+function getFusionSuccessCount(fusionId) {
+  if (!fusionId) {
+    return 0;
+  }
+  const entry = gameState.fusions && typeof gameState.fusions === 'object'
+    ? gameState.fusions[fusionId]
+    : null;
+  const successes = Number(entry?.successes);
+  if (Number.isFinite(successes) && successes > 0) {
+    return Math.floor(successes);
+  }
+  return 0;
+}
+
 function getElementCurrentCount(entry) {
   if (!entry) return 0;
   const rawCount = Number(entry.count);
@@ -4097,6 +4111,22 @@ function normalizeTrophyCondition(raw) {
       rarities
     };
   }
+  if (
+    type === 'fusionSuccesses'
+    || type === 'fusionSuccess'
+    || type === 'fusionSet'
+    || type === 'fusionGroup'
+  ) {
+    const source = raw.fusions ?? raw.ids ?? raw.id ?? raw.fusion ?? [];
+    const list = Array.isArray(source) ? source : [source];
+    const fusions = Array.from(new Set(list
+      .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter(Boolean)));
+    return {
+      type: 'fusionSuccesses',
+      fusions
+    };
+  }
   const amount = toLayeredNumber(raw.amount ?? raw.value ?? 0, 0);
   return {
     type: 'lifetimeAtoms',
@@ -4374,6 +4404,24 @@ function formatTrophyProgress(def) {
       displayTarget: total.toLocaleString('fr-FR')
     };
   }
+  if (condition.type === 'fusionSuccesses') {
+    const fusionIds = Array.isArray(condition.fusions) ? condition.fusions : [];
+    const total = fusionIds.length;
+    let completed = 0;
+    fusionIds.forEach(fusionId => {
+      if (getFusionSuccessCount(fusionId) > 0) {
+        completed += 1;
+      }
+    });
+    const percent = total > 0 ? Math.max(0, Math.min(1, completed / total)) : 0;
+    return {
+      current: completed,
+      target: total,
+      percent,
+      displayCurrent: completed.toLocaleString('fr-FR'),
+      displayTarget: total.toLocaleString('fr-FR')
+    };
+  }
   const current = gameState.lifetime;
   const target = condition.amount instanceof LayeredNumber
     ? condition.amount
@@ -4412,6 +4460,13 @@ function isTrophyConditionMet(def) {
       return false;
     }
     return rarities.every(rarityId => isRarityCollectionComplete(rarityId));
+  }
+  if (condition.type === 'fusionSuccesses') {
+    const fusionIds = Array.isArray(condition.fusions) ? condition.fusions : [];
+    if (!fusionIds.length) {
+      return false;
+    }
+    return fusionIds.every(fusionId => getFusionSuccessCount(fusionId) > 0);
   }
   const target = condition.amount instanceof LayeredNumber
     ? condition.amount
@@ -6585,6 +6640,7 @@ function handleFusionAttempt(fusionId) {
 
   recalcProduction();
   updateUI();
+  evaluateTrophies();
   saveGame();
 
   if (success) {

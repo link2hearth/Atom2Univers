@@ -838,6 +838,114 @@ const GAME_CONFIG = {
       rewards: {
         apcFlat: 100
       }
+    },
+    {
+      id: 'bronzeAlloy',
+      name: 'Bronze (alliage Cu-Sn)',
+      description: 'Alliez ~88 % de Cuivre avec ~12 % d’Étain pour obtenir un bronze protohistorique.',
+      inputs: [
+        { elementId: 'element-029-cuivre', count: 9 },
+        { elementId: 'element-050-etain', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 150
+      }
+    },
+    {
+      id: 'stainlessSteel18_8',
+      name: 'Acier inoxydable 18/8',
+      description: 'Combinez ~70 % de Fer, ~18 % de Chrome et ~8 % de Nickel pour former l’inox 18/8.',
+      inputs: [
+        { elementId: 'element-026-fer', count: 7 },
+        { elementId: 'element-024-chrome', count: 2 },
+        { elementId: 'element-028-nickel', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 200
+      }
+    },
+    {
+      id: 'duraluminAlloy',
+      name: 'Duralumin (alliage Al-Cu-Mn)',
+      description: 'Assemblez ~95 % d’Aluminium avec ~4 % de Cuivre et des traces de Manganèse/Magnésium (~1 %).',
+      inputs: [
+        { elementId: 'element-013-aluminium', count: 8 },
+        { elementId: 'element-029-cuivre', count: 1 },
+        { elementId: 'element-025-manganese', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 250
+      }
+    },
+    {
+      id: 'laitonAlloy',
+      name: 'Laiton (alliage Cu-Zn)',
+      description: 'Mélangez ~65 % de Cuivre et ~35 % de Zinc pour façonner un laiton de plomberie.',
+      inputs: [
+        { elementId: 'element-029-cuivre', count: 7 },
+        { elementId: 'element-030-zinc', count: 3 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 150
+      }
+    },
+    {
+      id: 'leadAcidAlloy',
+      name: 'Alliage plomb-acide',
+      description: 'Solidifiez ~93 % de Plomb avec ~7 % d’Antimoine pour vos batteries au plomb.',
+      inputs: [
+        { elementId: 'element-082-plomb', count: 9 },
+        { elementId: 'element-051-antimoine', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 200
+      }
+    },
+    {
+      id: 'ti6Al4VAlloy',
+      name: 'Alliage Ti-6Al-4V',
+      description: 'Fusionnez ~90 % de Titane avec ~6 % d’Aluminium et ~4 % de Vanadium pour l’aéronautique.',
+      inputs: [
+        { elementId: 'element-022-titane', count: 8 },
+        { elementId: 'element-013-aluminium', count: 1 },
+        { elementId: 'element-023-vanadium', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 300
+      }
+    },
+    {
+      id: 'roseGoldAlloy',
+      name: 'Or rose (alliage Au-Cu-Ag)',
+      description: 'Alliez ~75 % d’Or, ~22 % de Cuivre et ~3 % d’Argent pour une teinte rosée 18 carats.',
+      inputs: [
+        { elementId: 'element-079-or', count: 7 },
+        { elementId: 'element-029-cuivre', count: 2 },
+        { elementId: 'element-047-argent', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 300
+      }
+    },
+    {
+      id: 'platinumIridiumAlloy',
+      name: 'Alliage platine-iridium',
+      description: 'Combinez ~70 % de Platine avec ~30 % d’Iridium pour une référence de métrologie.',
+      inputs: [
+        { elementId: 'element-078-platine', count: 7 },
+        { elementId: 'element-077-iridium', count: 3 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 350
+      }
     }
   ],
 
@@ -912,6 +1020,29 @@ const GAME_CONFIG = {
         description: 'Sur l’écran principal, les étoiles à tickets se récoltent seules après 3 secondes.'
       },
       order: 1030
+    },
+    {
+      id: 'alloyMastery',
+      name: 'Maîtres des alliages',
+      description: 'Réussissez toutes les fusions d’alliages métalliques disponibles.',
+      condition: {
+        type: 'fusionSuccesses',
+        fusions: [
+          'bronzeAlloy',
+          'stainlessSteel18_8',
+          'duraluminAlloy',
+          'laitonAlloy',
+          'leadAcidAlloy',
+          'ti6Al4VAlloy',
+          'roseGoldAlloy',
+          'platinumIridiumAlloy'
+        ]
+      },
+      reward: {
+        trophyMultiplierAdd: 10,
+        description: 'Ajoute +10 au multiplicateur de trophées (×11 une fois ce succès débloqué).'
+      },
+      order: 1040
     }
   ],
 
