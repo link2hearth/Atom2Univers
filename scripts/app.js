@@ -269,9 +269,15 @@ class LayeredNumber {
 
     if (this.layer > b.layer) {
       const lifted = b.toLayer(this.layer);
+      if (lifted.layer !== this.layer) {
+        return this.clone();
+      }
       return this.add(lifted);
     }
     const lifted = this.toLayer(b.layer);
+    if (lifted.layer !== b.layer) {
+      return b.clone();
+    }
     return lifted.add(b);
   }
 
@@ -320,9 +326,18 @@ class LayeredNumber {
       }
     }
 
-    const higher = this.layer > b.layer ? this : this.toLayer(b.layer);
-    const lower = this.layer > b.layer ? b.toLayer(this.layer) : b;
-    return higher.subtract(lower);
+    if (this.layer > b.layer) {
+      const lifted = b.toLayer(this.layer);
+      if (lifted.layer !== this.layer) {
+        return this.clone();
+      }
+      return this.subtract(lifted);
+    }
+    const lifted = this.toLayer(b.layer);
+    if (lifted.layer !== b.layer) {
+      return b.negate().subtract(this.negate());
+    }
+    return lifted.subtract(b);
   }
 
   multiply(other) {
