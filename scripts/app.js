@@ -4598,6 +4598,19 @@ const soundEffects = (() => {
     return { pop: createSilentPool(), crit: createSilentPool() };
   }
 
+  const updatePitchPreservation = (audio, shouldPreserve) => {
+    const preserve = !!shouldPreserve;
+    if ('preservesPitch' in audio) {
+      audio.preservesPitch = preserve;
+    }
+    if ('mozPreservesPitch' in audio) {
+      audio.mozPreservesPitch = preserve;
+    }
+    if ('webkitPreservesPitch' in audio) {
+      audio.webkitPreservesPitch = preserve;
+    }
+  };
+
   const createSoundPool = (src, poolSize = 4) => {
     const size = Math.max(1, Math.floor(poolSize) || 1);
     const pool = Array.from({ length: size }, () => {
@@ -4608,11 +4621,16 @@ const soundEffects = (() => {
     });
     let index = 0;
     return {
-      play() {
+      play(playbackRate = 1) {
         const audio = pool[index];
         index = (index + 1) % pool.length;
         try {
           audio.currentTime = 0;
+          if (audio.playbackRate !== playbackRate) {
+            audio.playbackRate = playbackRate;
+          }
+          const shouldPreservePitch = Math.abs(playbackRate - 1) < 1e-3;
+          updatePitchPreservation(audio, shouldPreservePitch);
           const playPromise = audio.play();
           if (playPromise && typeof playPromise.catch === 'function') {
             playPromise.catch(() => {});
@@ -4624,9 +4642,15 @@ const soundEffects = (() => {
     };
   };
 
+  const POP_SOUND_SRC = 'Assets/Sounds/pop.mp3';
+  const CRIT_PLAYBACK_RATE = 1.35;
+
+  const popPool = createSoundPool(POP_SOUND_SRC, 6);
+  const critPool = createSoundPool(POP_SOUND_SRC, 3);
+
   return {
-    pop: createSoundPool('Assets/Sounds/pop.mp3', 6),
-    crit: createSoundPool('Assets/Sounds/crit.mp3', 3)
+    pop: { play: () => popPool.play(1) },
+    crit: { play: () => critPool.play(CRIT_PLAYBACK_RATE) }
   };
 })();
 
