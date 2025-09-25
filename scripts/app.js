@@ -1872,35 +1872,6 @@ function getFamilyPoolSize(familyId) {
   return Array.isArray(pool.elementIds) ? pool.elementIds.length : 0;
 }
 
-const ELEMENT_FAMILY_POOLS = (() => {
-  const pools = new Map();
-  periodicElements.forEach(def => {
-    const familyId = typeof def.category === 'string' ? def.category.trim() : '';
-    if (!familyId) {
-      return;
-    }
-    if (!pools.has(familyId)) {
-      pools.set(familyId, {
-        elementIds: [],
-        label: CATEGORY_LABELS[familyId] || familyId
-      });
-    }
-    pools.get(familyId).elementIds.push(def.id);
-  });
-  return pools;
-})();
-
-function getFamilyPoolSize(familyId) {
-  if (!familyId) {
-    return 0;
-  }
-  const pool = ELEMENT_FAMILY_POOLS.get(familyId);
-  if (!pool) {
-    return 0;
-  }
-  return Array.isArray(pool.elementIds) ? pool.elementIds.length : 0;
-}
-
 function createInitialElementCollection() {
   const collection = {};
   periodicElements.forEach(def => {
