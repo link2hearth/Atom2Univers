@@ -1080,6 +1080,69 @@ const GAME_CONFIG = {
     }
   },
 
+  elementFamilies: {
+    'alkali-metal': {
+      label: 'Métaux alcalins',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les métaux alcalins sont collectés.
+      ]
+    },
+    'alkaline-earth-metal': {
+      label: 'Métaux alcalino-terreux',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les métaux alcalino-terreux sont collectés.
+      ]
+    },
+    'transition-metal': {
+      label: 'Métaux de transition',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les métaux de transition sont collectés.
+      ]
+    },
+    'post-transition-metal': {
+      label: 'Métaux pauvres',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les métaux pauvres sont collectés.
+      ]
+    },
+    metalloid: {
+      label: 'Métalloïdes',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les métalloïdes sont collectés.
+      ]
+    },
+    nonmetal: {
+      label: 'Non-métaux',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les non-métaux sont collectés.
+      ]
+    },
+    halogen: {
+      label: 'Halogènes',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les halogènes sont collectés.
+      ]
+    },
+    'noble-gas': {
+      label: 'Gaz nobles',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les gaz nobles sont collectés.
+      ]
+    },
+    lanthanide: {
+      label: 'Lanthanides',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les lanthanides sont collectés.
+      ]
+    },
+    actinide: {
+      label: 'Actinides',
+      bonuses: [
+        // Ajoutez ici les bonus accordés lorsque tous les actinides sont collectés.
+      ]
+    }
+  },
+
   elements: [
     {
       numero: 1,

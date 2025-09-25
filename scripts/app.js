@@ -1302,6 +1302,19 @@ const RAW_ELEMENT_GROUP_BONUS_GROUPS = (() => {
   return rawGroups;
 })();
 
+const CATEGORY_LABELS = {
+  'alkali-metal': 'métal alcalin',
+  'alkaline-earth-metal': 'métal alcalino-terreux',
+  'transition-metal': 'métal de transition',
+  'post-transition-metal': 'métal pauvre',
+  metalloid: 'métalloïde',
+  nonmetal: 'non-métal',
+  halogen: 'halogène',
+  'noble-gas': 'gaz noble',
+  lanthanide: 'lanthanide',
+  actinide: 'actinide'
+};
+
 const ELEMENT_GROUP_BONUS_CONFIG = (() => {
   const result = new Map();
   Object.entries(RAW_ELEMENT_GROUP_BONUS_GROUPS).forEach(([rarityId, rawValue]) => {
@@ -1349,6 +1362,224 @@ if (!ELEMENT_GROUP_BONUS_CONFIG.has(MYTHIQUE_RARITY_ID)) {
     });
   }
 }
+
+function normalizeElementFamilyBonusEntry(raw, { familyId, defaultLabel, index }) {
+  if (raw == null) {
+    return null;
+  }
+  let entry = raw;
+  if (typeof raw === 'string') {
+    const note = raw.trim();
+    if (!note) {
+      return null;
+    }
+    entry = { notes: [note] };
+  }
+  if (typeof entry !== 'object') {
+    return null;
+  }
+
+  const label = normalizeLabel(entry.label ?? entry.name ?? defaultLabel) || defaultLabel;
+  const idBase = typeof entry.id === 'string' && entry.id.trim()
+    ? entry.id.trim()
+    : `${familyId}:bonus:${index + 1}`;
+
+  const effectSource = entry.effects && typeof entry.effects === 'object'
+    ? entry.effects
+    : entry;
+
+  const effects = {};
+  const clickAdd = coerceFiniteNumber(
+    readNumberProperty(effectSource, ['clickAdd', 'apc', 'perClick', 'manual', 'click'])
+  , { allowZero: false });
+  if (clickAdd != null) {
+    effects.clickAdd = clickAdd;
+  }
+  const autoAdd = coerceFiniteNumber(
+    readNumberProperty(effectSource, ['autoAdd', 'aps', 'perSecond', 'auto', 'automatic'])
+  , { allowZero: false });
+  if (autoAdd != null) {
+    effects.autoAdd = autoAdd;
+  }
+  const clickMult = coerceFiniteNumber(
+    readNumberProperty(effectSource, ['clickMult', 'perClickMultiplier', 'manualMultiplier', 'apcMultiplier'])
+  , { allowZero: false, positiveOnly: true });
+  if (clickMult != null && Math.abs(clickMult - 1) > 1e-9) {
+    effects.clickMult = clickMult;
+  }
+  const autoMult = coerceFiniteNumber(
+    readNumberProperty(effectSource, ['autoMult', 'perSecondMultiplier', 'apsMultiplier', 'autoMultiplier'])
+  , { allowZero: false, positiveOnly: true });
+  if (autoMult != null && Math.abs(autoMult - 1) > 1e-9) {
+    effects.autoMult = autoMult;
+  }
+
+  const critSource = effectSource.crit && typeof effectSource.crit === 'object' ? effectSource.crit : null;
+  const readCrit = (source, keys, target, options = {}) => {
+    if (effects[target] != null) {
+      return;
+    }
+    const value = coerceFiniteNumber(readNumberProperty(source, keys), options);
+    if (value != null) {
+      effects[target] = value;
+    }
+  };
+
+  readCrit(effectSource, ['critChanceAdd', 'critChancePlus', 'critChance'], 'critChanceAdd', { allowZero: false });
+  readCrit(effectSource, ['critChanceMult', 'critChanceMultiplier'], 'critChanceMult', { allowZero: false, positiveOnly: true });
+  readCrit(effectSource, ['critChanceSet', 'critChanceFixed'], 'critChanceSet', { allowZero: false, positiveOnly: true });
+  if (critSource) {
+    readCrit(critSource, ['chanceAdd', 'add', 'bonus'], 'critChanceAdd', { allowZero: false });
+    readCrit(critSource, ['chanceMult', 'multiplier'], 'critChanceMult', { allowZero: false, positiveOnly: true });
+    readCrit(critSource, ['chanceSet', 'set'], 'critChanceSet', { allowZero: false, positiveOnly: true });
+  }
+
+  readCrit(effectSource, ['critMultiplierAdd', 'critPowerAdd'], 'critMultiplierAdd', { allowZero: false });
+  readCrit(effectSource, ['critMultiplierMult', 'critPowerMult'], 'critMultiplierMult', { allowZero: false, positiveOnly: true });
+  readCrit(effectSource, ['critMultiplierSet', 'critPowerSet'], 'critMultiplierSet', { allowZero: false, positiveOnly: true });
+  if (critSource) {
+    readCrit(critSource, ['multiplierAdd', 'powerAdd'], 'critMultiplierAdd', { allowZero: false });
+    readCrit(critSource, ['multiplierMult', 'powerMult'], 'critMultiplierMult', { allowZero: false, positiveOnly: true });
+    readCrit(critSource, ['multiplierSet', 'powerSet'], 'critMultiplierSet', { allowZero: false, positiveOnly: true });
+  }
+
+  readCrit(effectSource, ['critMaxMultiplierAdd', 'critCapAdd'], 'critMaxMultiplierAdd', { allowZero: false });
+  readCrit(effectSource, ['critMaxMultiplierMult', 'critCapMult'], 'critMaxMultiplierMult', { allowZero: false, positiveOnly: true });
+  readCrit(effectSource, ['critMaxMultiplierSet', 'critCapSet'], 'critMaxMultiplierSet', { allowZero: false, positiveOnly: true });
+  if (critSource) {
+    readCrit(critSource, ['maxMultiplierAdd', 'capAdd'], 'critMaxMultiplierAdd', { allowZero: false });
+    readCrit(critSource, ['maxMultiplierMult', 'capMult'], 'critMaxMultiplierMult', { allowZero: false, positiveOnly: true });
+    readCrit(critSource, ['maxMultiplierSet', 'capSet'], 'critMaxMultiplierSet', { allowZero: false, positiveOnly: true });
+  }
+
+  if (critSource && !effects.crit) {
+    const crit = {};
+    const pushCritValue = (target, keys, options) => {
+      if (crit[target] != null) {
+        return;
+      }
+      const value = coerceFiniteNumber(readNumberProperty(critSource, keys), options);
+      if (value != null) {
+        crit[target] = value;
+      }
+    };
+    pushCritValue('chanceAdd', ['chanceAdd', 'add', 'bonus'], { allowZero: false });
+    pushCritValue('chanceMult', ['chanceMult', 'multiplier'], { allowZero: false, positiveOnly: true });
+    pushCritValue('chanceSet', ['chanceSet', 'set'], { allowZero: false, positiveOnly: true });
+    pushCritValue('multiplierAdd', ['multiplierAdd', 'powerAdd'], { allowZero: false });
+    pushCritValue('multiplierMult', ['multiplierMult', 'powerMult'], { allowZero: false, positiveOnly: true });
+    pushCritValue('multiplierSet', ['multiplierSet', 'powerSet'], { allowZero: false, positiveOnly: true });
+    pushCritValue('maxMultiplierAdd', ['maxMultiplierAdd', 'capAdd'], { allowZero: false });
+    pushCritValue('maxMultiplierMult', ['maxMultiplierMult', 'capMult'], { allowZero: false, positiveOnly: true });
+    pushCritValue('maxMultiplierSet', ['maxMultiplierSet', 'capSet'], { allowZero: false, positiveOnly: true });
+    if (Object.keys(crit).length > 0) {
+      effects.crit = crit;
+    }
+  }
+
+  if (Object.keys(effects).length === 0) {
+    return null;
+  }
+
+  const notes = [];
+  const appendNote = value => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (!notes.includes(trimmed)) {
+      notes.push(trimmed);
+    }
+  };
+  if (Array.isArray(entry.notes)) {
+    entry.notes.forEach(appendNote);
+  }
+  if (typeof entry.note === 'string') {
+    appendNote(entry.note);
+  }
+
+  const description = typeof entry.description === 'string' && entry.description.trim()
+    ? entry.description.trim()
+    : null;
+
+  return {
+    id: idBase,
+    label,
+    description,
+    notes,
+    effects
+  };
+}
+
+function normalizeElementFamilyConfig(raw, familyId) {
+  if (raw == null) {
+    return null;
+  }
+  const defaultLabel = CATEGORY_LABELS[familyId] || familyId;
+  let label = normalizeLabel(raw.label ?? raw.name) || defaultLabel;
+  let bonusEntries;
+  if (Array.isArray(raw)) {
+    bonusEntries = raw;
+  } else if (Array.isArray(raw.bonuses)) {
+    bonusEntries = raw.bonuses;
+  } else if (raw.bonus != null) {
+    bonusEntries = [raw.bonus];
+  } else if (Array.isArray(raw.effects)) {
+    bonusEntries = raw.effects;
+  } else {
+    bonusEntries = [];
+  }
+
+  const bonuses = [];
+  bonusEntries.forEach((entry, index) => {
+    const normalized = normalizeElementFamilyBonusEntry(entry, { familyId, defaultLabel: label, index });
+    if (normalized) {
+      bonuses.push(normalized);
+    }
+  });
+
+  if (bonuses.length === 0) {
+    return null;
+  }
+
+  return {
+    familyId,
+    label,
+    bonuses
+  };
+}
+
+const RAW_ELEMENT_FAMILY_CONFIG = (() => {
+  const raw = CONFIG.elementFamilies
+    ?? CONFIG.elementFamilyBonuses
+    ?? CONFIG.families;
+  return raw && typeof raw === 'object' ? raw : null;
+})();
+
+const ELEMENT_FAMILY_CONFIG = (() => {
+  const result = new Map();
+  if (!RAW_ELEMENT_FAMILY_CONFIG) {
+    return result;
+  }
+  Object.entries(RAW_ELEMENT_FAMILY_CONFIG).forEach(([familyId, rawValue]) => {
+    if (!familyId) {
+      return;
+    }
+    const normalizedId = String(familyId).trim();
+    if (!normalizedId) {
+      return;
+    }
+    const normalized = normalizeElementFamilyConfig(rawValue, normalizedId);
+    if (!normalized) {
+      return;
+    }
+    result.set(normalizedId, normalized);
+  });
+  return result;
+})();
 
 function pickDefined(...candidates) {
   for (const candidate of candidates) {
@@ -1597,18 +1828,34 @@ function normalizeMythiqueBonusConfig(rawConfig) {
 
 const MYTHIQUE_SPECIAL_BONUS_CONFIG = normalizeMythiqueBonusConfig(RAW_MYTHIQUE_GROUP_CONFIG);
 
-const CATEGORY_LABELS = {
-  'alkali-metal': 'métal alcalin',
-  'alkaline-earth-metal': 'métal alcalino-terreux',
-  'transition-metal': 'métal de transition',
-  'post-transition-metal': 'métal pauvre',
-  metalloid: 'métalloïde',
-  nonmetal: 'non-métal',
-  halogen: 'halogène',
-  'noble-gas': 'gaz noble',
-  lanthanide: 'lanthanide',
-  actinide: 'actinide'
-};
+const ELEMENT_FAMILY_POOLS = (() => {
+  const pools = new Map();
+  periodicElements.forEach(def => {
+    const familyId = typeof def.category === 'string' ? def.category.trim() : '';
+    if (!familyId) {
+      return;
+    }
+    if (!pools.has(familyId)) {
+      pools.set(familyId, {
+        elementIds: [],
+        label: CATEGORY_LABELS[familyId] || familyId
+      });
+    }
+    pools.get(familyId).elementIds.push(def.id);
+  });
+  return pools;
+})();
+
+function getFamilyPoolSize(familyId) {
+  if (!familyId) {
+    return 0;
+  }
+  const pool = ELEMENT_FAMILY_POOLS.get(familyId);
+  if (!pool) {
+    return 0;
+  }
+  return Array.isArray(pool.elementIds) ? pool.elementIds.length : 0;
+}
 
 function createInitialElementCollection() {
   const collection = {};
@@ -3195,6 +3442,7 @@ function createEmptyProductionEntry() {
         shopBonus1: LayeredNumber.one(),
         shopBonus2: LayeredNumber.one(),
         trophyMultiplier: LayeredNumber.one(),
+        familyMultiplier: LayeredNumber.one(),
         frenzy: LayeredNumber.one(),
         rarityMultipliers
       }
@@ -3272,6 +3520,9 @@ function cloneProductionEntry(entry) {
         trophyMultiplier: entry.sources?.multipliers?.trophyMultiplier instanceof LayeredNumber
           ? entry.sources.multipliers.trophyMultiplier.clone()
           : toMultiplierLayered(entry.sources?.multipliers?.trophyMultiplier ?? 1),
+        familyMultiplier: entry.sources?.multipliers?.familyMultiplier instanceof LayeredNumber
+          ? entry.sources.multipliers.familyMultiplier.clone()
+          : toMultiplierLayered(entry.sources?.multipliers?.familyMultiplier ?? 1),
         frenzy: entry.sources?.multipliers?.frenzy instanceof LayeredNumber
           ? entry.sources.multipliers.frenzy.clone()
           : LayeredNumber.one(),
@@ -8217,13 +8468,14 @@ function renderElementBonuses() {
   container.innerHTML = '';
 
   const summaryStore = gameState.elementBonusSummary || {};
-  const entries = INFO_BONUS_RARITIES.map(rarityId => {
+  const rarityEntries = INFO_BONUS_RARITIES.map(rarityId => {
     const existing = summaryStore[rarityId];
     if (existing) {
-      return existing;
+      return { ...existing, type: existing.type || 'rarity' };
     }
     const label = RARITY_LABEL_MAP.get(rarityId) || rarityId;
     return {
+      type: 'rarity',
       rarityId,
       label,
       copies: 0,
@@ -8245,11 +8497,28 @@ function renderElementBonuses() {
     };
   });
 
+  const familyEntries = summaryStore.families && typeof summaryStore.families === 'object'
+    ? Object.values(summaryStore.families).map(entry => ({ ...entry, type: entry.type || 'family' }))
+    : [];
+  familyEntries.sort((a, b) => {
+    const labelA = typeof a.label === 'string' ? a.label : '';
+    const labelB = typeof b.label === 'string' ? b.label : '';
+    return labelA.localeCompare(labelB, 'fr-FR');
+  });
+
+  const entries = [...rarityEntries, ...familyEntries];
+
   entries.forEach(summary => {
     const card = document.createElement('article');
     card.className = 'element-bonus-card';
     card.setAttribute('role', 'listitem');
-    card.dataset.rarityId = summary.rarityId;
+    const summaryType = summary.type || (summary.familyId ? 'family' : 'rarity');
+    if (summaryType === 'family') {
+      card.dataset.familyId = summary.familyId || '';
+      card.classList.add('element-bonus-card--family');
+    } else if (summary.rarityId) {
+      card.dataset.rarityId = summary.rarityId;
+    }
     if (summary.isComplete) {
       card.classList.add('element-bonus-card--complete');
     }
@@ -8266,7 +8535,11 @@ function renderElementBonuses() {
 
     const status = document.createElement('span');
     status.className = 'element-bonus-card__status';
-    status.textContent = summary.isComplete ? 'Complet' : 'En cours';
+    if (summaryType === 'family') {
+      status.textContent = summary.isComplete ? 'Famille complète' : 'Famille en cours';
+    } else {
+      status.textContent = summary.isComplete ? 'Complet' : 'En cours';
+    }
     header.appendChild(status);
 
     meta.appendChild(header);
@@ -9813,7 +10086,9 @@ function recalcProduction() {
   const autoRarityMultipliers = autoDetails.sources.multipliers.rarityMultipliers;
 
   const elementCountsByRarity = new Map();
+  const elementCountsByFamily = new Map();
   const elementGroupSummaries = new Map();
+  const familySummaries = new Map();
   const mythiqueBonuses = {
     ticketIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
     offlineMultiplier: MYTHIQUE_OFFLINE_BASE,
@@ -9857,6 +10132,18 @@ function recalcProduction() {
     if (!counter) return;
     counter.copies += normalizedCount;
     counter.unique += 1;
+
+    const definition = periodicElementIndex.get(entry.id);
+    const familyId = definition?.category;
+    if (familyId) {
+      let familyCounter = elementCountsByFamily.get(familyId);
+      if (!familyCounter) {
+        familyCounter = { copies: 0, unique: 0 };
+        elementCountsByFamily.set(familyId, familyCounter);
+      }
+      familyCounter.copies += normalizedCount;
+      familyCounter.unique += 1;
+    }
   });
 
   const singularityCounts = elementCountsByRarity.get('singulier') || { copies: 0, unique: 0 };
@@ -9870,6 +10157,10 @@ function recalcProduction() {
     perSecond: new Map()
   };
   const activeFlatMultiplierEntries = new Set();
+  const familyMultipliers = {
+    perClick: LayeredNumber.one(),
+    perSecond: LayeredNumber.one()
+  };
 
   const registerFlatMultiplierDefaults = rarityId => {
     if (!rarityId) return;
@@ -9965,7 +10256,7 @@ function recalcProduction() {
     return Number.isFinite(value) && value > 0 ? value : 1;
   };
 
-  const addClickElementFlat = (value, { id, label, rarityId }) => {
+  const addClickElementFlat = (value, { id, label, rarityId, source = 'elements' }) => {
     if (value == null) return 0;
     const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
     if (layeredValue.isZero()) return 0;
@@ -9979,12 +10270,12 @@ function recalcProduction() {
       id,
       label,
       value: finalValue.clone(),
-      source: 'elements'
+      source
     });
     return finalValue.toNumber();
   };
 
-  const addAutoElementFlat = (value, { id, label, rarityId }) => {
+  const addAutoElementFlat = (value, { id, label, rarityId, source = 'elements' }) => {
     if (value == null) return 0;
     const layeredValue = value instanceof LayeredNumber ? value.clone() : new LayeredNumber(value);
     if (layeredValue.isZero()) return 0;
@@ -9998,9 +10289,32 @@ function recalcProduction() {
       id,
       label,
       value: finalValue.clone(),
-      source: 'elements'
+      source
     });
     return finalValue.toNumber();
+  };
+
+  const applyFamilyMultiplier = (type, multiplierValue, { id, label }) => {
+    if (multiplierValue == null) {
+      return 1;
+    }
+    const layeredValue = multiplierValue instanceof LayeredNumber
+      ? multiplierValue.clone()
+      : toMultiplierLayered(multiplierValue);
+    if (!(layeredValue instanceof LayeredNumber)) {
+      return 1;
+    }
+    if (isLayeredOne(layeredValue)) {
+      return 1;
+    }
+    if (type === 'perClick') {
+      familyMultipliers.perClick = familyMultipliers.perClick.multiply(layeredValue);
+      clickDetails.multipliers.push({ id, label, value: layeredValue.clone(), source: 'family' });
+    } else {
+      familyMultipliers.perSecond = familyMultipliers.perSecond.multiply(layeredValue);
+      autoDetails.multipliers.push({ id, label, value: layeredValue.clone(), source: 'family' });
+    }
+    return layeredValue.toNumber();
   };
 
   const updateRarityMultiplierDetail = (details, detailId, label, value) => {
@@ -10123,6 +10437,7 @@ function recalcProduction() {
     let clickMultiplierValue = 1;
     let autoMultiplierValue = 1;
     const summary = {
+      type: 'rarity',
       rarityId,
       label: rarityLabel,
       copies: copyCount,
@@ -10695,6 +11010,319 @@ function recalcProduction() {
     elementGroupSummaries.set(rarityId, summary);
   });
 
+  if (ELEMENT_FAMILY_CONFIG.size > 0) {
+    ELEMENT_FAMILY_CONFIG.forEach((familyConfig, familyId) => {
+      const counts = elementCountsByFamily.get(familyId) || { copies: 0, unique: 0 };
+      const copyCount = Math.max(0, Number(counts.copies) || 0);
+      const uniqueCount = Math.max(0, Number(counts.unique) || 0);
+      const duplicateCount = Math.max(0, copyCount - uniqueCount);
+      const totalUnique = getFamilyPoolSize(familyId);
+      const label = normalizeLabel(familyConfig.label) || CATEGORY_LABELS[familyId] || familyId;
+      const summary = {
+        type: 'family',
+        familyId,
+        label,
+        copies: copyCount,
+        uniques: uniqueCount,
+        duplicates: duplicateCount,
+        totalUnique,
+        isComplete: totalUnique > 0 && uniqueCount >= totalUnique,
+        clickFlatTotal: 0,
+        autoFlatTotal: 0,
+        multiplierPerClick: 1,
+        multiplierPerSecond: 1,
+        critChanceAdd: 0,
+        critMultiplierAdd: 0,
+        activeLabels: [],
+        ticketIntervalSeconds: null,
+        offlineMultiplier: 1,
+        frenzyChanceMultiplier: 1,
+        overflowDuplicates: 0
+      };
+
+      const activeLabelDetails = new Map();
+      const normalizeLabelKey = value => {
+        if (typeof value !== 'string') return '';
+        return value.trim();
+      };
+      const ensureActiveLabel = (labelText, type = null) => {
+        const key = normalizeLabelKey(labelText);
+        if (!key) return null;
+        if (!activeLabelDetails.has(key)) {
+          activeLabelDetails.set(key, {
+            label: key,
+            effects: [],
+            notes: [],
+            types: new Set()
+          });
+        }
+        const entry = activeLabelDetails.get(key);
+        if (type) {
+          entry.types.add(type);
+        }
+        return entry;
+      };
+      const addLabelEffect = (labelText, effectText, type = null) => {
+        if (!effectText) return;
+        const entry = ensureActiveLabel(labelText, type);
+        if (!entry) return;
+        if (!entry.effects.includes(effectText)) {
+          entry.effects.push(effectText);
+        }
+      };
+      const addLabelNote = (labelText, noteText, type = null) => {
+        if (!noteText) return;
+        const entry = ensureActiveLabel(labelText, type);
+        if (!entry) return;
+        if (!entry.notes.includes(noteText)) {
+          entry.notes.push(noteText);
+        }
+      };
+      const markLabelActive = (labelText, type = null) => {
+        ensureActiveLabel(labelText, type);
+      };
+
+      if (summary.isComplete) {
+        const bonuses = Array.isArray(familyConfig.bonuses) ? familyConfig.bonuses : [];
+        bonuses.forEach((bonus, index) => {
+          if (!bonus || typeof bonus !== 'object') {
+            return;
+          }
+          const effectLabel = normalizeLabel(bonus.label) || label;
+          const effectIdBase = typeof bonus.id === 'string' && bonus.id.trim()
+            ? bonus.id.trim()
+            : `${familyId}:bonus:${index + 1}`;
+          const effects = bonus.effects && typeof bonus.effects === 'object' ? bonus.effects : {};
+          let bonusApplied = false;
+
+          if (typeof bonus.description === 'string' && bonus.description.trim()) {
+            addLabelNote(effectLabel, bonus.description.trim(), 'description');
+          }
+          if (Array.isArray(bonus.notes)) {
+            bonus.notes.forEach(note => {
+              if (typeof note === 'string' && note.trim()) {
+                addLabelNote(effectLabel, note.trim(), 'note');
+              }
+            });
+          }
+
+          if (effects.clickAdd != null) {
+            const applied = addClickElementFlat(effects.clickAdd, {
+              id: `family:${effectIdBase}:clickAdd`,
+              label: effectLabel,
+              rarityId: null,
+              source: 'family'
+            });
+            if (Number.isFinite(applied) && applied !== 0) {
+              summary.clickFlatTotal += applied;
+              bonusApplied = true;
+              const formatted = formatElementFlatBonus(applied);
+              if (formatted) {
+                addLabelEffect(effectLabel, `APC +${formatted}`, 'flat');
+              }
+            }
+          }
+
+          if (effects.autoAdd != null) {
+            const applied = addAutoElementFlat(effects.autoAdd, {
+              id: `family:${effectIdBase}:autoAdd`,
+              label: effectLabel,
+              rarityId: null,
+              source: 'family'
+            });
+            if (Number.isFinite(applied) && applied !== 0) {
+              summary.autoFlatTotal += applied;
+              bonusApplied = true;
+              const formatted = formatElementFlatBonus(applied);
+              if (formatted) {
+                addLabelEffect(effectLabel, `APS +${formatted}`, 'flat');
+              }
+            }
+          }
+
+          if (effects.clickMult != null) {
+            const applied = applyFamilyMultiplier('perClick', effects.clickMult, {
+              id: `family:${effectIdBase}:clickMult`,
+              label: effectLabel
+            });
+            if (Number.isFinite(applied) && Math.abs(applied - 1) > 1e-9) {
+              summary.multiplierPerClick *= applied;
+              bonusApplied = true;
+              const formatted = formatMultiplierTooltip(applied);
+              if (formatted) {
+                addLabelEffect(effectLabel, `APC ${formatted}`, 'multiplier');
+              }
+            }
+          }
+
+          if (effects.autoMult != null) {
+            const applied = applyFamilyMultiplier('perSecond', effects.autoMult, {
+              id: `family:${effectIdBase}:autoMult`,
+              label: effectLabel
+            });
+            if (Number.isFinite(applied) && Math.abs(applied - 1) > 1e-9) {
+              summary.multiplierPerSecond *= applied;
+              bonusApplied = true;
+              const formatted = formatMultiplierTooltip(applied);
+              if (formatted) {
+                addLabelEffect(effectLabel, `APS ${formatted}`, 'multiplier');
+              }
+            }
+          }
+
+          const nestedCrit = effects.crit && typeof effects.crit === 'object' ? effects.crit : null;
+          const resolveCritValue = (primary, nestedKeys = []) => {
+            if (primary != null) {
+              const numeric = Number(primary);
+              return Number.isFinite(numeric) ? numeric : null;
+            }
+            if (!nestedCrit) {
+              return null;
+            }
+            for (const key of nestedKeys) {
+              if (!(key in nestedCrit)) continue;
+              const value = Number(nestedCrit[key]);
+              if (Number.isFinite(value)) {
+                return value;
+              }
+            }
+            return null;
+          };
+
+          const critChanceAdd = resolveCritValue(effects.critChanceAdd, ['chanceAdd', 'add', 'bonus']);
+          if (critChanceAdd != null && critChanceAdd !== 0) {
+            summary.critChanceAdd += critChanceAdd;
+            bonusApplied = true;
+            const formatted = formatElementCritChanceBonus(critChanceAdd);
+            if (formatted) {
+              addLabelEffect(effectLabel, `Chance +${formatted}`, 'crit');
+            }
+          }
+          const critMultiplierAdd = resolveCritValue(effects.critMultiplierAdd, ['multiplierAdd', 'powerAdd']);
+          if (critMultiplierAdd != null && critMultiplierAdd !== 0) {
+            summary.critMultiplierAdd += critMultiplierAdd;
+            bonusApplied = true;
+            const formatted = formatElementCritMultiplierBonus(critMultiplierAdd);
+            if (formatted) {
+              addLabelEffect(effectLabel, `Multiplicateur +${formatted}×`, 'crit');
+            }
+          }
+
+          const critChanceMult = resolveCritValue(effects.critChanceMult, ['chanceMult', 'multiplier']);
+          if (critChanceMult != null && Math.abs(critChanceMult - 1) > 1e-9) {
+            bonusApplied = true;
+            const formatted = formatMultiplierTooltip(critChanceMult);
+            if (formatted) {
+              addLabelEffect(effectLabel, `Chance ${formatted}`, 'crit');
+            }
+          }
+          const critMultiplierMult = resolveCritValue(effects.critMultiplierMult, ['multiplierMult', 'powerMult']);
+          if (critMultiplierMult != null && Math.abs(critMultiplierMult - 1) > 1e-9) {
+            bonusApplied = true;
+            const formatted = formatMultiplierTooltip(critMultiplierMult);
+            if (formatted) {
+              addLabelEffect(effectLabel, `Multiplicateur ${formatted}`, 'crit');
+            }
+          }
+          const critChanceSet = resolveCritValue(effects.critChanceSet, ['chanceSet', 'set']);
+          if (critChanceSet != null && critChanceSet > 0) {
+            bonusApplied = true;
+            const formatted = formatElementCritChanceBonus(critChanceSet);
+            if (formatted) {
+              addLabelNote(effectLabel, `Chance fixée à ${formatted}`, 'crit');
+            }
+          }
+          const critMultiplierSet = resolveCritValue(effects.critMultiplierSet, ['multiplierSet', 'powerSet']);
+          if (critMultiplierSet != null && critMultiplierSet > 0) {
+            bonusApplied = true;
+            const formatted = formatElementCritMultiplierBonus(critMultiplierSet);
+            if (formatted) {
+              addLabelNote(effectLabel, `Multiplicateur fixé à ${formatted}×`, 'crit');
+            }
+          }
+          const critMaxMultiplierAdd = resolveCritValue(effects.critMaxMultiplierAdd, ['maxMultiplierAdd', 'capAdd']);
+          if (critMaxMultiplierAdd != null && critMaxMultiplierAdd !== 0) {
+            bonusApplied = true;
+            const formatted = formatElementCritMultiplierBonus(critMaxMultiplierAdd);
+            if (formatted) {
+              addLabelNote(effectLabel, `Plafond critique +${formatted}×`, 'crit');
+            }
+          }
+          const critMaxMultiplierMult = resolveCritValue(effects.critMaxMultiplierMult, ['maxMultiplierMult', 'capMult']);
+          if (critMaxMultiplierMult != null && Math.abs(critMaxMultiplierMult - 1) > 1e-9) {
+            bonusApplied = true;
+            const formatted = formatMultiplierTooltip(critMaxMultiplierMult);
+            if (formatted) {
+              addLabelNote(effectLabel, `Plafond critique ${formatted}`, 'crit');
+            }
+          }
+          const critMaxMultiplierSet = resolveCritValue(effects.critMaxMultiplierSet, ['maxMultiplierSet', 'capSet']);
+          if (critMaxMultiplierSet != null && critMaxMultiplierSet > 0) {
+            bonusApplied = true;
+            const formatted = formatElementCritMultiplierBonus(critMaxMultiplierSet);
+            if (formatted) {
+              addLabelNote(effectLabel, `Plafond critique fixé à ${formatted}×`, 'crit');
+            }
+          }
+
+          const hasCritEffect = (
+            effects.critChanceAdd != null
+            || effects.critChanceMult != null
+            || effects.critChanceSet != null
+            || effects.critMultiplierAdd != null
+            || effects.critMultiplierMult != null
+            || effects.critMultiplierSet != null
+            || effects.critMaxMultiplierAdd != null
+            || effects.critMaxMultiplierMult != null
+            || effects.critMaxMultiplierSet != null
+            || (nestedCrit && Object.keys(nestedCrit).length > 0)
+          );
+          if (hasCritEffect) {
+            applyCritModifiersFromEffect(critAccumulator, effects);
+          }
+
+          if (bonusApplied) {
+            markLabelActive(effectLabel);
+          }
+        });
+      }
+
+      const labelEntries = [];
+      activeLabelDetails.forEach(entry => {
+        if (!entry || !entry.label) return;
+        const effects = Array.isArray(entry.effects)
+          ? entry.effects.filter(text => typeof text === 'string' && text.trim().length > 0)
+          : [];
+        const notes = Array.isArray(entry.notes)
+          ? entry.notes.filter(text => typeof text === 'string' && text.trim().length > 0)
+          : [];
+        const descriptionParts = [];
+        if (effects.length) {
+          descriptionParts.push(effects.join(' · '));
+        }
+        notes.forEach(note => descriptionParts.push(note));
+        const labelEntry = { label: entry.label };
+        if (effects.length) {
+          labelEntry.effects = effects;
+        }
+        if (notes.length) {
+          labelEntry.notes = notes;
+        }
+        if (entry.types instanceof Set && entry.types.size) {
+          labelEntry.types = Array.from(entry.types);
+        } else if (Array.isArray(entry.types) && entry.types.length) {
+          labelEntry.types = [...entry.types];
+        }
+        if (descriptionParts.length) {
+          labelEntry.description = descriptionParts.join(' · ');
+        }
+        labelEntries.push(labelEntry);
+      });
+      summary.activeLabels = labelEntries;
+      familySummaries.set(familyId, summary);
+    });
+  }
+
   const intervalChanged = setTicketStarAverageIntervalSeconds(mythiqueBonuses.ticketIntervalSeconds);
   if (intervalChanged && !ticketStarState.active) {
     resetTicketStarState({ reschedule: true });
@@ -10711,6 +11339,15 @@ function recalcProduction() {
   elementGroupSummaries.forEach((value, key) => {
     elementBonusSummary[key] = value;
   });
+  if (familySummaries.size > 0) {
+    const familySummaryStore = {};
+    familySummaries.forEach((value, key) => {
+      familySummaryStore[key] = value;
+    });
+    if (Object.keys(familySummaryStore).length > 0) {
+      elementBonusSummary.families = familySummaryStore;
+    }
+  }
   gameState.elementBonusSummary = elementBonusSummary;
 
   const trophyEffects = computeTrophyEffects();
@@ -10841,11 +11478,15 @@ function recalcProduction() {
   autoDetails.sources.multipliers.shopBonus2 = autoMultiplierSlots.shopBonus2.clone();
   clickDetails.sources.multipliers.trophyMultiplier = clickTrophyMultiplier.clone();
   autoDetails.sources.multipliers.trophyMultiplier = autoTrophyMultiplier.clone();
+  clickDetails.sources.multipliers.familyMultiplier = familyMultipliers.perClick.clone();
+  autoDetails.sources.multipliers.familyMultiplier = familyMultipliers.perSecond.clone();
 
   const clickShopBonus1 = clickDetails.sources.multipliers.shopBonus1;
   const clickShopBonus2 = clickDetails.sources.multipliers.shopBonus2;
   const autoShopBonus1 = autoDetails.sources.multipliers.shopBonus1;
   const autoShopBonus2 = autoDetails.sources.multipliers.shopBonus2;
+  const clickFamilyMultiplier = clickDetails.sources.multipliers.familyMultiplier;
+  const autoFamilyMultiplier = autoDetails.sources.multipliers.familyMultiplier;
 
   const clickRarityProduct = computeRarityMultiplierProduct(clickRarityMultipliers);
   const autoRarityProduct = computeRarityMultiplierProduct(autoRarityMultipliers);
@@ -10866,11 +11507,13 @@ function recalcProduction() {
   const clickTotalMultiplier = LayeredNumber.one()
     .multiply(clickShopBonus1)
     .multiply(clickShopBonus2)
+    .multiply(clickFamilyMultiplier)
     .multiply(clickRarityProduct)
     .multiply(clickTrophyMultiplier);
   const autoTotalMultiplier = LayeredNumber.one()
     .multiply(autoShopBonus1)
     .multiply(autoShopBonus2)
+    .multiply(autoFamilyMultiplier)
     .multiply(autoRarityProduct)
     .multiply(autoTrophyMultiplier);
 
@@ -10890,6 +11533,7 @@ function recalcProduction() {
   let perClick = clickFlatBase.clone();
   perClick = perClick.multiply(clickShopBonus1);
   perClick = perClick.multiply(clickShopBonus2);
+  perClick = perClick.multiply(clickFamilyMultiplier);
   perClick = perClick.multiply(clickRarityProduct);
   perClick = perClick.multiply(clickTrophyMultiplier);
   if (perClick.compare(LayeredNumber.zero()) < 0) {
@@ -10898,6 +11542,7 @@ function recalcProduction() {
   let perSecond = autoFlatBase.clone();
   perSecond = perSecond.multiply(autoShopBonus1);
   perSecond = perSecond.multiply(autoShopBonus2);
+  perSecond = perSecond.multiply(autoFamilyMultiplier);
   perSecond = perSecond.multiply(autoRarityProduct);
   perSecond = perSecond.multiply(autoTrophyMultiplier);
 
