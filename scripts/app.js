@@ -2268,7 +2268,7 @@ RARITY_IDS.forEach(rarityId => {
   defineProductionStep(
     `rarityMultiplier:${rarityId}`,
     'multiplier',
-    `Éléments ${rarityLabel}`,
+    `Rareté ${rarityLabel}`,
     { source: 'rarityMultiplier', rarityId }
   );
 });
