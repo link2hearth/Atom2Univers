@@ -693,12 +693,146 @@ const GAME_CONFIG = {
    */
   fusions: [
     {
+      id: 'hydrogen',
+      name: 'Hydrogène (H₂)',
+      description: 'Associez 2 atomes d’Hydrogène pour créer une molécule de dihydrogène.',
+      inputs: [
+        { elementId: 'element-001-hydrogene', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'nitrogen',
+      name: 'Azote (N₂)',
+      description: 'Combinez 2 atomes d’Azote pour former du diazote.',
+      inputs: [
+        { elementId: 'element-007-azote', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'oxygen',
+      name: 'Oxygène (O₂)',
+      description: 'Assemblez 2 atomes d’Oxygène pour produire du dioxygène.',
+      inputs: [
+        { elementId: 'element-008-oxygene', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'fluorine',
+      name: 'Fluor (F₂)',
+      description: 'Fusionnez 2 atomes de Fluor pour générer une molécule de difluor.',
+      inputs: [
+        { elementId: 'element-009-fluor', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'chlorine',
+      name: 'Chlore (Cl₂)',
+      description: 'Associez 2 atomes de Chlore pour obtenir du dichlore.',
+      inputs: [
+        { elementId: 'element-017-chlore', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'bromine',
+      name: 'Brome (Br₂)',
+      description: 'Combinez 2 atomes de Brome pour produire du dibrome.',
+      inputs: [
+        { elementId: 'element-035-brome', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'iodine',
+      name: 'Iode (I₂)',
+      description: 'Assemblez 2 atomes d’Iode pour créer du diiode.',
+      inputs: [
+        { elementId: 'element-053-iode', count: 2 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'sulfur',
+      name: 'Soufre (S₈)',
+      description: 'Regroupez 8 atomes de Soufre pour former une couronne cyclique S₈.',
+      inputs: [
+        { elementId: 'element-016-soufre', count: 8 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'phosphorus',
+      name: 'Phosphore (P₄)',
+      description: 'Fusionnez 4 atomes de Phosphore pour synthétiser du tétraphosphore.',
+      inputs: [
+        { elementId: 'element-015-phosphore', count: 4 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
       id: 'water',
       name: 'Molécule d’eau (H₂O)',
       description: 'Combinez 2 Hydrogènes et 1 Oxygène pour tenter de former de l’eau.',
       inputs: [
         { elementId: 'element-001-hydrogene', count: 2 },
         { elementId: 'element-008-oxygene', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'sodiumChloride',
+      name: 'Chlorure de sodium (NaCl)',
+      description: 'Combinez Sodium et Chlore pour cristalliser du sel.',
+      inputs: [
+        { elementId: 'element-011-sodium', count: 1 },
+        { elementId: 'element-017-chlore', count: 1 }
+      ],
+      successChance: 0.5,
+      rewards: {
+        apcFlat: 100
+      }
+    },
+    {
+      id: 'siliconDioxide',
+      name: 'Dioxyde de silicium (SiO₂)',
+      description: 'Associez Silicium et Oxygène pour obtenir du quartz.',
+      inputs: [
+        { elementId: 'element-014-silicium', count: 1 },
+        { elementId: 'element-008-oxygene', count: 2 }
       ],
       successChance: 0.5,
       rewards: {
