@@ -9672,11 +9672,11 @@ function showCritBanner(input) {
   const multiplierValue = Number(options.multiplier ?? options.multiplierValue);
   const hasMultiplier = Number.isFinite(multiplierValue) && multiplierValue > 1;
   const multiplierText = hasMultiplier
-    ? `×${multiplierValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}`
+    ? `${multiplierValue.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}×`
     : '';
 
   valueElement.textContent = hasMultiplier
-    ? `${totalText} ${multiplierText}`
+    ? `${multiplierText} = ${totalText}`
     : totalText;
 
   display.hidden = false;
@@ -9688,7 +9688,7 @@ function showCritBanner(input) {
   valueElement.classList.add('status-crit-value--smash');
 
   const ariaText = hasMultiplier
-    ? `Coup critique ${multiplierText} : ${totalText} atomes`
+    ? `Coup critique ${multiplierText} = ${totalText} atomes`
     : `Coup critique : ${totalText} atomes`;
   display.setAttribute('aria-label', ariaText);
 
@@ -9701,7 +9701,7 @@ function showCritBanner(input) {
   }
   const detailText = details.length ? ` — ${details.join(' · ')}` : '';
   display.title = hasMultiplier
-    ? `Bonus critique ${totalText} (${multiplierText})${detailText}`
+    ? `Bonus critique ${multiplierText} = ${totalText}${detailText}`
     : `Bonus critique ${totalText}${detailText}`;
 
   clearCritBannerTimers();
