@@ -1302,6 +1302,19 @@ const RAW_ELEMENT_GROUP_BONUS_GROUPS = (() => {
   return rawGroups;
 })();
 
+const CATEGORY_LABELS = {
+  'alkali-metal': 'métal alcalin',
+  'alkaline-earth-metal': 'métal alcalino-terreux',
+  'transition-metal': 'métal de transition',
+  'post-transition-metal': 'métal pauvre',
+  metalloid: 'métalloïde',
+  nonmetal: 'non-métal',
+  halogen: 'halogène',
+  'noble-gas': 'gaz noble',
+  lanthanide: 'lanthanide',
+  actinide: 'actinide'
+};
+
 const ELEMENT_GROUP_BONUS_CONFIG = (() => {
   const result = new Map();
   Object.entries(RAW_ELEMENT_GROUP_BONUS_GROUPS).forEach(([rarityId, rawValue]) => {
@@ -1815,18 +1828,34 @@ function normalizeMythiqueBonusConfig(rawConfig) {
 
 const MYTHIQUE_SPECIAL_BONUS_CONFIG = normalizeMythiqueBonusConfig(RAW_MYTHIQUE_GROUP_CONFIG);
 
-const CATEGORY_LABELS = {
-  'alkali-metal': 'métal alcalin',
-  'alkaline-earth-metal': 'métal alcalino-terreux',
-  'transition-metal': 'métal de transition',
-  'post-transition-metal': 'métal pauvre',
-  metalloid: 'métalloïde',
-  nonmetal: 'non-métal',
-  halogen: 'halogène',
-  'noble-gas': 'gaz noble',
-  lanthanide: 'lanthanide',
-  actinide: 'actinide'
-};
+const ELEMENT_FAMILY_POOLS = (() => {
+  const pools = new Map();
+  periodicElements.forEach(def => {
+    const familyId = typeof def.category === 'string' ? def.category.trim() : '';
+    if (!familyId) {
+      return;
+    }
+    if (!pools.has(familyId)) {
+      pools.set(familyId, {
+        elementIds: [],
+        label: CATEGORY_LABELS[familyId] || familyId
+      });
+    }
+    pools.get(familyId).elementIds.push(def.id);
+  });
+  return pools;
+})();
+
+function getFamilyPoolSize(familyId) {
+  if (!familyId) {
+    return 0;
+  }
+  const pool = ELEMENT_FAMILY_POOLS.get(familyId);
+  if (!pool) {
+    return 0;
+  }
+  return Array.isArray(pool.elementIds) ? pool.elementIds.length : 0;
+}
 
 const ELEMENT_FAMILY_POOLS = (() => {
   const pools = new Map();
