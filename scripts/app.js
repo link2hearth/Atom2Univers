@@ -2738,24 +2738,6 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
     return createShopBuildingDefinitions();
   }
 
-  const DOUBLE_THRESHOLDS = [10, 25, 50, 100, 150, 200];
-  const QUAD_THRESHOLDS = [300, 400, 500];
-
-  const computeMultiplier = level => {
-    let multiplier = 1;
-    DOUBLE_THRESHOLDS.forEach(threshold => {
-      if (level >= threshold) {
-        multiplier *= 2;
-      }
-    });
-    QUAD_THRESHOLDS.forEach(threshold => {
-      if (level >= threshold) {
-        multiplier *= 4;
-      }
-    });
-    return multiplier;
-  };
-
   const getLevel = (context, id) => {
     if (!context || typeof context !== 'object') {
       return 0;
@@ -2782,13 +2764,12 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Électrons libres',
       description: 'Libérez des électrons pour une production de base stable.',
       effectSummary:
-        'Production passive : minimum +1 APS par niveau (paliers ×2/×4). À 100 exemplaires : chaque électron ajoute +1 APC (valeur arrondie).',
+        'Production passive : minimum +1 APS par niveau. À 100 exemplaires : chaque électron ajoute +1 APC (valeur arrondie).',
       category: 'auto',
       baseCost: 15,
       costScale: 1.15,
       effect: (level = 0) => {
-        const tierMultiplier = computeMultiplier(level);
-        const rawAutoAdd = level * tierMultiplier;
+        const rawAutoAdd = level;
         const autoAdd = level > 0 ? Math.max(level, Math.round(rawAutoAdd)) : 0;
         const clickAdd = level >= 100 ? level : 0;
         const result = { autoAdd };
@@ -2803,14 +2784,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Laboratoire de Physique',
       description: 'Des équipes de chercheurs boostent votre production atomique.',
       effectSummary:
-        'Production passive : +1 APS par niveau (paliers ×2/×4). Chaque 10 labos accordent +5 % d’APC global. Accélérateur ≥200 : Labos +20 % APS.',
+        'Production passive : +1 APS par niveau. Chaque 10 labos accordent +5 % d’APC global. Accélérateur ≥200 : Labos +20 % APS.',
       category: 'auto',
       baseCost: 100,
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const acceleratorLevel = getLevel(context, 'particleAccelerator');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (acceleratorLevel >= 200) {
           productionMultiplier *= 1.2;
         }
@@ -2833,10 +2813,9 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 1000,
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const electronLevel = getLevel(context, 'freeElectrons');
         const labLevel = getLevel(context, 'physicsLab');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (electronLevel > 0) {
           productionMultiplier *= 1 + 0.01 * Math.floor(electronLevel / 50);
         }
@@ -2862,9 +2841,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 12_000,
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const supercomputerLevel = getLevel(context, 'supercomputer');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (supercomputerLevel >= 100) {
           productionMultiplier *= 1.5;
         }
@@ -2885,9 +2863,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 200_000,
       costScale: 1.15,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const stationLevel = getLevel(context, 'spaceStation');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (stationLevel >= 300) {
           productionMultiplier *= 2;
         }
@@ -2910,9 +2887,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 5e6,
       costScale: 1.2,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const reactorLevel = getLevel(context, 'nuclearReactor');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (reactorLevel > 0) {
           productionMultiplier *= 1 + 0.001 * reactorLevel;
         }
@@ -2932,14 +2908,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Station spatiale',
       description: 'Des bases orbitales coordonnent votre expansion.',
       effectSummary:
-        'Production passive : +50 000 APS par niveau (paliers ×2/×4). Chaque Station accorde +5 % d’APC. Palier 300 : Supercalculateurs +100 %.',
+        'Production passive : +50 000 APS par niveau. Chaque Station accorde +5 % d’APC. Palier 300 : Supercalculateurs +100 %.',
       category: 'hybrid',
       baseCost: 1e8,
       costScale: 1.2,
       effect: (level = 0) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 50_000 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = Math.pow(1.05, level);
         return { autoAdd, clickMult };
@@ -2955,9 +2930,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 5e10,
       costScale: 1.2,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const stationLevel = getLevel(context, 'spaceStation');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (stationLevel > 0) {
           productionMultiplier *= 1 + 0.02 * stationLevel;
         }
@@ -2980,9 +2954,8 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       baseCost: 1e13,
       costScale: 1.2,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const libraryLevel = getLevel(context, 'omniverseLibrary');
-        let productionMultiplier = tierMultiplier;
+        let productionMultiplier = 1;
         if (libraryLevel >= 300) {
           productionMultiplier *= 2;
         }
@@ -3006,14 +2979,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Simulateur de Multivers',
       description: 'Simulez l’infini pour optimiser chaque seconde.',
       effectSummary:
-        'Production passive : +500 000 000 APS par niveau (paliers ×2/×4). Synergie : +0,5 % APS global par bâtiment possédé. Palier 200 : coûts des bâtiments −5 %.',
+        'Production passive : +500 000 000 APS par niveau. Synergie : +0,5 % APS global par bâtiment possédé. Palier 200 : coûts des bâtiments −5 %.',
       category: 'auto',
       baseCost: 1e16,
       costScale: 1.2,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 5e8 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const totalBuildings = getTotal(context);
         const autoMult = totalBuildings > 0 ? Math.pow(1.005, totalBuildings) : 1;
@@ -3027,15 +2999,14 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Tisseur de Réalité',
       description: 'Tissez les lois physiques à votre avantage.',
       effectSummary:
-        'Production passive : +10 000 000 000 APS par niveau (paliers ×2/×4). Bonus clic arrondi : +0,1 × bâtiments × niveau. Palier 300 : production totale ×2.',
+        'Production passive : +10 000 000 000 APS par niveau. Bonus clic arrondi : +0,1 × bâtiments × niveau. Palier 300 : production totale ×2.',
       category: 'hybrid',
       baseCost: 1e20,
       costScale: 1.25,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const totalBuildings = getTotal(context);
         const baseAmount = 1e10 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const rawClickAdd = totalBuildings > 0 ? 0.1 * totalBuildings * level : 0;
         const clickAdd = rawClickAdd > 0 ? Math.max(1, Math.round(rawClickAdd)) : 0;
@@ -3056,14 +3027,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Architecte Cosmique',
       description: 'Réécrivez les plans du cosmos pour réduire les coûts.',
       effectSummary:
-        'Production passive : +1 000 000 000 000 APS par niveau (paliers ×2/×4). Réduction de 1 % du coût futur par Architecte. Palier 150 : +20 % APC global.',
+        'Production passive : +1 000 000 000 000 APS par niveau. Réduction de 1 % du coût futur par Architecte. Palier 150 : +20 % APC global.',
       category: 'hybrid',
       baseCost: 1e25,
       costScale: 1.25,
       effect: (level = 0) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 1e12 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const clickMult = level >= 150 ? 1.2 : 1;
         return clickMult > 1
@@ -3076,14 +3046,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Univers parallèle',
       description: 'Expérimentez des réalités alternatives à haut rendement.',
       effectSummary:
-        'Production passive : +100 000 000 000 000 APS par niveau (paliers ×2/×4).',
+        'Production passive : +100 000 000 000 000 APS par niveau.',
       category: 'auto',
       baseCost: 1e30,
       costScale: 1.25,
       effect: (level = 0) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 1e14 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         return { autoAdd };
       }
@@ -3093,14 +3062,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Bibliothèque de l’Omnivers',
       description: 'Compilez le savoir infini pour booster toute production.',
       effectSummary:
-        'Production passive : +10 000 000 000 000 000 APS par niveau (paliers ×2/×4). +2 % boost global par Univers parallèle. Palier 300 : Galaxies artificielles ×2.',
+        'Production passive : +10 000 000 000 000 000 APS par niveau. +2 % boost global par Univers parallèle. Palier 300 : Galaxies artificielles ×2.',
       category: 'hybrid',
       baseCost: 1e36,
       costScale: 1.25,
       effect: (level = 0, context = {}) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 1e16 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const parallelLevel = getLevel(context, 'parallelUniverse');
         const globalBoost = parallelLevel > 0 ? Math.pow(1.02, parallelLevel) : 1;
@@ -3119,14 +3087,13 @@ const FALLBACK_UPGRADES = (function createFallbackUpgrades() {
       name: 'Grand Ordonnateur Quantique',
       description: 'Ordonnez le multivers et atteignez la singularité.',
       effectSummary:
-        'Production passive : +1 000 000 000 000 000 000 APS par niveau (paliers ×2/×4). Palier 100 : double définitivement tous les gains.',
+        'Production passive : +1 000 000 000 000 000 000 APS par niveau. Palier 100 : double définitivement tous les gains.',
       category: 'hybrid',
       baseCost: 1e42,
       costScale: 1.25,
       effect: (level = 0) => {
-        const tierMultiplier = computeMultiplier(level);
         const baseAmount = 1e18 * level;
-        const rawAutoAdd = baseAmount * tierMultiplier;
+        const rawAutoAdd = baseAmount;
         const autoAdd = level > 0 ? Math.max(baseAmount, Math.round(rawAutoAdd)) : 0;
         const globalMult = level >= 100 ? 2 : 1;
         return globalMult > 1
