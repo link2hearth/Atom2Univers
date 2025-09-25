@@ -2249,9 +2249,9 @@ function defineProductionStep(id, type, label, extra = {}) {
 }
 
 defineProductionStep('baseFlat', 'base', 'Base flat', { source: 'baseFlat' });
-defineProductionStep('shopFlat', 'flat', 'Bonus flat magasin', { source: 'shopFlat' });
-defineProductionStep('elementFlat', 'flat', 'Bonus flat éléments', { source: 'elementFlat' });
-defineProductionStep('fusionFlat', 'flat', 'Bonus flat fusions', { source: 'fusionFlat' });
+defineProductionStep('shopFlat', 'flat', 'Magasin', { source: 'shopFlat' });
+defineProductionStep('elementFlat', 'flat', 'Éléments', { source: 'elementFlat' });
+defineProductionStep('fusionFlat', 'flat', 'Fusions', { source: 'fusionFlat' });
 defineProductionStep('shopBonus1', 'multiplier', 'Bonus shop 1', { source: 'shopBonus1' });
 defineProductionStep('shopBonus2', 'multiplier', 'Bonus shop 2', { source: 'shopBonus2' });
 defineProductionStep('frenzy', 'multiplier', 'Frénésie', { source: 'frenzy' });
@@ -2268,7 +2268,7 @@ RARITY_IDS.forEach(rarityId => {
   defineProductionStep(
     `rarityMultiplier:${rarityId}`,
     'multiplier',
-    `Multiplicateur éléments ${rarityLabel}`,
+    `Éléments ${rarityLabel}`,
     { source: 'rarityMultiplier', rarityId }
   );
 });
