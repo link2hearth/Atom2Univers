@@ -8604,14 +8604,12 @@ function renderElementBonuses() {
     title.textContent = summary.label;
     header.appendChild(title);
 
-    const status = document.createElement('span');
-    status.className = 'element-bonus-card__status';
     if (summaryType === 'family') {
+      const status = document.createElement('span');
+      status.className = 'element-bonus-card__status';
       status.textContent = summary.isComplete ? 'Famille complète' : 'Famille en cours';
-    } else {
-      status.textContent = summary.isComplete ? 'Complet' : 'En cours';
+      header.appendChild(status);
     }
-    header.appendChild(status);
 
     meta.appendChild(header);
 
@@ -8638,16 +8636,12 @@ function renderElementBonuses() {
     const copiesCount = Number(summary.copies || 0);
     const uniqueCount = Number(summary.uniques || 0);
     const totalUnique = Number(summary.totalUnique || 0);
-    const activeCopies = Math.max(0, Number(summary.activeCopies || 0));
-
     const uniqueDisplay = totalUnique > 0
       ? `${uniqueCount.toLocaleString('fr-FR')} / ${totalUnique.toLocaleString('fr-FR')}`
       : uniqueCount.toLocaleString('fr-FR');
 
     addCountRow('Éléments uniques', uniqueDisplay);
-    const lifetimeDisplay = copiesCount.toLocaleString('fr-FR');
-    const activeDisplay = activeCopies.toLocaleString('fr-FR');
-    addCountRow('Copies totales', `${lifetimeDisplay} · Actives ${activeDisplay}`);
+    addCountRow('Total', copiesCount.toLocaleString('fr-FR'));
 
     if (counts.children.length) {
       meta.appendChild(counts);
@@ -8835,7 +8829,7 @@ function renderElementBonuses() {
       section.appendChild(tags);
       details.appendChild(section);
     }
-    if (specialEntries.length) {
+    if (specialEntries.length && summary.rarityId !== 'mythique') {
       const section = document.createElement('section');
       section.className = 'element-bonus-section';
 
