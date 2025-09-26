@@ -1,7 +1,7 @@
 (() => {
   const ARCADE_TICKET_REWARD = 1;
-  const GRID_COLS = 6;
-  const GRID_ROWS = 14;
+  const GRID_COLS = 14;
+  const GRID_ROWS = 6;
   const MAX_LIVES = 3;
   const BRICK_TYPES = Object.freeze({
     SIMPLE: 'simple',
@@ -392,21 +392,36 @@
       const usableHeight = 0.74;
       const brickWidth = usableWidth / this.gridCols;
       const brickHeight = usableHeight / this.gridRows;
+      const baseFill = clamp(0.55 + (this.level - 1) * 0.02, 0.55, 0.82);
       for (let row = 0; row < this.gridRows; row += 1) {
+        let rowHasBrick = false;
+        const candidates = [];
         for (let col = 0; col < this.gridCols; col += 1) {
-          const type = this.pickBrickType();
-          const particle = this.pickParticle(type);
-          const brick = this.createBrick({
+          const position = {
             row,
             col,
             relX: paddingX + col * brickWidth,
             relY: paddingY + row * brickHeight,
             relWidth: brickWidth * 0.92,
-            relHeight: brickHeight * 0.88,
-            type,
-            particle
-          });
-          bricks.push(brick);
+            relHeight: brickHeight * 0.88
+          };
+          const variability = (Math.random() - 0.5) * 0.12;
+          const depthBias = clamp((row / Math.max(1, this.gridRows - 1)) * 0.18, 0, 0.18);
+          const fillProbability = clamp(baseFill + depthBias + variability, 0.35, 0.92);
+          if (Math.random() > fillProbability) {
+            candidates.push(position);
+            continue;
+          }
+          const type = this.pickBrickType();
+          const particle = this.pickParticle(type);
+          bricks.push(this.createBrick({ ...position, type, particle }));
+          rowHasBrick = true;
+        }
+        if (!rowHasBrick && candidates.length > 0) {
+          const forced = randomChoice(candidates);
+          const type = this.pickBrickType();
+          const particle = this.pickParticle(type);
+          bricks.push(this.createBrick({ ...forced, type, particle }));
         }
       }
       const gravitonChance = clamp(0.05 + (this.level - 1) * 0.015, 0.05, 0.18);
@@ -425,7 +440,10 @@
             particle: GRAVITON_PARTICLE
           });
           graviton.hidden = true;
-          bricks[target.row * this.gridCols + target.col] = graviton;
+          const index = bricks.findIndex(brick => brick === target);
+          if (index >= 0) {
+            bricks[index] = graviton;
+          }
         }
       }
       return bricks;
@@ -732,7 +750,7 @@
     handlePaddleCollision(ball) {
       if (
         !ball.inPlay
-        || ball.vy >= 0
+        || ball.vy <= 0
         || ball.y - ball.radius > this.paddle.y + this.paddle.height
         || ball.y + ball.radius < this.paddle.y
         || ball.x + ball.radius < this.paddle.x
