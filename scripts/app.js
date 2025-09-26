@@ -1921,6 +1921,15 @@ function createInitialFusionBonuses() {
   return { apcFlat: 0, apsFlat: 0 };
 }
 
+function createInitialPageUnlockState() {
+  return {
+    gacha: false,
+    tableau: false,
+    fusion: false,
+    info: false
+  };
+}
+
 function getFusionSuccessCount(fusionId) {
   if (!fusionId) {
     return 0;
@@ -3955,6 +3964,7 @@ const DEFAULT_STATE = {
   elements: createInitialElementCollection(),
   fusions: createInitialFusionState(),
   fusionBonuses: createInitialFusionBonuses(),
+  pageUnlocks: createInitialPageUnlockState(),
   lastSave: Date.now(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
@@ -3993,6 +4003,7 @@ const gameState = {
   elements: createInitialElementCollection(),
   fusions: createInitialFusionState(),
   fusionBonuses: createInitialFusionBonuses(),
+  pageUnlocks: createInitialPageUnlockState(),
   theme: DEFAULT_THEME,
   stats: createInitialStats(),
   production: createEmptyProductionBreakdown(),
@@ -4251,6 +4262,104 @@ const TROPHY_DEFS = trophySource
 const TROPHY_MAP = new Map(TROPHY_DEFS.map(def => [def.id, def]));
 const BIG_BANG_TROPHY_ID = 'scaleObservableUniverse';
 const ARCADE_TROPHY_ID = 'millionAtoms';
+const INFO_TROPHY_ID = 'scaleSandGrain';
+const LOCKABLE_PAGE_IDS = new Set(['gacha', 'tableau', 'fusion', 'info']);
+
+function getPageUnlockState() {
+  if (!gameState.pageUnlocks || typeof gameState.pageUnlocks !== 'object') {
+    gameState.pageUnlocks = createInitialPageUnlockState();
+  }
+  return gameState.pageUnlocks;
+}
+
+function isPageUnlocked(pageId) {
+  if (!LOCKABLE_PAGE_IDS.has(pageId)) {
+    return true;
+  }
+  const unlocks = getPageUnlockState();
+  return unlocks?.[pageId] === true;
+}
+
+function unlockPage(pageId, options = {}) {
+  if (!LOCKABLE_PAGE_IDS.has(pageId)) {
+    return false;
+  }
+  const unlocks = getPageUnlockState();
+  if (unlocks[pageId] === true) {
+    return false;
+  }
+  unlocks[pageId] = true;
+  if (pageId === 'gacha') {
+    resetTicketStarState({ reschedule: true });
+    if (typeof ticketStarState === 'object' && ticketStarState) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (!Number.isFinite(ticketStarState.nextSpawnTime) || ticketStarState.nextSpawnTime === Number.POSITIVE_INFINITY) {
+        ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+      }
+    }
+  }
+  if (!options.deferUI) {
+    updatePageUnlockUI();
+  }
+  if (options.save !== false) {
+    saveGame();
+  }
+  if (options.announce) {
+    const message = typeof options.announce === 'string'
+      ? options.announce
+      : 'Nouvelle page débloquée !';
+    showToast(message);
+  }
+  return true;
+}
+
+function evaluatePageUnlocks(options = {}) {
+  const unlocks = getPageUnlockState();
+  let changed = false;
+
+  if (!unlocks.gacha) {
+    const ticketCount = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+    if (ticketCount > 0) {
+      changed = unlockPage('gacha', { save: false, deferUI: true }) || changed;
+    } else {
+      const hasElements = Object.values(gameState.elements || {}).some(entry => getElementLifetimeCount(entry) > 0);
+      if (hasElements) {
+        changed = unlockPage('gacha', { save: false, deferUI: true }) || changed;
+      }
+    }
+  }
+
+  if (!unlocks.tableau) {
+    const hasDrawnElement = Object.values(gameState.elements || {}).some(entry => getElementLifetimeCount(entry) > 0);
+    if (hasDrawnElement) {
+      changed = unlockPage('tableau', { save: false, deferUI: true }) || changed;
+    }
+  }
+
+  if (!unlocks.fusion) {
+    if (isRarityCollectionComplete('commun') && isRarityCollectionComplete('essentiel')) {
+      changed = unlockPage('fusion', { save: false, deferUI: true }) || changed;
+    }
+  }
+
+  if (!unlocks.info) {
+    if (getUnlockedTrophySet().has(INFO_TROPHY_ID)) {
+      changed = unlockPage('info', { save: false, deferUI: true }) || changed;
+    }
+  }
+
+  if (changed) {
+    updatePageUnlockUI();
+    if (options.save !== false) {
+      saveGame();
+    }
+  } else if (!options.deferUI) {
+    updatePageUnlockUI();
+  }
+
+  return changed;
+}
+
 const trophyCards = new Map();
 
 function getUnlockedTrophySet() {
@@ -4485,6 +4594,7 @@ function unlockTrophy(def) {
   updateGoalsUI();
   updateBigBangVisibility();
   updateBrandPortalState({ animate: def.id === ARCADE_TROPHY_ID });
+  evaluatePageUnlocks({ save: false });
   return true;
 }
 
@@ -4505,6 +4615,10 @@ function evaluateTrophies() {
 const elements = {
   brandPortal: document.getElementById('brandPortal'),
   navButtons: document.querySelectorAll('.nav-button'),
+  navGachaButton: document.querySelector('.nav-button[data-target="gacha"]'),
+  navTableButton: document.querySelector('.nav-button[data-target="tableau"]'),
+  navFusionButton: document.querySelector('.nav-button[data-target="fusion"]'),
+  navInfoButton: document.querySelector('.nav-button[data-target="info"]'),
   navBigBangButton: document.getElementById('navBigBangButton'),
   pages: document.querySelectorAll('.page'),
   statusAtoms: document.getElementById('statusAtoms'),
@@ -4595,9 +4709,39 @@ const elements = {
   devkitTicketsInput: document.getElementById('devkitTicketsInput'),
   devkitUnlockTrophies: document.getElementById('devkitUnlockTrophies'),
   devkitUnlockElements: document.getElementById('devkitUnlockElements'),
+  devkitUnlockInfo: document.getElementById('devkitUnlockInfo'),
   devkitToggleShop: document.getElementById('devkitToggleShop'),
   devkitToggleGacha: document.getElementById('devkitToggleGacha')
 };
+
+function updatePageUnlockUI() {
+  const unlocks = getPageUnlockState();
+  const buttonConfig = [
+    ['gacha', elements.navGachaButton],
+    ['tableau', elements.navTableButton],
+    ['fusion', elements.navFusionButton],
+    ['info', elements.navInfoButton]
+  ];
+
+  buttonConfig.forEach(([pageId, button]) => {
+    if (!button) {
+      return;
+    }
+    const unlocked = unlocks?.[pageId] === true;
+    button.hidden = !unlocked;
+    button.setAttribute('aria-hidden', unlocked ? 'false' : 'true');
+    button.disabled = !unlocked;
+    button.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+    if (!unlocked) {
+      button.classList.remove('active');
+    }
+  });
+
+  const activePage = document.body?.dataset?.activePage;
+  if (activePage && !isPageUnlocked(activePage) && activePage !== 'game') {
+    showPage('game');
+  }
+}
 
 function isBigBangTrophyUnlocked() {
   return getUnlockedTrophySet().has(BIG_BANG_TROPHY_ID);
@@ -4650,8 +4794,16 @@ function updateArcadeTicketDisplay() {
   elements.arcadeTicketValue.textContent = formatTicketLabel(available);
   if (elements.arcadeTicketButton) {
     const label = formatTicketLabel(available);
-    elements.arcadeTicketButton.setAttribute('aria-label', `Ouvrir le portail Gacha (${label})`);
-    elements.arcadeTicketButton.title = `Tickets disponibles : ${label}`;
+    const gachaUnlocked = isPageUnlocked('gacha');
+    elements.arcadeTicketButton.disabled = !gachaUnlocked;
+    elements.arcadeTicketButton.setAttribute('aria-disabled', gachaUnlocked ? 'false' : 'true');
+    if (gachaUnlocked) {
+      elements.arcadeTicketButton.setAttribute('aria-label', `Ouvrir le portail Gacha (${label})`);
+      elements.arcadeTicketButton.title = `Tickets disponibles : ${label}`;
+    } else {
+      elements.arcadeTicketButton.setAttribute('aria-label', 'Portail Gacha verrouillé');
+      elements.arcadeTicketButton.title = 'Obtenez un ticket de tirage pour débloquer le portail Gacha';
+    }
   }
 }
 
@@ -5578,6 +5730,14 @@ function updateDevKitUI() {
     elements.devkitToggleGacha.setAttribute('aria-pressed', active ? 'true' : 'false');
     elements.devkitToggleGacha.textContent = `Tirages gratuits : ${active ? 'activés' : 'désactivés'}`;
   }
+  if (elements.devkitUnlockInfo) {
+    const unlocked = isPageUnlocked('info');
+    elements.devkitUnlockInfo.disabled = unlocked;
+    elements.devkitUnlockInfo.setAttribute('aria-disabled', unlocked ? 'true' : 'false');
+    elements.devkitUnlockInfo.textContent = unlocked
+      ? 'Page Infos débloquée'
+      : 'Débloquer la page Infos';
+  }
 }
 
 function focusDevKitDefault() {
@@ -5697,6 +5857,7 @@ function devkitUnlockAllTrophies() {
     recalcProduction();
     updateUI();
     updateGoalsUI();
+    evaluatePageUnlocks({ save: false });
     saveGame();
     showToast(`DevKit : ${newlyUnlocked} succès débloqués !`);
   } else {
@@ -5750,6 +5911,7 @@ function devkitUnlockAllElements() {
   recalcProduction();
   updateUI();
   evaluateTrophies();
+  evaluatePageUnlocks({ save: false });
   saveGame();
   updateDevKitUI();
   showToast(newlyOwned > 0
@@ -7012,11 +7174,9 @@ function initParticulesGame() {
       if (reward <= 0) {
         return;
       }
-      const current = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
-      gameState.gachaTickets = current + reward;
-      updateGachaUI();
+      const gained = gainGachaTickets(reward);
       saveGame();
-      const rewardLabel = formatTicketLabel(reward);
+      const rewardLabel = formatTicketLabel(gained);
       showToast(`+${rewardLabel} grâce à Particules !`);
     }
   });
@@ -7106,6 +7266,7 @@ function performGachaRoll(count = 1) {
   }
 
   recalcProduction();
+  evaluatePageUnlocks({ save: false });
   updateUI();
   saveGame();
   evaluateTrophies();
@@ -7639,6 +7800,7 @@ function gainGachaTickets(amount = 1) {
   const gain = Math.max(1, Math.floor(Number(amount) || 0));
   const current = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
   gameState.gachaTickets = current + gain;
+  evaluatePageUnlocks();
   updateGachaUI();
   return gain;
 }
@@ -7751,6 +7913,9 @@ function collectTicketStar(event) {
   if (!ticketStarState.active) {
     return;
   }
+  if (!isPageUnlocked('gacha')) {
+    return;
+  }
   const gained = gainGachaTickets(TICKET_STAR_CONFIG.rewardTickets);
   showToast(gained === 1 ? 'Ticket de tirage obtenu !' : `+${gained} tickets de tirage !`);
   if (ticketStarState.element && ticketStarState.element.parentNode) {
@@ -7770,6 +7935,10 @@ function collectTicketStar(event) {
 }
 
 function spawnTicketStar(now = performance.now()) {
+  if (!isPageUnlocked('gacha')) {
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
+    return;
+  }
   if (!elements.ticketLayer) {
     ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
     return;
@@ -7823,6 +7992,21 @@ function spawnTicketStar(now = performance.now()) {
 function updateTicketStar(deltaSeconds, now = performance.now()) {
   if (!elements.ticketLayer) {
     return;
+  }
+  if (!isPageUnlocked('gacha')) {
+    if (ticketStarState.active) {
+      if (ticketStarState.element && ticketStarState.element.parentNode) {
+        ticketStarState.element.remove();
+      }
+      ticketStarState.element = null;
+      ticketStarState.active = false;
+      ticketStarState.spawnTime = 0;
+    }
+    ticketStarState.nextSpawnTime = Number.POSITIVE_INFINITY;
+    return;
+  }
+  if (!ticketStarState.active && !Number.isFinite(ticketStarState.nextSpawnTime)) {
+    ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
   }
   if (!ticketStarState.active) {
     if (now >= ticketStarState.nextSpawnTime) {
@@ -9961,6 +10145,12 @@ function shouldTriggerGlobalClick(event) {
 }
 
 function showPage(pageId) {
+  if (!isPageUnlocked(pageId)) {
+    if (pageId !== 'game') {
+      showPage('game');
+    }
+    return;
+  }
   const now = performance.now();
   elements.pages.forEach(page => {
     const isActive = page.id === pageId;
@@ -10098,6 +10288,20 @@ if (elements.devkitUnlockElements) {
   });
 }
 
+if (elements.devkitUnlockInfo) {
+  elements.devkitUnlockInfo.addEventListener('click', event => {
+    event.preventDefault();
+    const unlocked = unlockPage('info', {
+      save: true,
+      announce: 'DevKit : page Infos débloquée !'
+    });
+    if (!unlocked) {
+      showToast('Page Infos déjà débloquée.');
+    }
+    updateDevKitUI();
+  });
+}
+
 if (elements.devkitToggleShop) {
   elements.devkitToggleShop.addEventListener('click', event => {
     event.preventDefault();
@@ -10127,7 +10331,13 @@ updateDevKitUI();
 initParticulesGame();
 
 elements.navButtons.forEach(btn => {
-  btn.addEventListener('click', () => showPage(btn.dataset.target));
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.target;
+    if (!isPageUnlocked(target)) {
+      return;
+    }
+    showPage(target);
+  });
 });
 
 if (elements.brandPortal) {
@@ -10151,6 +10361,9 @@ if (elements.arcadeReturnButton) {
 
 if (elements.arcadeTicketButton) {
   elements.arcadeTicketButton.addEventListener('click', () => {
+    if (!isPageUnlocked('gacha')) {
+      return;
+    }
     showPage('gacha');
   });
 }
@@ -12151,6 +12364,7 @@ function updateFrenzyIndicators(now = performance.now()) {
 }
 
 function updateUI() {
+  updatePageUnlockUI();
   updateBigBangVisibility();
   updateBrandPortalState();
   if (elements.statusAtoms) {
@@ -12321,6 +12535,15 @@ function serializeState() {
       });
       return result;
     })(),
+    pageUnlocks: (() => {
+      const unlocks = getPageUnlockState();
+      return {
+        gacha: unlocks?.gacha === true,
+        tableau: unlocks?.tableau === true,
+        fusion: unlocks?.fusion === true,
+        info: unlocks?.info === true
+      };
+    })(),
     fusionBonuses: (() => {
       const bonuses = getFusionBonusState();
       return {
@@ -12452,6 +12675,7 @@ function resetGame() {
     elements: createInitialElementCollection(),
     fusions: createInitialFusionState(),
     fusionBonuses: createInitialFusionBonuses(),
+    pageUnlocks: createInitialPageUnlockState(),
     theme: DEFAULT_THEME,
     stats: createInitialStats(),
     production: createEmptyProductionBreakdown(),
@@ -12541,6 +12765,17 @@ function loadGame() {
     }
     gameState.stats = parseStats(data.stats);
     gameState.trophies = new Set(Array.isArray(data.trophies) ? data.trophies : []);
+    const storedPageUnlocks = data.pageUnlocks;
+    if (storedPageUnlocks && typeof storedPageUnlocks === 'object') {
+      const baseUnlocks = createInitialPageUnlockState();
+      Object.keys(baseUnlocks).forEach(key => {
+        const rawValue = storedPageUnlocks[key];
+        baseUnlocks[key] = rawValue === true || rawValue === 'true' || rawValue === 1;
+      });
+      gameState.pageUnlocks = baseUnlocks;
+    } else {
+      gameState.pageUnlocks = createInitialPageUnlockState();
+    }
     const storedBigBangPreference =
       data.bigBangButtonVisible ?? data.showBigBangButton ?? data.bigBangVisible ?? null;
     const wantsBigBang =
@@ -12775,6 +13010,7 @@ function loadGame() {
     if (gameState.musicEnabled === false) {
       gameState.musicTrackId = null;
     }
+    evaluatePageUnlocks({ save: false, deferUI: true });
     getShopUnlockSet();
     applyTheme(gameState.theme);
     recalcProduction();
@@ -12823,6 +13059,7 @@ function loadGame() {
             ? Math.max(0, Math.floor(Number(gameState.gachaTickets)))
             : 0;
           gameState.gachaTickets = currentTickets + ticketsEarned;
+          evaluatePageUnlocks({ save: false, deferUI: true });
           const unit = ticketsEarned === 1 ? 'ticket' : 'tickets';
           showToast(`Tickets hors ligne : +${ticketsEarned} ${unit}`);
           progressSeconds -= ticketsEarned * secondsPerTicket;
