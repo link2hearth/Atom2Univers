@@ -12,9 +12,9 @@
   const POWER_UP_IDS = Object.freeze({
     EXTEND: 'extend',
     MULTIBALL: 'multiball',
-    STICKY: 'sticky',
     LASER: 'laser',
-    SPEED: 'speed'
+    SPEED: 'speed',
+    FLOOR: 'floor'
   });
   const COMBO_REQUIRED_COLORS = ['red', 'green', 'blue'];
   const BRICK_SCORE_VALUE = {
@@ -169,16 +169,16 @@
   const POWER_UP_LABELS = {
     [POWER_UP_IDS.EXTEND]: 'Barre allongée',
     [POWER_UP_IDS.MULTIBALL]: 'Multiballe',
-    [POWER_UP_IDS.STICKY]: 'Barre collante',
     [POWER_UP_IDS.LASER]: 'Tir laser',
-    [POWER_UP_IDS.SPEED]: 'Accélération'
+    [POWER_UP_IDS.SPEED]: 'Accélération',
+    [POWER_UP_IDS.FLOOR]: 'Bouclier inférieur'
   };
 
   const POWER_UP_EFFECTS = {
     [POWER_UP_IDS.EXTEND]: { duration: 12000 },
-    [POWER_UP_IDS.STICKY]: { duration: 10000 },
     [POWER_UP_IDS.LASER]: { duration: 9000 },
-    [POWER_UP_IDS.SPEED]: { duration: 8000 }
+    [POWER_UP_IDS.SPEED]: { duration: 8000 },
+    [POWER_UP_IDS.FLOOR]: { duration: 10000 }
   };
 
   const COMBO_POWER_UPS = [
@@ -356,7 +356,7 @@
       this.updateBallRadius();
       this.balls.forEach(ball => {
         ball.radius = this.ballRadius;
-        if (ball.stickToPaddle) {
+        if (ball.attachedToPaddle) {
           this.updateBallFollowingPaddle(ball);
         }
       });
@@ -524,10 +524,10 @@
     }
 
     prepareServe() {
-      this.balls = [this.createBall({ stickToPaddle: true })];
+      this.balls = [this.createBall({ attachToPaddle: true })];
     }
 
-    createBall({ stickToPaddle = false, angle = null } = {}) {
+    createBall({ attachToPaddle = false, angle = null } = {}) {
       const radius = this.ballRadius || this.ballSettings.radiusRatio * Math.min(this.width, this.height);
       const paddleCenter = this.paddle.x + this.paddle.width / 2;
       const ball = {
@@ -537,11 +537,10 @@
         vx: 0,
         vy: 0,
         radius,
-        stickToPaddle,
-        inPlay: !stickToPaddle,
-        pendingStickyRatio: null
+        attachedToPaddle: attachToPaddle,
+        inPlay: !attachToPaddle
       };
-      if (!stickToPaddle) {
+      if (!attachToPaddle) {
         const launchAngle = typeof angle === 'number'
           ? angle
           : (-Math.PI / 2) * 0.75 + Math.random() * (Math.PI / 3);
@@ -565,31 +564,18 @@
 
     launchBallFromPaddle(ball) {
       if (!ball) return;
-      const hasStickyRatio = typeof ball.pendingStickyRatio === 'number';
-      let angle;
-      if (hasStickyRatio) {
-        const clampedRatio = clamp(ball.pendingStickyRatio, -1, 1);
-        angle = clampedRatio * (Math.PI / 3);
-      } else {
-        angle = (-Math.PI / 2) * 0.75 + Math.random() * (Math.PI / 3);
-      }
+      const angle = (-Math.PI / 2) * 0.75 + Math.random() * (Math.PI / 3);
       const speed = this.getBallSpeed();
-      if (hasStickyRatio) {
-        ball.vx = Math.sin(angle) * speed;
-        ball.vy = -Math.abs(Math.cos(angle) * speed);
-        ball.pendingStickyRatio = null;
-      } else {
-        ball.vx = Math.cos(angle) * speed;
-        ball.vy = Math.sin(angle) * speed;
-      }
-      ball.stickToPaddle = false;
+      ball.vx = Math.cos(angle) * speed;
+      ball.vy = Math.sin(angle) * speed;
+      ball.attachedToPaddle = false;
       ball.inPlay = true;
     }
 
-    releaseStickyBalls() {
+    releaseHeldBalls() {
       let launched = false;
       this.balls.forEach(ball => {
-        if (ball.stickToPaddle) {
+        if (ball.attachedToPaddle) {
           this.updateBallFollowingPaddle(ball);
           this.launchBallFromPaddle(ball);
           launched = true;
@@ -608,6 +594,7 @@
       ball.vx = 0;
       ball.vy = 0;
       ball.inPlay = false;
+      ball.attachedToPaddle = true;
     }
 
     startAnimation() {
@@ -653,7 +640,7 @@
       for (let i = this.balls.length - 1; i >= 0; i -= 1) {
         const ball = this.balls[i];
         if (!ball.inPlay) {
-          if (ball.stickToPaddle) {
+          if (ball.attachedToPaddle) {
             this.updateBallFollowingPaddle(ball);
           }
           continue;
@@ -774,7 +761,12 @@
         ball.y = ball.radius;
         ball.vy = Math.abs(ball.vy);
       }
-      if (ball.y - ball.radius > this.height) {
+      const floorShieldActive = this.effects.has(POWER_UP_IDS.FLOOR);
+      if (floorShieldActive && ball.y + ball.radius >= this.height) {
+        ball.y = this.height - ball.radius;
+        const reboundSpeed = Math.max(Math.abs(ball.vy), this.getBallSpeed());
+        ball.vy = -Math.abs(reboundSpeed);
+      } else if (ball.y - ball.radius > this.height) {
         ball.inPlay = false;
       }
     }
@@ -797,13 +789,6 @@
       ball.vx = speed * Math.sin(angle);
       ball.vy = -Math.abs(speed * Math.cos(angle));
       ball.y = this.paddle.y - ball.radius - 1;
-      if (this.effects.has(POWER_UP_IDS.STICKY)) {
-        ball.pendingStickyRatio = clamped;
-        ball.stickToPaddle = true;
-        ball.inPlay = false;
-      } else {
-        ball.pendingStickyRatio = null;
-      }
     }
 
     handleBrickCollisions(ball) {
@@ -878,9 +863,9 @@
       const powerUpTypes = [
         POWER_UP_IDS.EXTEND,
         POWER_UP_IDS.MULTIBALL,
-        POWER_UP_IDS.STICKY,
         POWER_UP_IDS.LASER,
-        POWER_UP_IDS.SPEED
+        POWER_UP_IDS.SPEED,
+        POWER_UP_IDS.FLOOR
       ];
       const type = randomChoice(powerUpTypes);
       if (!type) return;
@@ -986,13 +971,13 @@
           this.paddle.currentWidthRatio = Math.min(0.32, this.paddle.baseWidthRatio * 1.6);
           this.updatePaddleSize();
           break;
-        case POWER_UP_IDS.STICKY:
-          break;
         case POWER_UP_IDS.LASER:
           effect.cooldown = 0;
           break;
         case POWER_UP_IDS.SPEED:
           this.ballSpeedMultiplier = 1.35;
+          break;
+        case POWER_UP_IDS.FLOOR:
           break;
         default:
           break;
@@ -1016,16 +1001,16 @@
     spawnAdditionalBalls() {
       if (this.balls.length === 0) {
         this.prepareServe();
-        this.releaseStickyBalls();
+        this.releaseHeldBalls();
         return;
       }
       const existing = this.balls.filter(ball => ball.inPlay);
       if (existing.length === 0) {
-        this.releaseStickyBalls();
+        this.releaseHeldBalls();
         return;
       }
       existing.slice(0, 2).forEach(ball => {
-        const clone = this.createBall({ stickToPaddle: false });
+        const clone = this.createBall({ attachToPaddle: false });
         clone.x = ball.x;
         clone.y = ball.y;
         const angle = Math.atan2(ball.vy, ball.vx) + (Math.random() - 0.5) * 0.6;
@@ -1129,13 +1114,13 @@
       this.pendingLevelAdvance = false;
       this.setupLevel();
       this.hideOverlay();
-      this.releaseStickyBalls();
+      this.releaseHeldBalls();
     }
 
     resumeFromPause() {
       this.pendingResume = false;
       this.hideOverlay();
-      if (!this.releaseStickyBalls()) {
+      if (!this.releaseHeldBalls()) {
         this.startAnimation();
       }
     }
@@ -1147,7 +1132,7 @@
       this.pendingLevelAdvance = false;
       this.setupLevel();
       this.hideOverlay();
-      this.releaseStickyBalls();
+      this.releaseHeldBalls();
     }
 
     handlePointerDown(event) {
@@ -1161,7 +1146,7 @@
         }
       }
       this.updatePaddleFromPointer(event);
-      this.releaseStickyBalls();
+      this.releaseHeldBalls();
       event.preventDefault();
     }
 
@@ -1194,7 +1179,7 @@
       this.paddle.x = clamp(center - this.paddle.width / 2, minX, maxX);
       this.paddle.xRatio = (this.paddle.x + this.paddle.width / 2) / this.width;
       this.balls.forEach(ball => {
-        if (ball.stickToPaddle) {
+        if (ball.attachedToPaddle) {
           this.updateBallFollowingPaddle(ball);
         }
       });
