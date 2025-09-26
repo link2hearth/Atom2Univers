@@ -130,18 +130,12 @@
     <section id="arcade" class="page page--arcade" aria-label="Particules" hidden>
       <header class="arcade-header" aria-label="Navigation du jeu Particules">
         <button class="arcade-header__brand brand brand-button" id="arcadeReturnButton" type="button">
-          Atom2Univers
+          Particules
         </button>
-        <div class="arcade-header__title" aria-live="polite">
-          <h2 class="arcade-header__game-title">Particules</h2>
-          <p class="arcade-header__subtitle">
-            Canalisez les particules quantiques pour gagner des tickets de tirage.
-          </p>
-        </div>
-        <div class="arcade-header__status" aria-live="polite">
+        <button class="arcade-header__status" id="arcadeTicketButton" type="button">
           <span class="arcade-header__status-label">Tickets</span>
           <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
-        </div>
+        </button>
       </header>
 
       <div class="arcade-content">
@@ -451,6 +445,7 @@
 
   <script src="config/config.js"></script>
   <script src="scripts/utils.js"></script>
+  <script src="scripts/particules.js"></script>
   <script src="scripts/app.js"></script>
 </body>
 </html>
