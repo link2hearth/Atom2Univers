@@ -127,16 +127,56 @@
       </div>
     </section>
 
-    <section id="arcade" class="page page--arcade" aria-label="Portail arcade" hidden>
-      <header class="arcade-header" aria-label="Navigation du mode arcade">
-        <button class="arcade-header__title brand brand-button" id="arcadeReturnButton" type="button">
+    <section id="arcade" class="page page--arcade" aria-label="Particules" hidden>
+      <header class="arcade-header" aria-label="Navigation du jeu Particules">
+        <button class="arcade-header__brand brand brand-button" id="arcadeReturnButton" type="button">
           Atom2Univers
         </button>
+        <div class="arcade-header__title" aria-live="polite">
+          <h2 class="arcade-header__game-title">Particules</h2>
+          <p class="arcade-header__subtitle">
+            Canalisez les particules quantiques pour gagner des tickets de tirage.
+          </p>
+        </div>
         <div class="arcade-header__status" aria-live="polite">
           <span class="arcade-header__status-label">Tickets</span>
           <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
         </div>
       </header>
+
+      <div class="arcade-content">
+        <div class="arcade-hud" role="status" aria-live="polite">
+          <div class="arcade-hud__item">
+            <span class="arcade-hud__label">Niveau</span>
+            <span class="arcade-hud__value" id="arcadeLevelValue">1</span>
+          </div>
+          <div class="arcade-hud__item">
+            <span class="arcade-hud__label">Vies</span>
+            <span class="arcade-hud__value" id="arcadeLivesValue">3</span>
+          </div>
+          <div class="arcade-hud__item">
+            <span class="arcade-hud__label">Score</span>
+            <span class="arcade-hud__value" id="arcadeScoreValue">0</span>
+          </div>
+        </div>
+
+        <div class="arcade-stage">
+          <canvas
+            id="arcadeGameCanvas"
+            class="arcade-stage__canvas"
+            aria-label="Zone de jeu Particules"
+            role="presentation"
+          ></canvas>
+          <div class="arcade-overlay" id="arcadeOverlay" role="dialog" aria-modal="false" hidden>
+            <div class="arcade-overlay__content">
+              <p class="arcade-overlay__message" id="arcadeOverlayMessage">
+                Touchez ou cliquez la raquette pour guider la particule et détruire les briques quantiques.
+              </p>
+              <button type="button" class="arcade-overlay__button" id="arcadeOverlayButton">Commencer</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="tableau" class="page page--table" aria-label="Tableau périodique des éléments">

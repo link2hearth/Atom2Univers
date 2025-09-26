@@ -57,6 +57,19 @@ body.theme-neon {
   user-select: none;
 }
 
+body.view-arcade {
+  background: radial-gradient(140% 160% at 50% 0%, #1a1e48 0%, #070918 55%, #01020a 100%);
+}
+
+body.view-arcade .app-header {
+  display: none;
+}
+
+body.view-arcade main {
+  width: 100%;
+  justify-content: center;
+}
+
 body.theme-light .app-header {
   background: rgba(246, 247, 251, 0.78);
   border-bottom-color: rgba(12, 16, 32, 0.08);
@@ -476,6 +489,9 @@ main {
 
 .page--arcade {
   display: none;
+  width: 100%;
+  max-width: min(1200px, 96vw);
+  margin: 0 auto;
 }
 
 .page--arcade.active {
@@ -483,6 +499,7 @@ main {
   flex-direction: column;
   gap: clamp(1.6rem, 3.6vw, 2.4rem);
   align-items: stretch;
+  min-height: clamp(540px, 70vh, 860px);
 }
 
 .arcade-header {
@@ -497,20 +514,44 @@ main {
   box-shadow: 0 24px 46px rgba(6, 10, 32, 0.45);
 }
 
-body.theme-light .arcade-header {
-  background: linear-gradient(140deg, rgba(248, 250, 255, 0.92), rgba(210, 220, 255, 0.9));
-  border-color: rgba(40, 52, 120, 0.18);
-  box-shadow: 0 20px 40px rgba(28, 38, 74, 0.16);
+.arcade-header__brand {
+  flex-shrink: 0;
+  padding-inline: clamp(0.6rem, 1.2vw, 1rem);
+  padding-block: clamp(0.35rem, 0.8vw, 0.6rem);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-body.theme-neon .arcade-header {
-  background: linear-gradient(140deg, rgba(32, 28, 112, 0.88), rgba(10, 22, 88, 0.9));
-  border-color: rgba(120, 150, 255, 0.28);
-  box-shadow: 0 24px 48px rgba(14, 18, 72, 0.55);
+.arcade-header__brand:hover,
+.arcade-header__brand:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(12, 16, 40, 0.35);
 }
 
 .arcade-header__title {
-  font-size: clamp(0.9rem, 1.6vw, 1.32rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.8vw, 0.5rem);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.arcade-header__game-title {
+  margin: 0;
+  font-family: 'Audiowide', 'Orbitron', sans-serif;
+  font-size: clamp(1.4rem, 3.1vw, 2rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.arcade-header__subtitle {
+  margin: 0;
+  font-size: clamp(0.8rem, 1.4vw, 1.05rem);
+  color: rgba(230, 234, 255, 0.78);
+  max-width: 52ch;
 }
 
 .arcade-header__status {
@@ -518,6 +559,10 @@ body.theme-neon .arcade-header {
   align-items: baseline;
   gap: clamp(0.4rem, 1vw, 0.8rem);
   font-family: 'Orbitron', 'Inter', sans-serif;
+  padding: clamp(0.5rem, 1vw, 0.9rem) clamp(0.8rem, 1.4vw, 1.2rem);
+  border-radius: 1.2rem;
+  background: rgba(16, 22, 48, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .arcade-header__status-label {
@@ -532,6 +577,177 @@ body.theme-neon .arcade-header {
   font-weight: 600;
   letter-spacing: 0.05em;
 }
+
+body.theme-light .arcade-header {
+  background: linear-gradient(140deg, rgba(248, 250, 255, 0.92), rgba(210, 220, 255, 0.9));
+  border-color: rgba(40, 52, 120, 0.18);
+  box-shadow: 0 20px 40px rgba(28, 38, 74, 0.16);
+}
+
+body.theme-light .arcade-header__brand {
+  border-color: rgba(40, 52, 120, 0.18);
+  background: rgba(12, 16, 32, 0.06);
+}
+
+body.theme-light .arcade-header__subtitle {
+  color: rgba(18, 24, 52, 0.72);
+}
+
+body.theme-light .arcade-header__status {
+  background: rgba(240, 244, 255, 0.82);
+  border-color: rgba(48, 64, 120, 0.16);
+}
+
+body.theme-neon .arcade-header {
+  background: linear-gradient(140deg, rgba(32, 28, 112, 0.88), rgba(10, 22, 88, 0.9));
+  border-color: rgba(120, 150, 255, 0.28);
+  box-shadow: 0 24px 48px rgba(14, 18, 72, 0.55);
+}
+
+body.theme-neon .arcade-header__subtitle {
+  color: rgba(190, 200, 255, 0.85);
+}
+
+body.theme-neon .arcade-header__status {
+  background: rgba(38, 32, 110, 0.8);
+  border-color: rgba(160, 190, 255, 0.32);
+}
+
+.arcade-content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.2rem, 2.8vw, 1.8rem);
+  flex: 1 1 auto;
+}
+
+.arcade-hud {
+  display: flex;
+  justify-content: center;
+  gap: clamp(1rem, 2.2vw, 2rem);
+  padding: clamp(0.8rem, 2vw, 1.2rem) clamp(1.2rem, 3vw, 2.2rem);
+  border-radius: 1.4rem;
+  background: rgba(12, 18, 40, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-family: 'Orbitron', 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.arcade-hud__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.arcade-hud__label {
+  font-size: clamp(0.58rem, 0.8vw, 0.72rem);
+  opacity: 0.65;
+}
+
+.arcade-hud__value {
+  font-size: clamp(0.98rem, 1.6vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+body.theme-light .arcade-hud {
+  background: rgba(244, 246, 255, 0.9);
+  border-color: rgba(40, 48, 90, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+body.theme-light .arcade-hud__label {
+  color: rgba(30, 40, 78, 0.65);
+}
+
+body.theme-neon .arcade-hud {
+  background: rgba(42, 32, 110, 0.78);
+  border-color: rgba(150, 170, 255, 0.26);
+}
+
+.arcade-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: clamp(420px, 58vh, 620px);
+  border-radius: 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: radial-gradient(circle at top, rgba(28, 36, 88, 0.65), rgba(8, 12, 34, 0.95));
+  overflow: hidden;
+  box-shadow: 0 32px 68px rgba(6, 8, 28, 0.55);
+}
+
+.arcade-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(120, 190, 255, 0.12), transparent 65%);
+  pointer-events: none;
+}
+
+.arcade-stage__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: relative;
+  z-index: 1;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.arcade-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.2rem, 4vw, 2.4rem);
+  background: rgba(4, 6, 18, 0.78);
+  backdrop-filter: blur(10px);
+  z-index: 2;
+}
+
+.arcade-overlay__content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.8rem, 2vw, 1.2rem);
+  max-width: min(420px, 86vw);
+  text-align: center;
+}
+
+.arcade-overlay__message {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+  line-height: 1.5;
+}
+
+.arcade-overlay__button {
+  align-self: center;
+  padding: clamp(0.55rem, 1.2vw, 0.85rem) clamp(1.4rem, 3vw, 2.2rem);
+  border-radius: 999px;
+  border: none;
+  font-family: 'Orbitron', 'Inter', sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: clamp(0.68rem, 1vw, 0.82rem);
+  cursor: pointer;
+  color: #02040c;
+  background: linear-gradient(120deg, #6ee7ff, #67d6ff 45%, #cba4ff);
+  box-shadow: 0 14px 28px rgba(80, 210, 255, 0.45);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.arcade-overlay__button:hover,
+.arcade-overlay__button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 34px rgba(120, 220, 255, 0.55);
+}
+
+.arcade-overlay[hidden] {
+  display: none;
+}
+
 
 .page--bigbang {
   display: none;
