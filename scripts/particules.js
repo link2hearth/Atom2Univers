@@ -117,8 +117,9 @@
       id: 'wz',
       family: 'boson',
       colors: ['#a874ff', '#7c4dff'],
-      symbol: 'W/Z',
+      symbol: 'w/z',
       symbolColor: '#f6f1ff',
+      symbolScale: 0.85,
       minHits: 2,
       maxHits: 3
     },
@@ -182,7 +183,7 @@
 
   const COMBO_POWER_UPS = [
     POWER_UP_IDS.LASER,
-    POWER_UP_IDS.STICKY,
+    POWER_UP_IDS.EXTEND,
     POWER_UP_IDS.MULTIBALL
   ];
 
@@ -553,7 +554,11 @@
 
     getBallSpeed() {
       const base = (this.width + this.height) / (2 * Math.max(this.pixelRatio, 0.5));
-      const ratio = this.ballSettings.baseSpeedRatio + this.ballSettings.speedGrowthRatio * (this.level - 1);
+      const levelMultiplier = Math.pow(
+        1 + this.ballSettings.speedGrowthRatio,
+        Math.max(0, this.level - 1)
+      );
+      const ratio = this.ballSettings.baseSpeedRatio * levelMultiplier;
       const speedPerMillisecond = base * ratio * 0.0006 * this.ballSpeedMultiplier;
       return Math.max(0.25, speedPerMillisecond);
     }
@@ -1284,7 +1289,11 @@
         }
         if (brick.particle?.symbol) {
           ctx.fillStyle = brick.particle.symbolColor || '#ffffff';
-          ctx.font = `${Math.max(12, h * 0.55)}px 'Orbitron', 'Inter', sans-serif`;
+          const symbolScale = typeof brick.particle.symbolScale === 'number'
+            ? brick.particle.symbolScale
+            : 1;
+          const baseFontSize = Math.max(12, h * 0.55);
+          ctx.font = `${Math.max(12, baseFontSize * symbolScale)}px 'Orbitron', 'Inter', sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(brick.particle.symbol, x + w / 2, y + h / 2 + h * 0.04);
