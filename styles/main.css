@@ -90,7 +90,7 @@ body.theme-neon .app-header {
 
 .brand {
   font-family: 'Audiowide', 'Orbitron', sans-serif;
-  font-size: clamp(0.83rem, 1.35vw, 1.2rem);
+  font-size: clamp(1.162rem, 1.89vw, 1.68rem);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   display: inline-flex;
@@ -131,9 +131,13 @@ body.theme-light .brand-button:focus-visible {
 }
 
 .brand--portal-ready {
-  --brand-portal-color: #f9e09c;
   --brand-portal-glow: rgba(255, 224, 154, 0.55);
-  color: var(--brand-portal-color);
+  background: linear-gradient(120deg, #ffd166, #ff8ba7, #70d6ff, #caffbf, #bdb2ff, #ffd166);
+  background-size: 240% 240%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: statusMainSheen 8s linear infinite;
   cursor: pointer;
   text-shadow: 0 0.45rem 1.4rem var(--brand-portal-glow);
 }
@@ -144,12 +148,10 @@ body.theme-light .brand-button:focus-visible {
 }
 
 body.theme-light .brand--portal-ready {
-  --brand-portal-color: #3a2f7e;
   --brand-portal-glow: rgba(58, 47, 126, 0.32);
 }
 
 body.theme-neon .brand--portal-ready {
-  --brand-portal-color: #9ff2ff;
   --brand-portal-glow: rgba(140, 240, 255, 0.65);
 }
 
