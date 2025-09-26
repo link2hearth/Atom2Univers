@@ -537,7 +537,8 @@
         vy: 0,
         radius,
         stickToPaddle,
-        inPlay: !stickToPaddle
+        inPlay: !stickToPaddle,
+        pendingStickyRatio: null
       };
       if (!stickToPaddle) {
         const launchAngle = typeof angle === 'number'
@@ -559,10 +560,23 @@
 
     launchBallFromPaddle(ball) {
       if (!ball) return;
-      const angle = (-Math.PI / 2) * 0.75 + Math.random() * (Math.PI / 3);
+      const hasStickyRatio = typeof ball.pendingStickyRatio === 'number';
+      let angle;
+      if (hasStickyRatio) {
+        const clampedRatio = clamp(ball.pendingStickyRatio, -1, 1);
+        angle = clampedRatio * (Math.PI / 3);
+      } else {
+        angle = (-Math.PI / 2) * 0.75 + Math.random() * (Math.PI / 3);
+      }
       const speed = this.getBallSpeed();
-      ball.vx = Math.cos(angle) * speed;
-      ball.vy = Math.sin(angle) * speed;
+      if (hasStickyRatio) {
+        ball.vx = Math.sin(angle) * speed;
+        ball.vy = -Math.abs(Math.cos(angle) * speed);
+        ball.pendingStickyRatio = null;
+      } else {
+        ball.vx = Math.cos(angle) * speed;
+        ball.vy = Math.sin(angle) * speed;
+      }
       ball.stickToPaddle = false;
       ball.inPlay = true;
     }
@@ -779,8 +793,11 @@
       ball.vy = -Math.abs(speed * Math.cos(angle));
       ball.y = this.paddle.y - ball.radius - 1;
       if (this.effects.has(POWER_UP_IDS.STICKY)) {
+        ball.pendingStickyRatio = clamped;
         ball.stickToPaddle = true;
         ball.inPlay = false;
+      } else {
+        ball.pendingStickyRatio = null;
       }
     }
 
