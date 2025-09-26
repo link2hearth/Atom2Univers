@@ -495,9 +495,9 @@ main {
   max-width: 100%;
   margin: 0 auto;
   --arcade-padding-x: clamp(0.8rem, 2vw, 1.2rem);
-  --arcade-padding-top: clamp(0rem, 0.6vw, 0.4rem);
+  --arcade-padding-top: clamp(0rem, 0.2vw, 0.15rem);
   --arcade-padding-bottom: clamp(1rem, 2.8vw, 1.6rem);
-  --arcade-stage-spacing: clamp(1rem, 3vh, 2.4rem);
+  --arcade-stage-spacing: clamp(0.25rem, 1.4vh, 0.8rem);
   --arcade-header-height: clamp(2.9rem, 5.5vh, 3.8rem);
   --arcade-vertical-offset: calc(
     var(--arcade-padding-top) + var(--arcade-padding-bottom) + var(--arcade-stage-spacing) * 2 + var(--arcade-header-height)
@@ -508,7 +508,7 @@ main {
 .page--arcade.active {
   display: flex;
   flex-direction: column;
-  gap: clamp(1rem, 2.6vw, 1.8rem);
+  gap: clamp(0.2rem, 0.9vw, 0.6rem);
   align-items: center;
   min-height: 100vh;
 }

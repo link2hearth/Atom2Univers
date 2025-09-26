@@ -537,6 +537,7 @@
         vx: 0,
         vy: 0,
         radius,
+        electricSeed: Math.random() * Math.PI * 2,
         attachedToPaddle: attachToPaddle,
         inPlay: !attachToPaddle
       };
@@ -1237,6 +1238,8 @@
     render(now = 0) {
       if (!this.enabled) return;
       const ctx = this.ctx;
+      const time = typeof now === 'number' ? now / 1000 : 0;
+      const floorShieldActive = this.effects.has(POWER_UP_IDS.FLOOR);
       ctx.clearRect(0, 0, this.width, this.height);
       const background = ctx.createLinearGradient(0, 0, this.width, this.height);
       background.addColorStop(0, 'rgba(12, 16, 38, 0.85)');
@@ -1320,6 +1323,44 @@
         ctx.fillRect(laser.x - laser.width / 2, laser.y - laser.height, laser.width, laser.height);
       });
 
+      const floorHeight = Math.max(12, this.height * 0.06);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      if (floorShieldActive) {
+        const pulse = 0.55 + 0.25 * Math.sin(time * 6.2);
+        const shieldGradient = ctx.createLinearGradient(
+          0,
+          this.height - floorHeight * 1.8,
+          0,
+          this.height
+        );
+        shieldGradient.addColorStop(0, 'rgba(40, 120, 255, 0)');
+        shieldGradient.addColorStop(0.45, `rgba(90, 180, 255, ${0.22 + pulse * 0.28})`);
+        shieldGradient.addColorStop(1, `rgba(180, 240, 255, ${0.48 + pulse * 0.35})`);
+        ctx.fillStyle = shieldGradient;
+        ctx.fillRect(0, this.height - floorHeight * 1.8, this.width, floorHeight * 1.8);
+        ctx.strokeStyle = `rgba(200, 240, 255, ${0.55 + pulse * 0.4})`;
+        ctx.lineWidth = Math.max(2, floorHeight * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(0, this.height - floorHeight * 0.42);
+        ctx.lineTo(this.width, this.height - floorHeight * 0.42);
+        ctx.stroke();
+      } else {
+        const ember = 0.4 + 0.2 * Math.sin(time * 3.4);
+        const floorGradient = ctx.createLinearGradient(0, this.height - floorHeight, 0, this.height);
+        floorGradient.addColorStop(0, 'rgba(180, 30, 40, 0)');
+        floorGradient.addColorStop(1, `rgba(255, 60, 60, ${0.35 + ember * 0.25})`);
+        ctx.fillStyle = floorGradient;
+        ctx.fillRect(0, this.height - floorHeight, this.width, floorHeight);
+        ctx.strokeStyle = `rgba(220, 40, 50, ${0.45 + ember * 0.25})`;
+        ctx.lineWidth = Math.max(1.5, floorHeight * 0.18);
+        ctx.beginPath();
+        ctx.moveTo(0, this.height - floorHeight * 0.18);
+        ctx.lineTo(this.width, this.height - floorHeight * 0.18);
+        ctx.stroke();
+      }
+      ctx.restore();
+
       const paddleGradient = ctx.createLinearGradient(
         this.paddle.x,
         this.paddle.y,
@@ -1339,6 +1380,8 @@
       }
 
       this.balls.forEach(ball => {
+        const electricSeed = typeof ball.electricSeed === 'number' ? ball.electricSeed : 0;
+        const pulse = 0.55 + 0.35 * Math.sin(time * 7.1 + electricSeed);
         const gradient = ctx.createRadialGradient(
           ball.x - ball.radius / 3,
           ball.y - ball.radius / 3,
@@ -1355,10 +1398,54 @@
         ctx.fill();
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = 'rgba(150, 220, 255, 0.25)';
-        ctx.lineWidth = Math.max(1, ball.radius * 0.25);
+        const auraOuterRadius = ball.radius * (1.6 + 0.28 * Math.sin(time * 3.4 + electricSeed * 1.7));
+        const auraGradient = ctx.createRadialGradient(
+          ball.x,
+          ball.y,
+          ball.radius * 0.45,
+          ball.x,
+          ball.y,
+          auraOuterRadius
+        );
+        auraGradient.addColorStop(0, `rgba(150, 220, 255, ${0.18 + pulse * 0.2})`);
+        auraGradient.addColorStop(0.8, `rgba(90, 180, 255, ${0.08 + pulse * 0.18})`);
+        auraGradient.addColorStop(1, 'rgba(30, 120, 255, 0)');
+        ctx.fillStyle = auraGradient;
         ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.radius * 1.2, 0, Math.PI * 2);
+        ctx.arc(ball.x, ball.y, auraOuterRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const arcCount = 4;
+        const arcLineWidth = Math.max(0.8, ball.radius * 0.18);
+        ctx.lineWidth = arcLineWidth;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < arcCount; i += 1) {
+          const segmentSeed = electricSeed + i * 2.318;
+          const baseAngle = segmentSeed + time * 4.2 + Math.sin(time * 2.1 + segmentSeed) * 0.4;
+          const innerRadius = ball.radius * (0.92 + 0.12 * Math.sin(time * 5.3 + segmentSeed * 1.4));
+          const outerRadius = ball.radius * (1.45 + 0.3 * Math.sin(time * 3.8 + segmentSeed * 2.2));
+          ctx.beginPath();
+          ctx.moveTo(
+            ball.x + Math.cos(baseAngle) * innerRadius,
+            ball.y + Math.sin(baseAngle) * innerRadius
+          );
+          const jaggedSteps = 3;
+          for (let step = 1; step <= jaggedSteps; step += 1) {
+            const progress = step / jaggedSteps;
+            const noise = Math.sin((time + step) * 6.4 + segmentSeed * (step + 1)) * 0.35;
+            const angle = baseAngle + noise * 0.55;
+            const radius = innerRadius + (outerRadius - innerRadius) * progress + noise * ball.radius * 0.22;
+            ctx.lineTo(ball.x + Math.cos(angle) * radius, ball.y + Math.sin(angle) * radius);
+          }
+          ctx.strokeStyle = `rgba(170, 240, 255, ${0.18 + pulse * 0.28})`;
+          ctx.stroke();
+        }
+
+        const ringRadius = ball.radius * (1.18 + 0.08 * Math.sin(time * 4.6 + electricSeed));
+        ctx.strokeStyle = `rgba(150, 220, 255, ${0.2 + pulse * 0.3})`;
+        ctx.lineWidth = Math.max(1, ball.radius * 0.24);
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ringRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       });
