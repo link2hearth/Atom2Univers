@@ -207,10 +207,19 @@
       this.overlay = overlay;
       this.overlayButton = overlayButton;
       this.overlayMessage = overlayMessage;
-      this.levelLabel = levelLabel;
-      this.livesLabel = livesLabel;
-      this.scoreLabel = scoreLabel;
       this.comboLabel = comboLabel;
+      [levelLabel, livesLabel, scoreLabel].forEach(label => {
+        const container = typeof label?.closest === 'function'
+          ? label.closest('.arcade-hud__item')
+          : null;
+        if (container) {
+          container.hidden = true;
+          container.setAttribute('aria-hidden', 'true');
+        }
+      });
+      this.levelLabel = null;
+      this.livesLabel = null;
+      this.scoreLabel = null;
       this.onTicketsEarned = typeof onTicketsEarned === 'function' ? onTicketsEarned : null;
       this.onSpecialTicket = typeof onSpecialTicket === 'function' ? onSpecialTicket : null;
       this.formatTicketLabel = typeof formatTicketLabel === 'function' ? formatTicketLabel : defaultTicketFormatter;
@@ -274,8 +283,8 @@
 
       this.ballSettings = {
         radiusRatio: 0.015,
-        baseSpeedRatio: 0.8,
-        speedGrowthRatio: 0.08
+        baseSpeedRatio: 1.2,
+        speedGrowthRatio: 0.12
       };
 
       this.handleFrame = this.handleFrame.bind(this);
@@ -387,11 +396,15 @@
     generateBricks() {
       const bricks = [];
       const paddingX = 0.08;
-      const paddingY = 0.08;
+      const paddingY = 0.04;
       const usableWidth = 1 - paddingX * 2;
-      const usableHeight = 0.74;
+      const usableHeight = 0.46;
       const brickWidth = usableWidth / this.gridCols;
       const brickHeight = usableHeight / this.gridRows;
+      const innerWidthRatio = 0.92;
+      const innerHeightRatio = 0.68;
+      const horizontalOffset = (1 - innerWidthRatio) / 2;
+      const verticalOffset = (1 - innerHeightRatio) / 2;
       const baseFill = clamp(0.55 + (this.level - 1) * 0.02, 0.55, 0.82);
       for (let row = 0; row < this.gridRows; row += 1) {
         let rowHasBrick = false;
@@ -400,10 +413,10 @@
           const position = {
             row,
             col,
-            relX: paddingX + col * brickWidth,
-            relY: paddingY + row * brickHeight,
-            relWidth: brickWidth * 0.92,
-            relHeight: brickHeight * 0.88
+            relX: paddingX + col * brickWidth + brickWidth * horizontalOffset,
+            relY: paddingY + row * brickHeight + brickHeight * verticalOffset,
+            relWidth: brickWidth * innerWidthRatio,
+            relHeight: brickHeight * innerHeightRatio
           };
           const variability = (Math.random() - 0.5) * 0.12;
           const depthBias = clamp((row / Math.max(1, this.gridRows - 1)) * 0.18, 0, 0.18);
