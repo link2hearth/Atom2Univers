@@ -1836,7 +1836,7 @@ function initParticulesGame() {
       if (reward <= 0) {
         return;
       }
-      const gained = gainGachaTickets(reward);
+      const gained = gainGachaTickets(reward, { unlockTicketStar: true });
       saveGame();
       const rewardLabel = formatTicketLabel(gained);
       showToast(`+${rewardLabel} grâce à Particules !`);
@@ -2468,10 +2468,14 @@ async function handleGachaSunClick() {
   }
 }
 
-function gainGachaTickets(amount = 1) {
+function gainGachaTickets(amount = 1, options = {}) {
   const gain = Math.max(1, Math.floor(Number(amount) || 0));
   const current = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
   gameState.gachaTickets = current + gain;
+  if (options && options.unlockTicketStar && gain > 0 && gameState.ticketStarUnlocked !== true) {
+    gameState.ticketStarUnlocked = true;
+    resetTicketStarState({ reschedule: true });
+  }
   evaluatePageUnlocks();
   updateGachaUI();
   return gain;
@@ -2514,6 +2518,10 @@ function computeTicketStarDelay() {
   const average = getTicketStarAverageIntervalMs();
   const jitter = 0.5 + Math.random();
   return average * jitter;
+}
+
+function isTicketStarFeatureUnlocked() {
+  return isPageUnlocked('gacha') && gameState.ticketStarUnlocked === true;
 }
 
 function getTicketStarAutoCollectDelayMs() {
@@ -2578,6 +2586,10 @@ function resetTicketStarState(options = {}) {
   ticketStarState.height = 0;
   ticketStarState.spawnTime = 0;
   const now = performance.now();
+  if (!isTicketStarFeatureUnlocked()) {
+    ticketStarState.nextSpawnTime = Number.POSITIVE_INFINITY;
+    return;
+  }
   if (options.reschedule) {
     ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
   } else if (!Number.isFinite(ticketStarState.nextSpawnTime) || ticketStarState.nextSpawnTime <= now) {
@@ -2593,7 +2605,7 @@ function collectTicketStar(event) {
   if (!ticketStarState.active) {
     return;
   }
-  if (!isPageUnlocked('gacha')) {
+  if (!isTicketStarFeatureUnlocked()) {
     return;
   }
   const gained = gainGachaTickets(TICKET_STAR_CONFIG.rewardTickets);
@@ -2615,7 +2627,7 @@ function collectTicketStar(event) {
 }
 
 function spawnTicketStar(now = performance.now()) {
-  if (!isPageUnlocked('gacha')) {
+  if (!isTicketStarFeatureUnlocked()) {
     ticketStarState.nextSpawnTime = now + computeTicketStarDelay();
     return;
   }
@@ -2650,8 +2662,29 @@ function spawnTicketStar(now = performance.now()) {
   const starHeight = star.offsetHeight || TICKET_STAR_CONFIG.size;
   const maxX = Math.max(0, layerWidth - starWidth);
   const maxY = Math.max(0, layerHeight - starHeight);
-  const startX = Math.random() * maxX;
-  const startY = Math.random() * maxY;
+  let startX = Math.random() * maxX;
+  let startY = Math.random() * maxY;
+  const edges = ['top', 'right', 'bottom', 'left'];
+  const edge = edges[Math.floor(Math.random() * edges.length)] ?? 'top';
+  let angle;
+  switch (edge) {
+    case 'top':
+      startY = 0;
+      angle = Math.PI / 4 + Math.random() * (Math.PI / 2);
+      break;
+    case 'bottom':
+      startY = maxY;
+      angle = (Math.PI * 5) / 4 + Math.random() * (Math.PI / 2);
+      break;
+    case 'left':
+      startX = 0;
+      angle = -Math.PI / 4 + Math.random() * (Math.PI / 2);
+      break;
+    default:
+      startX = maxX;
+      angle = (3 * Math.PI) / 4 + Math.random() * (Math.PI / 2);
+      break;
+  }
 
   ticketStarState.element = star;
   ticketStarState.active = true;
@@ -2659,7 +2692,6 @@ function spawnTicketStar(now = performance.now()) {
   ticketStarState.position.y = startY;
   ticketStarState.width = starWidth;
   ticketStarState.height = starHeight;
-  const angle = Math.random() * Math.PI * 2;
   const speed = TICKET_STAR_CONFIG.speed;
   ticketStarState.velocity.x = Math.cos(angle) * speed;
   ticketStarState.velocity.y = Math.sin(angle) * speed;
@@ -2673,7 +2705,7 @@ function updateTicketStar(deltaSeconds, now = performance.now()) {
   if (!elements.ticketLayer) {
     return;
   }
-  if (!isPageUnlocked('gacha')) {
+  if (!isTicketStarFeatureUnlocked()) {
     if (ticketStarState.active) {
       if (ticketStarState.element && ticketStarState.element.parentNode) {
         ticketStarState.element.remove();
