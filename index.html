@@ -15,7 +15,15 @@
 <body class="theme-dark">
   <header class="app-header">
     <div class="header-main">
-      <div class="brand">Atom2Univers</div>
+      <button
+        class="brand brand-button brand--locked"
+        id="brandPortal"
+        type="button"
+        disabled
+        aria-disabled="true"
+      >
+        Atom2Univers
+      </button>
       <nav class="nav-menu" aria-label="Navigation principale">
         <button class="nav-button active" data-target="game">Atoms</button>
         <button class="nav-button" data-target="shop">Shop</button>
@@ -117,6 +125,18 @@
         <div class="gacha-result" id="gachaResult" role="status" aria-live="assertive"></div>
         <p class="gacha-continue-hint" id="gachaContinueHint">Cliquer pour continuer</p>
       </div>
+    </section>
+
+    <section id="arcade" class="page page--arcade" aria-label="Portail arcade" hidden>
+      <header class="arcade-header" aria-label="Navigation du mode arcade">
+        <button class="arcade-header__title brand brand-button" id="arcadeReturnButton" type="button">
+          Atom2Univers
+        </button>
+        <div class="arcade-header__status" aria-live="polite">
+          <span class="arcade-header__status-label">Tickets</span>
+          <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
+        </div>
+      </header>
     </section>
 
     <section id="tableau" class="page page--table" aria-label="Tableau périodique des éléments">

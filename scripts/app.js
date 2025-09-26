@@ -4250,6 +4250,7 @@ const TROPHY_DEFS = trophySource
 
 const TROPHY_MAP = new Map(TROPHY_DEFS.map(def => [def.id, def]));
 const BIG_BANG_TROPHY_ID = 'scaleObservableUniverse';
+const ARCADE_TROPHY_ID = 'millionAtoms';
 const trophyCards = new Map();
 
 function getUnlockedTrophySet() {
@@ -4483,6 +4484,7 @@ function unlockTrophy(def) {
   recalcProduction();
   updateGoalsUI();
   updateBigBangVisibility();
+  updateBrandPortalState({ animate: def.id === ARCADE_TROPHY_ID });
   return true;
 }
 
@@ -4501,6 +4503,7 @@ function evaluateTrophies() {
 }
 
 const elements = {
+  brandPortal: document.getElementById('brandPortal'),
   navButtons: document.querySelectorAll('.nav-button'),
   navBigBangButton: document.getElementById('navBigBangButton'),
   pages: document.querySelectorAll('.page'),
@@ -4544,6 +4547,8 @@ const elements = {
   gachaAnimation: document.getElementById('gachaAnimation'),
   gachaAnimationConfetti: document.getElementById('gachaAnimationConfetti'),
   gachaContinueHint: document.getElementById('gachaContinueHint'),
+  arcadeReturnButton: document.getElementById('arcadeReturnButton'),
+  arcadeTicketValue: document.getElementById('arcadeTicketValue'),
   themeSelect: document.getElementById('themeSelect'),
   musicTrackSelect: document.getElementById('musicTrackSelect'),
   musicTrackStatus: document.getElementById('musicTrackStatus'),
@@ -4609,6 +4614,52 @@ function updateBigBangVisibility() {
   }
   if (!shouldShowButton && document.body && document.body.dataset.activePage === 'bigbang') {
     showPage('game');
+  }
+}
+
+function isArcadeUnlocked() {
+  return getUnlockedTrophySet().has(ARCADE_TROPHY_ID);
+}
+
+function triggerBrandPortalPulse() {
+  if (!elements.brandPortal) {
+    return;
+  }
+  elements.brandPortal.classList.add('brand--pulse');
+  clearTimeout(triggerBrandPortalPulse.timeoutId);
+  triggerBrandPortalPulse.timeoutId = setTimeout(() => {
+    if (elements.brandPortal) {
+      elements.brandPortal.classList.remove('brand--pulse');
+    }
+  }, 1600);
+}
+
+function updateArcadeTicketDisplay() {
+  if (!elements.arcadeTicketValue) {
+    return;
+  }
+  const available = Math.max(0, Math.floor(Number(gameState.gachaTickets) || 0));
+  elements.arcadeTicketValue.textContent = formatTicketLabel(available);
+}
+
+function updateBrandPortalState(options = {}) {
+  if (!elements.brandPortal) {
+    return;
+  }
+  const unlocked = isArcadeUnlocked();
+  elements.brandPortal.disabled = !unlocked;
+  elements.brandPortal.setAttribute('aria-disabled', unlocked ? 'false' : 'true');
+  elements.brandPortal.classList.toggle('brand--locked', !unlocked);
+  elements.brandPortal.classList.toggle('brand--portal-ready', unlocked);
+  if (!unlocked) {
+    elements.brandPortal.classList.remove('brand--pulse');
+    elements.brandPortal.dataset.portalReady = 'false';
+    return;
+  }
+  elements.brandPortal.dataset.portalReady = 'true';
+  updateArcadeTicketDisplay();
+  if (options.animate) {
+    triggerBrandPortalPulse();
   }
 }
 
@@ -6889,6 +6940,7 @@ function updateGachaUI() {
   } else if (elements.gachaTicketCounter) {
     elements.gachaTicketCounter.textContent = formatTicketLabel(available);
   }
+  updateArcadeTicketDisplay();
   if (elements.gachaTicketModeLabel) {
     elements.gachaTicketModeLabel.textContent = `Tirage x${gachaRollMode}`;
   }
@@ -9875,6 +9927,7 @@ function showPage(pageId) {
   });
   document.body.dataset.activePage = pageId;
   document.body.classList.toggle('view-game', pageId === 'game');
+  document.body.classList.toggle('view-arcade', pageId === 'arcade');
   if (pageId === 'game' && (typeof document === 'undefined' || !document.hidden)) {
     gamePageVisibleSince = now;
   } else {
@@ -10014,6 +10067,25 @@ updateDevKitUI();
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.target));
 });
+
+if (elements.brandPortal) {
+  elements.brandPortal.addEventListener('click', () => {
+    if (!isArcadeUnlocked()) {
+      return;
+    }
+    elements.brandPortal.classList.remove('brand--pulse');
+    showPage('arcade');
+  });
+}
+
+if (elements.arcadeReturnButton) {
+  elements.arcadeReturnButton.addEventListener('click', () => {
+    showPage('game');
+    if (isArcadeUnlocked() && elements.brandPortal?.dataset.portalReady === 'true') {
+      triggerBrandPortalPulse();
+    }
+  });
+}
 
 renderPeriodicTable();
 renderGachaRarityList();
@@ -12012,6 +12084,7 @@ function updateFrenzyIndicators(now = performance.now()) {
 
 function updateUI() {
   updateBigBangVisibility();
+  updateBrandPortalState();
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
