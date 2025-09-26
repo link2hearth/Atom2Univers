@@ -855,6 +855,7 @@ const DEFAULT_STATE = {
   },
   ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+  ticketStarUnlocked: false,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
@@ -894,6 +895,7 @@ const gameState = {
   },
   ticketStarAutoCollect: null,
   ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+  ticketStarUnlocked: false,
   frenzySpawnBonus: { perClick: 1, perSecond: 1 },
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
@@ -6551,6 +6553,7 @@ function serializeState() {
     bonusParticulesTickets: Number.isFinite(Number(gameState.bonusParticulesTickets))
       ? Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets)))
       : 0,
+    ticketStarUnlocked: gameState.ticketStarUnlocked === true,
     upgrades: gameState.upgrades,
     shopUnlocks: Array.from(getShopUnlockSet()),
     elements: gameState.elements,
@@ -6730,6 +6733,7 @@ function resetGame() {
     },
     ticketStarAutoCollect: null,
     ticketStarAverageIntervalSeconds: DEFAULT_TICKET_STAR_INTERVAL_SECONDS,
+    ticketStarUnlocked: false,
     frenzySpawnBonus: { perClick: 1, perSecond: 1 },
     musicTrackId: null,
     musicVolume: DEFAULT_MUSIC_VOLUME,
@@ -6779,6 +6783,15 @@ function loadGame() {
     gameState.bonusParticulesTickets = Number.isFinite(bonusTickets) && bonusTickets > 0
       ? Math.floor(bonusTickets)
       : 0;
+    const storedTicketStarUnlock = data.ticketStarUnlocked ?? data.ticketStarUnlock;
+    if (storedTicketStarUnlock != null) {
+      gameState.ticketStarUnlocked = storedTicketStarUnlock === true
+        || storedTicketStarUnlock === 'true'
+        || storedTicketStarUnlock === 1
+        || storedTicketStarUnlock === '1';
+    } else {
+      gameState.ticketStarUnlocked = gameState.gachaTickets > 0;
+    }
     const storedUpgrades = data.upgrades;
     if (storedUpgrades && typeof storedUpgrades === 'object') {
       const normalizedUpgrades = {};
