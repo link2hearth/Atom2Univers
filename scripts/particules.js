@@ -56,6 +56,7 @@
       this.animationFrameId = null;
       this.width = 0;
       this.height = 0;
+      this.pixelRatio = 1;
 
       this.paddle = {
         widthRatio: 0.18,
@@ -146,6 +147,7 @@
       }
       this.width = targetWidth;
       this.height = targetHeight;
+      this.pixelRatio = dpr;
       this.paddle.width = Math.max(this.paddle.minWidthRatio * this.width, this.paddle.widthRatio * this.width);
       this.paddle.height = Math.max(8, this.paddle.heightRatio * this.height);
       this.paddle.y = this.height - this.paddle.height * 3;
@@ -211,9 +213,10 @@
     }
 
     getBallSpeed() {
-      const base = (this.width + this.height) / 2;
+      const base = (this.width + this.height) / (2 * Math.max(this.pixelRatio, 0.5));
       const ratio = this.ball.baseSpeedRatio + this.ball.speedGrowthRatio * (this.level - 1);
-      return Math.max(80, base * ratio * 0.0012);
+      const speedPerMillisecond = base * ratio * 0.0006;
+      return Math.max(0.25, speedPerMillisecond);
     }
 
     startAnimation() {
