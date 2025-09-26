@@ -132,14 +132,37 @@
         <button class="arcade-header__brand brand brand-button" id="arcadeReturnButton" type="button">
           Particules
         </button>
-        <button class="arcade-header__status" id="arcadeTicketButton" type="button">
-          <span class="arcade-header__status-label">Tickets</span>
-          <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
-        </button>
+        <div class="arcade-header__status-group" role="presentation">
+          <button class="arcade-header__status" id="arcadeTicketButton" type="button">
+            <span class="arcade-header__status-label">Tickets</span>
+            <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
+          </button>
+          <div class="arcade-header__status arcade-header__status--info" id="arcadeBonusTicketDisplay" role="status" aria-live="polite">
+            <span class="arcade-header__status-label">Bonus Particules</span>
+            <span class="arcade-header__status-value" id="arcadeBonusTicketValue">0</span>
+          </div>
+        </div>
       </header>
 
       <div class="arcade-content">
         <div class="arcade-stage">
+          <div class="arcade-stage__hud" aria-hidden="true">
+            <dl class="arcade-hud" role="presentation">
+              <div class="arcade-hud__item">
+                <dt class="arcade-hud__label">Niveau</dt>
+                <dd class="arcade-hud__value" id="arcadeLevelValue">1</dd>
+              </div>
+              <div class="arcade-hud__item">
+                <dt class="arcade-hud__label">Vies</dt>
+                <dd class="arcade-hud__value" id="arcadeLivesValue">3</dd>
+              </div>
+              <div class="arcade-hud__item">
+                <dt class="arcade-hud__label">Score</dt>
+                <dd class="arcade-hud__value" id="arcadeScoreValue">0</dd>
+              </div>
+            </dl>
+            <p class="arcade-hud__combo" id="arcadeComboMessage" aria-live="polite"></p>
+          </div>
           <canvas
             id="arcadeGameCanvas"
             class="arcade-stage__canvas"

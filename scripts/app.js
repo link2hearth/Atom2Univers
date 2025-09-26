@@ -3959,6 +3959,7 @@ const DEFAULT_STATE = {
   basePerClick: BASE_PER_CLICK.clone(),
   basePerSecond: BASE_PER_SECOND.clone(),
   gachaTickets: 0,
+  bonusParticulesTickets: 0,
   upgrades: {},
   shopUnlocks: [],
   elements: createInitialElementCollection(),
@@ -3998,6 +3999,7 @@ const gameState = {
   basePerClick: BASE_PER_CLICK.clone(),
   basePerSecond: BASE_PER_SECOND.clone(),
   gachaTickets: 0,
+  bonusParticulesTickets: 0,
   upgrades: {},
   shopUnlocks: new Set(),
   elements: createInitialElementCollection(),
@@ -4664,6 +4666,8 @@ const elements = {
   arcadeReturnButton: document.getElementById('arcadeReturnButton'),
   arcadeTicketButton: document.getElementById('arcadeTicketButton'),
   arcadeTicketValue: document.getElementById('arcadeTicketValue'),
+  arcadeBonusTicketDisplay: document.getElementById('arcadeBonusTicketDisplay'),
+  arcadeBonusTicketValue: document.getElementById('arcadeBonusTicketValue'),
   arcadeCanvas: document.getElementById('arcadeGameCanvas'),
   arcadeOverlay: document.getElementById('arcadeOverlay'),
   arcadeOverlayMessage: document.getElementById('arcadeOverlayMessage'),
@@ -4671,6 +4675,7 @@ const elements = {
   arcadeLevelValue: document.getElementById('arcadeLevelValue'),
   arcadeLivesValue: document.getElementById('arcadeLivesValue'),
   arcadeScoreValue: document.getElementById('arcadeScoreValue'),
+  arcadeComboMessage: document.getElementById('arcadeComboMessage'),
   themeSelect: document.getElementById('themeSelect'),
   musicTrackSelect: document.getElementById('musicTrackSelect'),
   musicTrackStatus: document.getElementById('musicTrackStatus'),
@@ -4804,6 +4809,14 @@ function updateArcadeTicketDisplay() {
       elements.arcadeTicketButton.setAttribute('aria-label', 'Portail Gacha verrouillé');
       elements.arcadeTicketButton.title = 'Obtenez un ticket de tirage pour débloquer le portail Gacha';
     }
+  }
+  const bonusCount = Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets) || 0));
+  if (elements.arcadeBonusTicketValue) {
+    elements.arcadeBonusTicketValue.textContent = bonusCount.toLocaleString('fr-FR');
+  }
+  if (elements.arcadeBonusTicketDisplay) {
+    elements.arcadeBonusTicketDisplay.title = `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`;
+    elements.arcadeBonusTicketDisplay.setAttribute('aria-label', `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`);
   }
 }
 
@@ -7013,6 +7026,13 @@ function formatTicketLabel(count) {
   return `${formatted} ${unit}`;
 }
 
+function formatBonusTicketLabel(count) {
+  const numeric = Math.max(0, Math.floor(Number(count) || 0));
+  const formatted = numeric.toLocaleString('fr-FR');
+  const unit = numeric === 1 ? 'ticket Bonus Particules' : 'tickets Bonus Particules';
+  return `${formatted} ${unit}`;
+}
+
 function getGachaRarityRank(rarity) {
   if (!rarity) return -1;
   const id = typeof rarity === 'string' ? rarity : rarity.id;
@@ -7168,7 +7188,9 @@ function initParticulesGame() {
     levelLabel: elements.arcadeLevelValue,
     livesLabel: elements.arcadeLivesValue,
     scoreLabel: elements.arcadeScoreValue,
+    comboLabel: elements.arcadeComboMessage,
     formatTicketLabel,
+    formatBonusTicketLabel,
     onTicketsEarned: (count = 0) => {
       const reward = Math.max(0, Math.floor(Number(count) || 0));
       if (reward <= 0) {
@@ -7178,6 +7200,16 @@ function initParticulesGame() {
       saveGame();
       const rewardLabel = formatTicketLabel(gained);
       showToast(`+${rewardLabel} grâce à Particules !`);
+    },
+    onSpecialTicket: (count = 0) => {
+      const reward = Math.max(0, Math.floor(Number(count) || 0));
+      if (reward <= 0) {
+        return;
+      }
+      const gained = gainBonusParticulesTickets(reward);
+      saveGame();
+      const label = formatBonusTicketLabel(gained);
+      showToast(`+${label} !`);
     }
   });
   updateArcadeTicketDisplay();
@@ -7802,6 +7834,14 @@ function gainGachaTickets(amount = 1) {
   gameState.gachaTickets = current + gain;
   evaluatePageUnlocks();
   updateGachaUI();
+  return gain;
+}
+
+function gainBonusParticulesTickets(amount = 1) {
+  const gain = Math.max(1, Math.floor(Number(amount) || 0));
+  const current = Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets) || 0));
+  gameState.bonusParticulesTickets = current + gain;
+  updateArcadeTicketDisplay();
   return gain;
 }
 
@@ -12515,6 +12555,9 @@ function serializeState() {
     gachaTickets: Number.isFinite(Number(gameState.gachaTickets))
       ? Math.max(0, Math.floor(Number(gameState.gachaTickets)))
       : 0,
+    bonusParticulesTickets: Number.isFinite(Number(gameState.bonusParticulesTickets))
+      ? Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets)))
+      : 0,
     upgrades: gameState.upgrades,
     shopUnlocks: Array.from(getShopUnlockSet()),
     elements: gameState.elements,
@@ -12670,6 +12713,7 @@ function resetGame() {
     basePerClick: BASE_PER_CLICK.clone(),
     basePerSecond: BASE_PER_SECOND.clone(),
     gachaTickets: 0,
+    bonusParticulesTickets: 0,
     upgrades: {},
     shopUnlocks: new Set(),
     elements: createInitialElementCollection(),
@@ -12738,6 +12782,10 @@ function loadGame() {
     gameState.perSecond = LayeredNumber.fromJSON(data.perSecond);
     const tickets = Number(data.gachaTickets);
     gameState.gachaTickets = Number.isFinite(tickets) && tickets > 0 ? Math.floor(tickets) : 0;
+    const bonusTickets = Number(data.bonusParticulesTickets ?? data.bonusTickets);
+    gameState.bonusParticulesTickets = Number.isFinite(bonusTickets) && bonusTickets > 0
+      ? Math.floor(bonusTickets)
+      : 0;
     const storedUpgrades = data.upgrades;
     if (storedUpgrades && typeof storedUpgrades === 'object') {
       const normalizedUpgrades = {};
