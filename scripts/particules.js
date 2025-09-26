@@ -283,7 +283,7 @@
 
       this.ballSettings = {
         radiusRatio: 0.015,
-        baseSpeedRatio: 1.2,
+        baseSpeedRatio: 1.5,
         speedGrowthRatio: 0.12
       };
 
