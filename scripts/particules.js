@@ -283,8 +283,8 @@
 
       this.ballSettings = {
         radiusRatio: 0.015,
-        baseSpeedRatio: 1.5,
-        speedGrowthRatio: 0.12
+        baseSpeedRatio: 1.9,
+        speedGrowthRatio: 0.15
       };
 
       this.handleFrame = this.handleFrame.bind(this);
