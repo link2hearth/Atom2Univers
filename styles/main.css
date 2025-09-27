@@ -691,8 +691,29 @@ main {
   border-color: rgba(255, 255, 255, 0.14);
 }
 
+.arcade-header__status--bonus {
+  background: linear-gradient(135deg, rgba(52, 72, 156, 0.8), rgba(86, 116, 224, 0.72));
+  border-color: rgba(110, 142, 255, 0.45);
+}
+
 .arcade-header__status--info .arcade-header__status-value {
   font-size: clamp(0.53rem, 0.99vw, 0.72rem);
+}
+
+.arcade-header__status[disabled],
+.arcade-header__status[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+  transform: none;
+}
+
+.arcade-header__status[disabled]:hover,
+.arcade-header__status[disabled]:focus-visible,
+.arcade-header__status[aria-disabled='true']:hover,
+.arcade-header__status[aria-disabled='true']:focus-visible {
+  box-shadow: none;
+  transform: none;
 }
 
 .arcade-header__status:hover,
@@ -743,6 +764,11 @@ body.theme-light .arcade-header__status--info {
   border-color: rgba(48, 64, 120, 0.2);
 }
 
+body.theme-light .arcade-header__status--bonus {
+  background: linear-gradient(135deg, rgba(208, 220, 255, 0.92), rgba(176, 196, 255, 0.82));
+  border-color: rgba(96, 124, 220, 0.3);
+}
+
 body.theme-light .arcade-header__status:focus-visible {
   outline-color: rgba(40, 48, 96, 0.7);
 }
@@ -765,6 +791,11 @@ body.theme-neon .arcade-header__status {
 body.theme-neon .arcade-header__status--info {
   background: rgba(54, 46, 150, 0.82);
   border-color: rgba(160, 190, 255, 0.4);
+}
+
+body.theme-neon .arcade-header__status--bonus {
+  background: linear-gradient(135deg, rgba(94, 28, 152, 0.92), rgba(170, 96, 255, 0.78));
+  border-color: rgba(210, 160, 255, 0.6);
 }
 
 .arcade-content {
