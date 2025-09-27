@@ -1584,6 +1584,8 @@ function renderGachaResult(outcome) {
   grid.className = 'gacha-result__grid';
   grid.setAttribute('role', 'list');
 
+  const newCount = Number(outcome.newCount) || 0;
+
   outcome.focus.forEach(entry => {
     if (!entry?.elementDef) return;
     const card = document.createElement('article');
@@ -1626,6 +1628,10 @@ function renderGachaResult(outcome) {
     grid.appendChild(card);
   });
 
+  if (newCount > 8 && grid.children.length >= 9) {
+    grid.classList.add('gacha-result__grid--wide');
+  }
+
   if (!grid.children.length) {
     container.textContent = 'Synthèse indisponible pour le moment.';
     return;
@@ -1637,26 +1643,20 @@ function renderGachaResult(outcome) {
   const summary = document.createElement('p');
   summary.className = 'gacha-result__summary';
   const drawLabel = drawCount > 1 ? `Tirage x${drawCount}` : 'Tirage x1';
-  const newCount = Number(outcome.newCount) || 0;
   const duplicateCount = Number(outcome.duplicateCount) || 0;
-  const newLabel = newCount === 0
-    ? 'Aucun nouvel élément'
-    : newCount === 1
+  const summaryParts = [drawLabel];
+  if (newCount > 0) {
+    const newLabel = newCount === 1
       ? '1 nouvel élément'
       : `${newCount} nouveaux éléments`;
-  const duplicateLabel = duplicateCount > 0
-    ? ` · ${duplicateCount === 1 ? '1 doublon' : `${duplicateCount} doublons`}`
-    : '';
-  const rarityNote = newCount === 0 && duplicateCount > 0 ? ' · Mise en avant des raretés' : '';
-  summary.textContent = `${drawLabel} · ${newLabel}${duplicateLabel}${rarityNote}`;
-  container.appendChild(summary);
-
-  if (newCount === 0 && duplicateCount > 0) {
-    const note = document.createElement('p');
-    note.className = 'gacha-result__note';
-    note.textContent = 'Les doublons les plus rares sont mis en avant.';
-    container.appendChild(note);
+    summaryParts.push(newLabel);
   }
+  if (duplicateCount > 0) {
+    const duplicateLabel = duplicateCount === 1 ? '1 doublon' : `${duplicateCount} doublons`;
+    summaryParts.push(duplicateLabel);
+  }
+  summary.textContent = summaryParts.join(' · ');
+  container.appendChild(summary);
 }
 
 function formatTicketLabel(count) {
