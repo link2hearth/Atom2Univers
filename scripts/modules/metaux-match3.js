@@ -62,7 +62,6 @@ class MetauxMatch3Game {
     this.reshufflesElement = options.reshufflesElement || null;
     this.movesElement = options.movesElement || null;
     this.messageElement = options.messageElement || null;
-    this.optionStatusElement = options.optionStatusElement || null;
     this.board = Array.from({ length: METAUX_ROWS }, () => Array(METAUX_COLS).fill(null));
     this.tiles = Array.from({ length: METAUX_ROWS }, () => Array(METAUX_COLS).fill(null));
     this.initialized = false;
@@ -111,6 +110,7 @@ class MetauxMatch3Game {
       return;
     }
     this.boardElement.style.setProperty('--metaux-cols', METAUX_COLS);
+    this.boardElement.style.setProperty('--metaux-rows', METAUX_ROWS);
     this.boardElement.style.gridTemplateColumns = `repeat(${METAUX_COLS}, minmax(0, 1fr))`;
     this.boardElement.dataset.rows = String(METAUX_ROWS);
     this.boardElement.dataset.cols = String(METAUX_COLS);
@@ -645,13 +645,6 @@ class MetauxMatch3Game {
     if (this.movesElement) {
       this.movesElement.textContent = this.stats.moves.toLocaleString('fr-FR');
     }
-    if (this.optionStatusElement) {
-      if (this.stats.lastCombo > 0) {
-        this.optionStatusElement.textContent = `Dernier combo : ${this.stats.lastCombo.toLocaleString('fr-FR')}`;
-      } else {
-        this.optionStatusElement.textContent = '';
-      }
-    }
   }
 
   updateMessage(message) {
@@ -688,8 +681,7 @@ function initMetauxGame() {
     totalTilesElement: elements.metauxTotalTilesValue,
     reshufflesElement: elements.metauxReshufflesValue,
     movesElement: elements.metauxMovesValue,
-    messageElement: elements.metauxMessage,
-    optionStatusElement: elements.metauxOptionStatus
+    messageElement: elements.metauxMessage
   });
   metauxGame.initialize();
 }
