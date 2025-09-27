@@ -1533,7 +1533,8 @@
       const brickHeight = brick.relHeight * rect.height;
       const brickCenterX = brickLeft + brickWidth / 2;
       const brickCenterY = brickTop + brickHeight / 2;
-      const baseCount = Math.max(14, Math.round(18 + Math.random() * 10));
+      const rawCount = Math.round(18 + Math.random() * 10);
+      const baseCount = Math.max(7, Math.round(rawCount * 0.5));
       const maxHorizontalScatter = Math.min(rect.width * 0.2, 180);
 
       for (let index = 0; index < baseCount; index += 1) {
@@ -1697,8 +1698,9 @@
       shockwave.className = 'arcade-shockwave';
       const centerX = ((brick.relX + brick.relWidth / 2) * 100).toFixed(2);
       const centerY = ((brick.relY + brick.relHeight / 2) * 100).toFixed(2);
-      const scale = 1.25 + Math.min(chainCount, 6) * 0.08;
-      const opacity = Math.min(0.78 + chainCount * 0.03, 0.92);
+      const originalScale = 1.25 + Math.min(chainCount, 6) * 0.08;
+      const scale = 1 + (originalScale - 1) * 0.5;
+      const opacity = Math.min(0.78 + chainCount * 0.03, 0.92) * 0.5;
       shockwave.style.setProperty('--shockwave-x', `${centerX}%`);
       shockwave.style.setProperty('--shockwave-y', `${centerY}%`);
       shockwave.style.setProperty('--shockwave-scale', scale.toFixed(2));
@@ -1712,7 +1714,9 @@
       };
       shockwave.addEventListener('animationend', removeShockwave);
       setTimeout(removeShockwave, 640);
-      this.triggerScreenPulse(1.02 + Math.min(chainCount, 5) * 0.005);
+      const originalIntensity = 1.02 + Math.min(chainCount, 5) * 0.005;
+      const intensity = 1 + (originalIntensity - 1) * 0.5;
+      this.triggerScreenPulse(intensity);
     }
 
     triggerScreenPulse(intensity = 1.03) {
