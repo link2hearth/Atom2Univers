@@ -395,7 +395,25 @@
     }
 
     generateBricks() {
-      const bricks = [];
+      const geometry = this.getGridGeometry();
+      const pattern = this.pickLevelPattern();
+      const generators = {
+        organic: () => this.generateOrganicLayout(geometry),
+        singleGap: () => this.generateSingleGapLayout(geometry),
+        multiGap: () => this.generateMultiGapLayout(geometry),
+        singleBrick: () => this.generateSingleBrickLayout(geometry),
+        singleLine: () => this.generateSingleLineLayout(geometry),
+        bottomUniform: () => this.generateBottomUniformLayout(geometry),
+        uniformLines: () => this.generateUniformLinesLayout(geometry),
+        checkerboard: () => this.generateCheckerboardLayout(geometry),
+        diagonals: () => this.generateDiagonalLayout(geometry)
+      };
+      const generator = generators[pattern] || generators.organic;
+      const bricks = generator();
+      return this.maybeAddGraviton(bricks);
+    }
+
+    getGridGeometry() {
       const paddingX = 0.08;
       const paddingY = 0.04;
       const usableWidth = 1 - paddingX * 2;
@@ -406,19 +424,81 @@
       const innerHeightRatio = 0.68;
       const horizontalOffset = (1 - innerWidthRatio) / 2;
       const verticalOffset = (1 - innerHeightRatio) / 2;
+      return {
+        paddingX,
+        paddingY,
+        brickWidth,
+        brickHeight,
+        innerWidthRatio,
+        innerHeightRatio,
+        horizontalOffset,
+        verticalOffset
+      };
+    }
+
+    getCellPosition(row, col, geometry) {
+      const {
+        paddingX,
+        paddingY,
+        brickWidth,
+        brickHeight,
+        innerWidthRatio,
+        innerHeightRatio,
+        horizontalOffset,
+        verticalOffset
+      } = geometry;
+      return {
+        row,
+        col,
+        relX: paddingX + col * brickWidth + brickWidth * horizontalOffset,
+        relY: paddingY + row * brickHeight + brickHeight * verticalOffset,
+        relWidth: brickWidth * innerWidthRatio,
+        relHeight: brickHeight * innerHeightRatio
+      };
+    }
+
+    placeBrick(bricks, row, col, geometry, type = null, particle = null) {
+      const brickType = type || this.pickBrickType();
+      const brickParticle = particle || this.pickParticle(brickType);
+      bricks.push(this.createBrick({
+        ...this.getCellPosition(row, col, geometry),
+        type: brickType,
+        particle: brickParticle
+      }));
+    }
+
+    pickLevelPattern() {
+      const weights = [
+        { id: 'organic', weight: 0.36 },
+        { id: 'singleGap', weight: 0.11 },
+        { id: 'multiGap', weight: 0.08 },
+        { id: 'singleBrick', weight: 0.05 },
+        { id: 'singleLine', weight: 0.13 },
+        { id: 'bottomUniform', weight: 0.09 },
+        { id: 'uniformLines', weight: 0.08 },
+        { id: 'checkerboard', weight: 0.05 },
+        { id: 'diagonals', weight: 0.05 }
+      ];
+      const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
+      const roll = Math.random() * total;
+      let cumulative = 0;
+      for (const entry of weights) {
+        cumulative += entry.weight;
+        if (roll <= cumulative) {
+          return entry.id;
+        }
+      }
+      return 'organic';
+    }
+
+    generateOrganicLayout(geometry) {
+      const bricks = [];
       const baseFill = clamp(0.55 + (this.level - 1) * 0.02, 0.55, 0.82);
       for (let row = 0; row < this.gridRows; row += 1) {
         let rowHasBrick = false;
         const candidates = [];
         for (let col = 0; col < this.gridCols; col += 1) {
-          const position = {
-            row,
-            col,
-            relX: paddingX + col * brickWidth + brickWidth * horizontalOffset,
-            relY: paddingY + row * brickHeight + brickHeight * verticalOffset,
-            relWidth: brickWidth * innerWidthRatio,
-            relHeight: brickHeight * innerHeightRatio
-          };
+          const position = this.getCellPosition(row, col, geometry);
           const variability = (Math.random() - 0.5) * 0.12;
           const depthBias = clamp((row / Math.max(1, this.gridRows - 1)) * 0.18, 0, 0.18);
           const fillProbability = clamp(baseFill + depthBias + variability, 0.35, 0.92);
@@ -438,27 +518,229 @@
           bricks.push(this.createBrick({ ...forced, type, particle }));
         }
       }
-      const gravitonChance = clamp(0.05 + (this.level - 1) * 0.015, 0.05, 0.18);
-      if (Math.random() < gravitonChance) {
-        const candidates = bricks.filter(brick => brick.row >= Math.floor(this.gridRows / 2));
-        if (candidates.length > 0) {
-          const target = randomChoice(candidates);
-          const graviton = this.createBrick({
-            row: target.row,
-            col: target.col,
-            relX: target.relX,
-            relY: target.relY,
-            relWidth: target.relWidth,
-            relHeight: target.relHeight,
-            type: BRICK_TYPES.GRAVITON,
-            particle: GRAVITON_PARTICLE
-          });
-          graviton.hidden = true;
-          const index = bricks.findIndex(brick => brick === target);
-          if (index >= 0) {
-            bricks[index] = graviton;
+      return bricks;
+    }
+
+    generateSingleGapLayout(geometry) {
+      const bricks = [];
+      const removeRow = Math.random() < 0.5;
+      const gapIndex = removeRow
+        ? Math.floor(Math.random() * this.gridRows)
+        : Math.floor(Math.random() * this.gridCols);
+      for (let row = 0; row < this.gridRows; row += 1) {
+        for (let col = 0; col < this.gridCols; col += 1) {
+          if ((removeRow && row === gapIndex) || (!removeRow && col === gapIndex)) {
+            continue;
+          }
+          this.placeBrick(bricks, row, col, geometry);
+        }
+      }
+      return bricks;
+    }
+
+    generateMultiGapLayout(geometry) {
+      const bricks = [];
+      let removeRows = Math.random() < 0.75;
+      let removeCols = Math.random() < 0.65;
+      if (!removeRows && !removeCols) {
+        removeRows = true;
+      }
+      const emptyRows = new Set();
+      const emptyCols = new Set();
+      if (removeRows) {
+        const emptyRowCount = Math.max(2, Math.floor(Math.random() * Math.min(3, Math.max(2, this.gridRows - 1))) + 1);
+        while (emptyRows.size < emptyRowCount) {
+          emptyRows.add(Math.floor(Math.random() * this.gridRows));
+        }
+      }
+      if (removeCols) {
+        const emptyColCount = Math.max(2, Math.floor(Math.random() * Math.min(4, Math.max(2, this.gridCols - 1))) + 1);
+        while (emptyCols.size < emptyColCount) {
+          emptyCols.add(Math.floor(Math.random() * this.gridCols));
+        }
+      }
+      for (let row = 0; row < this.gridRows; row += 1) {
+        if (emptyRows.has(row)) continue;
+        for (let col = 0; col < this.gridCols; col += 1) {
+          if (emptyCols.has(col)) continue;
+          this.placeBrick(bricks, row, col, geometry);
+        }
+      }
+      if (bricks.length === 0) {
+        this.placeBrick(bricks, 0, 0, geometry);
+      }
+      return bricks;
+    }
+
+    generateSingleBrickLayout(geometry) {
+      const bricks = [];
+      const row = Math.floor(Math.random() * this.gridRows);
+      const col = Math.floor(Math.random() * this.gridCols);
+      const particle = RESISTANT_PARTICLES.find(p => (p.minHits || 1) >= 3) || RESISTANT_PARTICLES[0];
+      bricks.push(this.createBrick({
+        ...this.getCellPosition(row, col, geometry),
+        type: BRICK_TYPES.RESISTANT,
+        particle
+      }));
+      return bricks;
+    }
+
+    generateSingleLineLayout(geometry) {
+      const bricks = [];
+      const horizontal = Math.random() < 0.5;
+      if (horizontal) {
+        const targetRow = Math.floor(Math.random() * this.gridRows);
+        for (let col = 0; col < this.gridCols; col += 1) {
+          this.placeBrick(bricks, targetRow, col, geometry);
+        }
+      } else {
+        const targetCol = Math.floor(Math.random() * this.gridCols);
+        for (let row = 0; row < this.gridRows; row += 1) {
+          this.placeBrick(bricks, row, targetCol, geometry);
+        }
+      }
+      return bricks;
+    }
+
+    generateBottomUniformLayout(geometry) {
+      const bricks = this.generateOrganicLayout(geometry);
+      const bottomRow = this.gridRows - 1;
+      const type = this.pickBrickType();
+      const particle = this.pickParticle(type);
+      for (let col = 0; col < this.gridCols; col += 1) {
+        const existingIndex = bricks.findIndex(brick => brick.row === bottomRow && brick.col === col);
+        const brick = this.createBrick({
+          ...this.getCellPosition(bottomRow, col, geometry),
+          type,
+          particle
+        });
+        if (existingIndex >= 0) {
+          bricks[existingIndex] = brick;
+        } else {
+          bricks.push(brick);
+        }
+      }
+      return bricks;
+    }
+
+    generateUniformLinesLayout(geometry) {
+      const bricks = [];
+      const type = this.pickBrickType();
+      const particle = this.pickParticle(type);
+      const uniformRows = Math.random() < 0.5 ? this.pickUniformRows() : [];
+      const uniformCols = uniformRows.length > 0 ? [] : this.pickUniformCols();
+      if (uniformRows.length === this.gridRows) {
+        for (let row = 0; row < this.gridRows; row += 1) {
+          for (let col = 0; col < this.gridCols; col += 1) {
+            this.placeBrick(bricks, row, col, geometry, type, particle);
           }
         }
+        return bricks;
+      }
+      const fallbackType = this.pickBrickType();
+      for (let row = 0; row < this.gridRows; row += 1) {
+        for (let col = 0; col < this.gridCols; col += 1) {
+          const isUniform = uniformRows.includes(row) || uniformCols.includes(col);
+          if (isUniform) {
+            this.placeBrick(bricks, row, col, geometry, type, particle);
+          } else if (Math.random() < 0.7) {
+            this.placeBrick(bricks, row, col, geometry, fallbackType);
+          }
+        }
+      }
+      if (bricks.length === 0) {
+        for (let col = 0; col < this.gridCols; col += 1) {
+          this.placeBrick(bricks, 0, col, geometry, type, particle);
+        }
+      }
+      return bricks;
+    }
+
+    pickUniformRows() {
+      if (Math.random() < 0.25) {
+        return Array.from({ length: this.gridRows }, (_, index) => index);
+      }
+      const rowCount = Math.max(2, Math.floor(Math.random() * Math.max(2, this.gridRows - 1)) + 1);
+      const rows = new Set();
+      while (rows.size < rowCount) {
+        rows.add(Math.floor(Math.random() * this.gridRows));
+      }
+      return [...rows];
+    }
+
+    pickUniformCols() {
+      const colCount = Math.max(2, Math.floor(Math.random() * Math.max(2, this.gridCols - 1)) + 1);
+      const cols = new Set();
+      while (cols.size < colCount) {
+        cols.add(Math.floor(Math.random() * this.gridCols));
+      }
+      return [...cols];
+    }
+
+    generateCheckerboardLayout(geometry) {
+      const bricks = [];
+      const type = this.pickBrickType();
+      const particle = this.pickParticle(type);
+      for (let row = 0; row < this.gridRows; row += 1) {
+        for (let col = 0; col < this.gridCols; col += 1) {
+          if ((row + col) % 2 === 0) {
+            this.placeBrick(bricks, row, col, geometry, type, particle);
+          } else if (Math.random() < 0.45) {
+            this.placeBrick(bricks, row, col, geometry);
+          }
+        }
+      }
+      return bricks;
+    }
+
+    generateDiagonalLayout(geometry) {
+      const bricks = [];
+      const mainType = this.pickBrickType();
+      const mainParticle = this.pickParticle(mainType);
+      for (let row = 0; row < this.gridRows; row += 1) {
+        for (let col = 0; col < this.gridCols; col += 1) {
+          const onMain = row === col;
+          const onSecondary = row + col === this.gridCols - 1;
+          if (onMain || onSecondary) {
+            this.placeBrick(bricks, row, col, geometry, mainType, mainParticle);
+          } else if (Math.random() < 0.4) {
+            this.placeBrick(bricks, row, col, geometry);
+          }
+        }
+      }
+      return bricks;
+    }
+
+    maybeAddGraviton(bricks) {
+      if (bricks.length <= 1) {
+        return bricks;
+      }
+      const gravitonChance = clamp(0.05 + (this.level - 1) * 0.015, 0.05, 0.18);
+      if (Math.random() >= gravitonChance) {
+        return bricks;
+      }
+      const candidates = bricks.filter(brick => brick.row >= Math.floor(this.gridRows / 2));
+      if (candidates.length === 0) {
+        return bricks;
+      }
+      const target = randomChoice(candidates);
+      if (!target) {
+        return bricks;
+      }
+      const graviton = this.createBrick({
+        row: target.row,
+        col: target.col,
+        relX: target.relX,
+        relY: target.relY,
+        relWidth: target.relWidth,
+        relHeight: target.relHeight,
+        type: BRICK_TYPES.GRAVITON,
+        particle: GRAVITON_PARTICLE
+      });
+      graviton.hidden = true;
+      const index = bricks.findIndex(brick => brick === target);
+      if (index >= 0) {
+        bricks[index] = graviton;
       }
       return bricks;
     }
