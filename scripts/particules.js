@@ -1,35 +1,677 @@
 (() => {
-  const ARCADE_TICKET_REWARD = 1;
-  const GRID_COLS = 14;
-  const GRID_ROWS = 6;
-  const MAX_LIVES = 3;
+  const GLOBAL_CONFIG = typeof globalThis !== 'undefined' ? globalThis.GAME_CONFIG : null;
+  const ARCADE_CONFIG = GLOBAL_CONFIG && typeof GLOBAL_CONFIG === 'object' && GLOBAL_CONFIG.arcade
+    ? GLOBAL_CONFIG.arcade.particules ?? {}
+    : {};
+
+  const readObject = (value, fallback = {}) => (value && typeof value === 'object' ? value : fallback);
+  const readNumber = (value, fallback, { min, max, round } = {}) => {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+    let result = numeric;
+    if (typeof min === 'number') {
+      result = Math.max(min, result);
+    }
+    if (typeof max === 'number') {
+      result = Math.min(max, result);
+    }
+    if (round === 'floor') {
+      result = Math.floor(result);
+    } else if (round === 'ceil') {
+      result = Math.ceil(result);
+    } else if (round === 'round') {
+      result = Math.round(result);
+    }
+    return result;
+  };
+  const readString = (value, fallback) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+    return fallback;
+  };
+  const readArray = (value, fallback) => (Array.isArray(value) && value.length ? value : fallback);
+
+  const cloneParticle = particle => {
+    if (!particle || typeof particle !== 'object') {
+      return particle;
+    }
+    const clone = { ...particle };
+    if (Array.isArray(clone.colors)) {
+      clone.colors = [...clone.colors];
+    }
+    return clone;
+  };
+  const cloneVisual = visual => {
+    if (!visual || typeof visual !== 'object') {
+      return visual;
+    }
+    return {
+      symbol: visual.symbol,
+      gradient: Array.isArray(visual.gradient) ? [...visual.gradient] : undefined,
+      textColor: visual.textColor,
+      glow: visual.glow,
+      border: visual.border,
+      widthMultiplier: visual.widthMultiplier
+    };
+  };
+  const cloneArrayOfObjects = array => (Array.isArray(array) ? array.map(cloneParticle) : []);
+
+  const FALLBACK_POWER_UP_IDS = {
+    extend: 'extend',
+    multiball: 'multiball',
+    laser: 'laser',
+    speed: 'speed',
+    floor: 'floor'
+  };
+
+  const FALLBACK_SIMPLE_PARTICLES = [
+    {
+      id: 'quarkRed',
+      family: 'quark',
+      quarkColor: 'red',
+      colors: ['#ff4d6a', '#ff859b'],
+      symbol: 'qᵣ',
+      symbolColor: '#fff'
+    },
+    {
+      id: 'quarkGreen',
+      family: 'quark',
+      quarkColor: 'green',
+      colors: ['#45c77b', '#7ae0a4'],
+      symbol: 'qᵍ',
+      symbolColor: '#08291a'
+    },
+    {
+      id: 'quarkBlue',
+      family: 'quark',
+      quarkColor: 'blue',
+      colors: ['#4f7bff', '#87a7ff'],
+      symbol: 'qᵇ',
+      symbolColor: '#0c163a'
+    },
+    {
+      id: 'electron',
+      family: 'lepton',
+      colors: ['#dadfea', '#f5f6fb'],
+      symbol: 'e⁻',
+      symbolColor: '#1c2136'
+    },
+    {
+      id: 'muon',
+      family: 'lepton',
+      colors: ['#cbbdfd', '#e6deff'],
+      symbol: 'μ',
+      symbolColor: '#2c1446'
+    },
+    {
+      id: 'neutrino',
+      family: 'lepton',
+      colors: ['#bfc5cc', '#e0e4e8'],
+      symbol: 'ν',
+      symbolColor: '#222733'
+    }
+  ];
+  const FALLBACK_RESISTANT_PARTICLES = [
+    {
+      id: 'photon',
+      family: 'boson',
+      colors: ['#ffd447', '#ffb347'],
+      symbol: 'γ',
+      symbolColor: '#3e2500',
+      minHits: 2,
+      maxHits: 2
+    },
+    {
+      id: 'gluon',
+      family: 'boson',
+      colors: ['#14151c', '#2c2e36'],
+      symbol: 'g',
+      symbolColor: '#9fa5ff',
+      minHits: 3,
+      maxHits: 3
+    },
+    {
+      id: 'wz',
+      family: 'boson',
+      colors: ['#a874ff', '#7c4dff'],
+      symbol: 'w/z',
+      symbolColor: '#f6f1ff',
+      symbolScale: 0.85,
+      minHits: 2,
+      maxHits: 3
+    },
+    {
+      id: 'higgs',
+      family: 'boson',
+      colors: ['#ffe680', '#f7c948'],
+      symbol: 'H⁰',
+      symbolColor: '#4d3100',
+      minHits: 3,
+      maxHits: 3
+    }
+  ];
+  const FALLBACK_BONUS_PARTICLES = [
+    {
+      id: 'positron',
+      family: 'lepton',
+      colors: ['#f6f6ff', '#dcdcf9'],
+      symbol: 'e⁺',
+      symbolColor: '#312a5c'
+    },
+    {
+      id: 'tau',
+      family: 'lepton',
+      colors: ['#b89bff', '#d9c9ff'],
+      symbol: 'τ',
+      symbolColor: '#1f0b45'
+    },
+    {
+      id: 'sterileNeutrino',
+      family: 'lepton',
+      colors: ['#c3c7d4', '#eff1f6'],
+      symbol: 'νₛ',
+      symbolColor: '#1f2535'
+    }
+  ];
+  const FALLBACK_GRAVITON_PARTICLE = {
+    id: 'graviton',
+    family: 'graviton',
+    colors: ['#ff6ec7', '#7afcff', '#ffe45e', '#9d4edd'],
+    symbol: 'G*',
+    symbolColor: '#ffffff'
+  };
+
+  const FALLBACK_POWER_UP_VISUALS = {
+    default: {
+      symbol: 'P',
+      gradient: ['#ffffff', '#a6d8ff'],
+      textColor: '#041022',
+      glow: 'rgba(140, 210, 255, 0.45)',
+      border: 'rgba(255, 255, 255, 0.5)',
+      widthMultiplier: 1.45
+    },
+    extend: {
+      symbol: 'L',
+      gradient: ['#66f4ff', '#2c9cff'],
+      textColor: '#041222',
+      glow: 'rgba(110, 220, 255, 0.55)',
+      border: 'rgba(255, 255, 255, 0.65)',
+      widthMultiplier: 1.5
+    },
+    multiball: {
+      symbol: 'M',
+      gradient: ['#ffe066', '#ff7b6b'],
+      textColor: '#241104',
+      glow: 'rgba(255, 160, 110, 0.55)',
+      border: 'rgba(255, 255, 255, 0.6)',
+      widthMultiplier: 1.6
+    },
+    laser: {
+      symbol: 'T',
+      gradient: ['#ff96c7', '#ff4d9a'],
+      textColor: '#36001a',
+      glow: 'rgba(255, 120, 190, 0.55)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.45
+    },
+    speed: {
+      symbol: 'S',
+      gradient: ['#9d7bff', '#4f3bff'],
+      textColor: '#1a083a',
+      glow: 'rgba(160, 140, 255, 0.52)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.45
+    },
+    floor: {
+      symbol: 'F',
+      gradient: ['#6ef7a6', '#1ec37a'],
+      textColor: '#052615',
+      glow: 'rgba(90, 240, 180, 0.55)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.55
+    }
+  };
+
+  const FALLBACK_PATTERN_WEIGHTS = [
+    { id: 'organic', weight: 0.25 },
+    { id: 'singleGap', weight: 0.1 },
+    { id: 'multiGap', weight: 0.1 },
+    { id: 'singleBrick', weight: 0.01 },
+    { id: 'singleLine', weight: 0.1 },
+    { id: 'bottomUniform', weight: 0.1 },
+    { id: 'uniformLines', weight: 0.1 },
+    { id: 'checkerboard', weight: 0.12 },
+    { id: 'diagonals', weight: 0.12 }
+  ];
+
+  const settings = {};
+
+  settings.ticketReward = readNumber(ARCADE_CONFIG.ticketReward, 1, { min: 0, round: 'floor' });
+
+  const gridConfig = readObject(ARCADE_CONFIG.grid);
+  settings.grid = {
+    cols: readNumber(gridConfig.columns ?? gridConfig.cols ?? gridConfig.colonnes, 14, { min: 1, round: 'round' }),
+    rows: readNumber(gridConfig.rows ?? gridConfig.lignes ?? gridConfig.rowsCount, 6, { min: 1, round: 'round' })
+  };
+
+  settings.maxLives = readNumber(ARCADE_CONFIG.maxLives, 3, { min: 1, round: 'round' });
+
+  const geometryConfig = readObject(ARCADE_CONFIG.geometry);
+  settings.geometry = {
+    paddingX: readNumber(geometryConfig.paddingX, 0.08),
+    paddingY: readNumber(geometryConfig.paddingY, 0.04),
+    usableHeight: readNumber(geometryConfig.usableHeight, 0.46),
+    innerWidthRatio: readNumber(geometryConfig.innerWidthRatio, 0.92),
+    innerHeightRatio: readNumber(geometryConfig.innerHeightRatio, 0.68)
+  };
+
+  const paddleConfig = readObject(ARCADE_CONFIG.paddle);
+  const paddleExtendConfig = readObject(paddleConfig.extend);
+  const paddleBounceConfig = readObject(paddleConfig.bounce);
+  settings.paddle = {
+    baseWidthRatio: readNumber(paddleConfig.baseWidthRatio, 0.18),
+    minWidthRatio: readNumber(paddleConfig.minWidthRatio, 0.12),
+    heightRatio: readNumber(paddleConfig.heightRatio, 0.025),
+    extendMaxWidthRatio: readNumber(paddleExtendConfig.maxWidthRatio, 0.32),
+    extendMultiplier: readNumber(paddleExtendConfig.multiplier, 1.6),
+    stretchDurationMs: readNumber(paddleConfig.stretchDurationMs, 620, { min: 0 }),
+    bounceDurationMs: readNumber(paddleConfig.bounceDurationMs, 260, { min: 0 }),
+    bounceIntensityBase: readNumber(paddleBounceConfig.intensityBase, 0.28),
+    bounceMaxHeightRatio: readNumber(paddleBounceConfig.maxHeightRatio, 0.7)
+  };
+
+  const ballConfig = readObject(ARCADE_CONFIG.ball);
+  const ballTrailConfig = readObject(ballConfig.trail);
+  const ballGhostConfig = readObject(ballConfig.ghost);
+  settings.ball = {
+    radiusRatio: readNumber(ballConfig.radiusRatio, 0.015),
+    baseSpeedRatio: readNumber(ballConfig.baseSpeedRatio, 1.9),
+    speedGrowthRatio: readNumber(ballConfig.speedGrowthRatio, 0.15),
+    minSpeedPerMs: readNumber(ballConfig.minSpeedPerMs, 0.25, { min: 0 }),
+    speedFactor: readNumber(ballConfig.speedFactor, 0.0006),
+    followOffsetRatio: readNumber(ballConfig.followOffsetRatio, 1.6),
+    trailMinDistance: readNumber(ballTrailConfig.minDistance, 2, { min: 0 }),
+    trailMinDistanceFactor: readNumber(ballTrailConfig.minDistanceFactor, 0.35),
+    trailCaptureIntervalMs: readNumber(ballTrailConfig.captureIntervalMs, 18, { min: 0 }),
+    trailMaxPoints: readNumber(ballTrailConfig.maxPoints, 12, { min: 1, round: 'round' }),
+    trailPruneMs: readNumber(ballTrailConfig.pruneMs, 260, { min: 0 }),
+    ghostIntervalMs: readNumber(ballGhostConfig.intervalMs, 68, { min: 0 }),
+    ghostBlurFactor: readNumber(ballGhostConfig.blurFactor, 1.4),
+    ghostRemoveDelayMs: readNumber(ballGhostConfig.removeDelayMs, 360, { min: 0 })
+  };
+
+  const gravitonConfig = readObject(ARCADE_CONFIG.graviton);
+  const gravitonSpawnConfig = readObject(gravitonConfig.spawnChance);
+  settings.graviton = {
+    lifetimeMs: readNumber(gravitonConfig.lifetimeMs, 10000, { min: 0 }),
+    spawnChance: {
+      base: readNumber(gravitonSpawnConfig.base, 0.05, { min: 0 }),
+      perLevel: readNumber(gravitonSpawnConfig.perLevel, 0.015, { min: 0 }),
+      min: readNumber(gravitonSpawnConfig.min, 0.05, { min: 0 }),
+      max: readNumber(gravitonSpawnConfig.max, 0.18, { min: 0 })
+    },
+    detectionMessage: readString(gravitonConfig.detectionMessage, 'Graviton détecté !'),
+    detectionMessageDurationMs: readNumber(gravitonConfig.detectionMessageDurationMs, 2600, { min: 0 }),
+    dissipateMessage: readString(gravitonConfig.dissipateMessage, 'Le graviton s’est dissipé…'),
+    dissipateMessageDurationMs: readNumber(gravitonConfig.dissipateMessageDurationMs, 2800, { min: 0 }),
+    captureMessage: readString(gravitonConfig.captureMessage, 'Graviton capturé ! Ticket spécial +1'),
+    captureMessageDurationMs: readNumber(gravitonConfig.captureMessageDurationMs, 3600, { min: 0 })
+  };
+
+  const combosConfig = readObject(ARCADE_CONFIG.combos);
+  const combosShockwaveConfig = readObject(combosConfig.shockwave);
+  const combosStagePulseConfig = readObject(combosShockwaveConfig.stagePulse);
+  settings.combos = {
+    requiredColors: readArray(combosConfig.requiredColors, ['red', 'green', 'blue']),
+    powerUpRewards: readArray(combosConfig.powerUpRewards, ['laser', 'extend', 'multiball']),
+    chainThreshold: readNumber(combosConfig.chainThreshold, 3, { min: 1, round: 'round' }),
+    bonusMessagePrefix: readString(combosConfig.bonusMessagePrefix, 'Bonus: '),
+    bonusMessageDurationMs: readNumber(combosConfig.bonusMessageDurationMs, 2400, { min: 0 }),
+    quarkMessagePrefix: readString(combosConfig.quarkMessagePrefix, 'Combo quark ! '),
+    quarkMessageDurationMs: readNumber(combosConfig.quarkMessageDurationMs, 3200, { min: 0 }),
+    chainWindowMs: readNumber(combosConfig.chainWindowMs, 520, { min: 0 }),
+    shockwave: {
+      baseScale: readNumber(combosShockwaveConfig.baseScale, 1.25),
+      scalePerChain: readNumber(combosShockwaveConfig.scalePerChain, 0.08),
+      maxScaleChains: readNumber(combosShockwaveConfig.maxScaleChains, 6, { min: 1, round: 'round' }),
+      baseOpacity: readNumber(combosShockwaveConfig.baseOpacity, 0.78),
+      opacityPerChain: readNumber(combosShockwaveConfig.opacityPerChain, 0.03),
+      maxOpacity: readNumber(combosShockwaveConfig.maxOpacity, 0.92),
+      removeDelayMs: readNumber(combosShockwaveConfig.removeDelayMs, 640, { min: 0 }),
+      stagePulse: {
+        baseIntensity: readNumber(combosStagePulseConfig.baseIntensity, 1.02),
+        intensityPerChain: readNumber(combosStagePulseConfig.intensityPerChain, 0.005),
+        maxChains: readNumber(combosStagePulseConfig.maxChains, 5, { min: 1, round: 'round' }),
+        durationMs: readNumber(combosStagePulseConfig.durationMs, 420, { min: 0 })
+      }
+    }
+  };
+
+  const powerUpConfig = readObject(ARCADE_CONFIG.powerUps);
+  const powerUpIdsConfig = readObject(powerUpConfig.ids);
+  const resolvedPowerUpIds = {
+    extend: readString(powerUpIdsConfig.extend, FALLBACK_POWER_UP_IDS.extend),
+    multiball: readString(powerUpIdsConfig.multiball, FALLBACK_POWER_UP_IDS.multiball),
+    laser: readString(powerUpIdsConfig.laser, FALLBACK_POWER_UP_IDS.laser),
+    speed: readString(powerUpIdsConfig.speed, FALLBACK_POWER_UP_IDS.speed),
+    floor: readString(powerUpIdsConfig.floor, FALLBACK_POWER_UP_IDS.floor)
+  };
+  const labelsConfig = readObject(powerUpConfig.labels);
+  const visualsConfig = readObject(powerUpConfig.visuals);
+  const effectsConfig = readObject(powerUpConfig.effects);
+  const pulseConfig = readObject(powerUpConfig.pulseIntensity);
+  const floorShieldConfig = readObject(powerUpConfig.floorShield);
+  const mapVisual = key => {
+    const base = FALLBACK_POWER_UP_VISUALS[key] ?? FALLBACK_POWER_UP_VISUALS.default;
+    const source = readObject(visualsConfig[key]);
+    return {
+      symbol: readString(source.symbol, base.symbol),
+      gradient: readArray(source.gradient, base.gradient),
+      textColor: readString(source.textColor, base.textColor),
+      glow: readString(source.glow, base.glow),
+      border: readString(source.border, base.border),
+      widthMultiplier: readNumber(source.widthMultiplier, base.widthMultiplier)
+    };
+  };
+  const laserIntervalMs = readNumber(powerUpConfig.laserIntervalMs, 420, { min: 0 });
+  settings.powerUps = {
+    fallSpeedRatio: readNumber(powerUpConfig.fallSpeedRatio, 0.00042),
+    laserSpeedRatio: readNumber(powerUpConfig.laserSpeedRatio, -0.0026),
+    laserIntervalMs,
+    ids: resolvedPowerUpIds,
+    labels: {
+      [resolvedPowerUpIds.extend]: readString(labelsConfig.extend, 'Barre allongée'),
+      [resolvedPowerUpIds.multiball]: readString(labelsConfig.multiball, 'Multiballe'),
+      [resolvedPowerUpIds.laser]: readString(labelsConfig.laser, 'Tir laser'),
+      [resolvedPowerUpIds.speed]: readString(labelsConfig.speed, 'Accélération'),
+      [resolvedPowerUpIds.floor]: readString(labelsConfig.floor, 'Bouclier inférieur')
+    },
+    defaultVisual: mapVisual('default'),
+    visuals: {
+      [resolvedPowerUpIds.extend]: mapVisual('extend'),
+      [resolvedPowerUpIds.multiball]: mapVisual('multiball'),
+      [resolvedPowerUpIds.laser]: mapVisual('laser'),
+      [resolvedPowerUpIds.speed]: mapVisual('speed'),
+      [resolvedPowerUpIds.floor]: mapVisual('floor')
+    },
+    pulseIntensity: {
+      [resolvedPowerUpIds.multiball]: readNumber(pulseConfig.multiball, 1.06),
+      [resolvedPowerUpIds.extend]: readNumber(pulseConfig.extend, 1.04),
+      [resolvedPowerUpIds.floor]: readNumber(pulseConfig.floor, 1.05)
+    },
+    effects: {
+      [resolvedPowerUpIds.extend]: {
+        durationMs: readNumber(readObject(effectsConfig.extend).durationMs, 12000, { min: 0 })
+      },
+      [resolvedPowerUpIds.multiball]: {
+        durationMs: readNumber(readObject(effectsConfig.multiball).durationMs, 0, { min: 0 }) || null
+      },
+      [resolvedPowerUpIds.laser]: {
+        durationMs: readNumber(readObject(effectsConfig.laser).durationMs, 9000, { min: 0 }),
+        intervalMs: readNumber(readObject(effectsConfig.laser).intervalMs, laserIntervalMs, { min: 0 })
+      },
+      [resolvedPowerUpIds.speed]: {
+        durationMs: readNumber(readObject(effectsConfig.speed).durationMs, 8000, { min: 0 }),
+        speedMultiplier: readNumber(readObject(effectsConfig.speed).speedMultiplier, 1.35)
+      },
+      [resolvedPowerUpIds.floor]: {
+        durationMs: readNumber(readObject(effectsConfig.floor).durationMs, 10000, { min: 0 })
+      }
+    },
+    floorShield: {
+      heightRatio: readNumber(floorShieldConfig.heightRatio, 0.06),
+      minHeightPx: readNumber(floorShieldConfig.minHeightPx, 12, { min: 0 })
+    }
+  };
+
+  const bricksConfig = readObject(ARCADE_CONFIG.bricks);
+  const brickTypesConfig = readObject(bricksConfig.types);
+  const scoreConfig = readObject(bricksConfig.scoreValues);
+  const bonusDistributionConfig = readObject(bricksConfig.bonusDistribution);
+  const organicConfig = readObject(bricksConfig.organic);
+  const singleGapConfig = readObject(bricksConfig.singleGap);
+  const multiGapConfig = readObject(bricksConfig.multiGap);
+  const uniformConfig = readObject(bricksConfig.uniform);
+  const checkerboardConfig = readObject(bricksConfig.checkerboard);
+  const diagonalsConfig = readObject(bricksConfig.diagonals);
+  const brickTypeWeightsConfig = readObject(bricksConfig.brickTypeWeights);
+  const brickTypeWeightsBase = readObject(brickTypeWeightsConfig.base);
+  const brickTypeLevelFactor = readObject(brickTypeWeightsConfig.levelFactor);
+  settings.bricks = {
+    types: {
+      simple: readString(brickTypesConfig.simple, 'simple'),
+      resistant: readString(brickTypesConfig.resistant, 'resistant'),
+      bonus: readString(brickTypesConfig.bonus, 'bonus'),
+      graviton: readString(brickTypesConfig.graviton, 'graviton')
+    },
+    scoreValues: {
+      simple: readNumber(scoreConfig.simple, 120, { min: 0 }),
+      resistant: readNumber(scoreConfig.resistant, 200, { min: 0 }),
+      bonus: readNumber(scoreConfig.bonus, 160, { min: 0 }),
+      graviton: readNumber(scoreConfig.graviton, 420, { min: 0 })
+    },
+    bonusDistribution: {
+      targetedPatternRatio: readNumber(bonusDistributionConfig.targetedPatternRatio, 0.32),
+      otherPatternRatio: readNumber(bonusDistributionConfig.otherPatternRatio, 0.22),
+      perLevelIncrement: readNumber(bonusDistributionConfig.perLevelIncrement, 0.01),
+      minRatio: readNumber(bonusDistributionConfig.minRatio, 0.18),
+      maxRatio: readNumber(bonusDistributionConfig.maxRatio, 0.42)
+    },
+    patterns: readArray(bricksConfig.patterns, FALLBACK_PATTERN_WEIGHTS),
+    organic: {
+      baseFillStart: readNumber(organicConfig.baseFillStart, 0.55),
+      baseFillGrowth: readNumber(organicConfig.baseFillGrowth, 0.02),
+      minFill: readNumber(organicConfig.minFill, 0.55),
+      maxFill: readNumber(organicConfig.maxFill, 0.82),
+      depthBiasMax: readNumber(organicConfig.depthBiasMax, 0.18),
+      variability: readNumber(organicConfig.variability, 0.12),
+      minProbability: readNumber(organicConfig.minProbability, 0.35),
+      maxProbability: readNumber(organicConfig.maxProbability, 0.92)
+    },
+    singleGap: {
+      removeRowChance: readNumber(singleGapConfig.removeRowChance, 0.5)
+    },
+    multiGap: {
+      removeRowChance: readNumber(multiGapConfig.removeRowChance, 0.75),
+      removeColumnChance: readNumber(multiGapConfig.removeColumnChance, 0.65),
+      minEmptyRows: readNumber(multiGapConfig.minEmptyRows, 2, { min: 0, round: 'round' }),
+      maxEmptyRows: readNumber(multiGapConfig.maxEmptyRows, 3, { min: 0, round: 'round' }),
+      minEmptyCols: readNumber(multiGapConfig.minEmptyCols, 2, { min: 0, round: 'round' }),
+      maxEmptyCols: readNumber(multiGapConfig.maxEmptyCols, 4, { min: 0, round: 'round' })
+    },
+    uniform: {
+      fullRowChance: readNumber(uniformConfig.fullRowChance, 0.25)
+    },
+    checkerboard: {
+      extraFillChance: readNumber(checkerboardConfig.extraFillChance, 0.45)
+    },
+    diagonals: {
+      extraFillChance: readNumber(diagonalsConfig.extraFillChance, 0.4)
+    },
+    brickTypeWeights: {
+      base: {
+        simple: readNumber(brickTypeWeightsBase.simple, 0.6),
+        resistant: readNumber(brickTypeWeightsBase.resistant, 0.26),
+        bonus: readNumber(brickTypeWeightsBase.bonus, 0.14)
+      },
+      levelFactor: {
+        step: readNumber(brickTypeLevelFactor.step, 0.015),
+        simple: readNumber(brickTypeLevelFactor.simple, -0.25),
+        resistant: readNumber(brickTypeLevelFactor.resistant, 0.55),
+        bonus: readNumber(brickTypeLevelFactor.bonus, 0.2),
+        max: readNumber(brickTypeLevelFactor.max, 0.2)
+      }
+    }
+  };
+
+  const particlesConfig = readObject(ARCADE_CONFIG.particles);
+  settings.particles = {
+    simple: cloneArrayOfObjects(readArray(particlesConfig.simple, FALLBACK_SIMPLE_PARTICLES)),
+    resistant: cloneArrayOfObjects(readArray(particlesConfig.resistant, FALLBACK_RESISTANT_PARTICLES)),
+    bonus: cloneArrayOfObjects(readArray(particlesConfig.bonus, FALLBACK_BONUS_PARTICLES)),
+    graviton: cloneParticle(readObject(particlesConfig.graviton)) || cloneParticle(FALLBACK_GRAVITON_PARTICLE)
+  };
+
+  const uiConfig = readObject(ARCADE_CONFIG.ui);
+  const uiStartConfig = readObject(uiConfig.start);
+  const uiPauseConfig = readObject(uiConfig.pause);
+  const uiLifeLostConfig = readObject(uiConfig.lifeLost);
+  const uiLevelClearedConfig = readObject(uiConfig.levelCleared);
+  const uiGameOverConfig = readObject(uiConfig.gameOver);
+  const uiHudConfig = readObject(uiConfig.hud);
+  settings.ui = {
+    start: {
+      message: readString(uiStartConfig.message, 'Touchez ou cliquez la raquette pour guider la particule et détruire les briques quantiques.'),
+      buttonLabel: readString(uiStartConfig.buttonLabel, 'Commencer')
+    },
+    pause: {
+      message: readString(uiPauseConfig.message, 'Partie en pause. Touchez la raquette pour continuer.'),
+      buttonLabel: readString(uiPauseConfig.buttonLabel, 'Reprendre')
+    },
+    lifeLost: {
+      message: readString(uiLifeLostConfig.message, 'Particule perdue ! Touchez la raquette pour continuer.'),
+      buttonLabel: readString(uiLifeLostConfig.buttonLabel, 'Reprendre')
+    },
+    levelCleared: {
+      template: readString(uiLevelClearedConfig.template, 'Niveau {level} terminé !{reward}'),
+      buttonLabel: readString(uiLevelClearedConfig.buttonLabel, 'Continuer'),
+      rewardTemplate: readString(uiLevelClearedConfig.rewardTemplate, ' {reward} obtenu !'),
+      noReward: readString(uiLevelClearedConfig.noReward, ' Aucun ticket cette fois.')
+    },
+    gameOver: {
+      withTickets: readString(uiGameOverConfig.withTickets, 'Partie terminée ! Tickets gagnés : {tickets}{bonus}.'),
+      withoutTickets: readString(uiGameOverConfig.withoutTickets, 'Partie terminée ! Aucun ticket gagné cette fois-ci.'),
+      buttonLabel: readString(uiGameOverConfig.buttonLabel, 'Rejouer')
+    },
+    hud: {
+      ticketSingular: readString(uiHudConfig.ticketSingular, 'ticket'),
+      ticketPlural: readString(uiHudConfig.ticketPlural, 'tickets'),
+      bonusTicketSingular: readString(uiHudConfig.bonusTicketSingular, 'ticket Bonus Particules'),
+      bonusTicketPlural: readString(uiHudConfig.bonusTicketPlural, 'tickets Bonus Particules')
+    }
+  };
+
+  const SETTINGS = settings;
+
+  const ARCADE_TICKET_REWARD = SETTINGS.ticketReward;
+  const GRID_COLS = SETTINGS.grid.cols;
+  const GRID_ROWS = SETTINGS.grid.rows;
+  const MAX_LIVES = SETTINGS.maxLives;
   const BRICK_TYPES = Object.freeze({
-    SIMPLE: 'simple',
-    RESISTANT: 'resistant',
-    BONUS: 'bonus',
-    GRAVITON: 'graviton'
+    SIMPLE: SETTINGS.bricks.types.simple,
+    RESISTANT: SETTINGS.bricks.types.resistant,
+    BONUS: SETTINGS.bricks.types.bonus,
+    GRAVITON: SETTINGS.bricks.types.graviton
   });
   const POWER_UP_IDS = Object.freeze({
-    EXTEND: 'extend',
-    MULTIBALL: 'multiball',
-    LASER: 'laser',
-    SPEED: 'speed',
-    FLOOR: 'floor'
+    EXTEND: SETTINGS.powerUps.ids.extend,
+    MULTIBALL: SETTINGS.powerUps.ids.multiball,
+    LASER: SETTINGS.powerUps.ids.laser,
+    SPEED: SETTINGS.powerUps.ids.speed,
+    FLOOR: SETTINGS.powerUps.ids.floor
   });
-  const COMBO_REQUIRED_COLORS = ['red', 'green', 'blue'];
+  const COMBO_REQUIRED_COLORS = SETTINGS.combos.requiredColors;
   const BRICK_SCORE_VALUE = {
-    [BRICK_TYPES.SIMPLE]: 120,
-    [BRICK_TYPES.RESISTANT]: 200,
-    [BRICK_TYPES.BONUS]: 160,
-    [BRICK_TYPES.GRAVITON]: 420
+    [BRICK_TYPES.SIMPLE]: SETTINGS.bricks.scoreValues.simple,
+    [BRICK_TYPES.RESISTANT]: SETTINGS.bricks.scoreValues.resistant,
+    [BRICK_TYPES.BONUS]: SETTINGS.bricks.scoreValues.bonus,
+    [BRICK_TYPES.GRAVITON]: SETTINGS.bricks.scoreValues.graviton
   };
-  const GRAVITON_LIFETIME_MS = 10000;
-  const POWER_UP_FALL_SPEED_RATIO = 0.00042;
-  const LASER_SPEED_RATIO = -0.0026;
-  const LASER_INTERVAL_MS = 420;
-  const PADDLE_STRETCH_DURATION_MS = 620;
-  const PADDLE_BOUNCE_DURATION_MS = 260;
+  const GRAVITON_LIFETIME_MS = SETTINGS.graviton.lifetimeMs;
+  const POWER_UP_FALL_SPEED_RATIO = SETTINGS.powerUps.fallSpeedRatio;
+  const LASER_SPEED_RATIO = SETTINGS.powerUps.laserSpeedRatio;
+  const LASER_INTERVAL_MS = SETTINGS.powerUps.laserIntervalMs;
+  const PADDLE_STRETCH_DURATION_MS = SETTINGS.paddle.stretchDurationMs;
+  const PADDLE_BOUNCE_DURATION_MS = SETTINGS.paddle.bounceDurationMs;
+  const PADDLE_BOUNCE_INTENSITY_BASE = SETTINGS.paddle.bounceIntensityBase;
+  const PADDLE_BOUNCE_MAX_RATIO = SETTINGS.paddle.bounceMaxHeightRatio;
+  const PADDLE_EXTEND_MAX_WIDTH_RATIO = SETTINGS.paddle.extendMaxWidthRatio;
+  const PADDLE_EXTEND_MULTIPLIER = SETTINGS.paddle.extendMultiplier;
+  const BALL_TRAIL_MIN_DISTANCE = SETTINGS.ball.trailMinDistance;
+  const BALL_TRAIL_MIN_DISTANCE_FACTOR = SETTINGS.ball.trailMinDistanceFactor;
+  const BALL_TRAIL_CAPTURE_INTERVAL_MS = SETTINGS.ball.trailCaptureIntervalMs;
+  const BALL_TRAIL_MAX_POINTS = SETTINGS.ball.trailMaxPoints;
+  const BALL_TRAIL_PRUNE_MS = SETTINGS.ball.trailPruneMs;
+  const BALL_GHOST_INTERVAL_MS = SETTINGS.ball.ghostIntervalMs;
+  const BALL_GHOST_BLUR_FACTOR = SETTINGS.ball.ghostBlurFactor;
+  const BALL_GHOST_REMOVE_DELAY_MS = SETTINGS.ball.ghostRemoveDelayMs;
+  const BALL_SPEED_FACTOR = SETTINGS.ball.speedFactor;
+  const BALL_MIN_SPEED_PER_MS = SETTINGS.ball.minSpeedPerMs;
+  const BALL_FOLLOW_OFFSET_RATIO = SETTINGS.ball.followOffsetRatio;
+  const DEFAULT_POWER_UP_VISUAL = SETTINGS.powerUps.defaultVisual;
+  const POWER_UP_VISUALS = SETTINGS.powerUps.visuals;
+  const POWER_UP_LABELS = SETTINGS.powerUps.labels;
+  const POWER_UP_PULSE_INTENSITY = SETTINGS.powerUps.pulseIntensity;
+  const RAW_POWER_UP_EFFECTS = SETTINGS.powerUps.effects;
+  const POWER_UP_EFFECTS = {
+    [POWER_UP_IDS.EXTEND]: { duration: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.EXTEND]?.durationMs ?? 12000 },
+    [POWER_UP_IDS.MULTIBALL]: { duration: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.MULTIBALL]?.durationMs ?? 0 },
+    [POWER_UP_IDS.LASER]: {
+      duration: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.LASER]?.durationMs ?? 9000,
+      interval: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.LASER]?.intervalMs ?? LASER_INTERVAL_MS
+    },
+    [POWER_UP_IDS.SPEED]: {
+      duration: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.SPEED]?.durationMs ?? 8000,
+      speedMultiplier: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.SPEED]?.speedMultiplier ?? 1.35
+    },
+    [POWER_UP_IDS.FLOOR]: { duration: RAW_POWER_UP_EFFECTS[POWER_UP_IDS.FLOOR]?.durationMs ?? 10000 }
+  };
+  const POWER_UP_SPEED_MULTIPLIER = POWER_UP_EFFECTS[POWER_UP_IDS.SPEED].speedMultiplier ?? 1.35;
+  const COMBO_POWER_UPS = SETTINGS.combos.powerUpRewards
+    .map(id => Object.values(POWER_UP_IDS).includes(id) ? id : null)
+    .filter(Boolean);
+  const COMBO_BONUS_PREFIX = SETTINGS.combos.bonusMessagePrefix;
+  const COMBO_BONUS_DURATION = SETTINGS.combos.bonusMessageDurationMs;
+  const COMBO_QUARK_PREFIX = SETTINGS.combos.quarkMessagePrefix;
+  const COMBO_QUARK_DURATION = SETTINGS.combos.quarkMessageDurationMs;
+  const COMBO_CHAIN_WINDOW_MS = SETTINGS.combos.chainWindowMs;
+  const COMBO_CHAIN_THRESHOLD = SETTINGS.combos.chainThreshold;
+  const COMBO_SHOCKWAVE = SETTINGS.combos.shockwave;
+  const FLOOR_SHIELD_CONFIG = SETTINGS.powerUps.floorShield;
+  const BONUS_DISTRIBUTION = SETTINGS.bricks.bonusDistribution;
+  const PATTERN_WEIGHTS = SETTINGS.bricks.patterns;
+  const ORGANIC_CONFIG = SETTINGS.bricks.organic;
+  const SINGLE_GAP_CONFIG = SETTINGS.bricks.singleGap;
+  const MULTI_GAP_CONFIG = SETTINGS.bricks.multiGap;
+  const UNIFORM_CONFIG = SETTINGS.bricks.uniform;
+  const CHECKERBOARD_CONFIG = SETTINGS.bricks.checkerboard;
+  const DIAGONALS_CONFIG = SETTINGS.bricks.diagonals;
+  const BRICK_TYPE_WEIGHTS = SETTINGS.bricks.brickTypeWeights;
 
+  const SIMPLE_PARTICLES = SETTINGS.particles.simple;
+  const RESISTANT_PARTICLES = SETTINGS.particles.resistant;
+  const BONUS_PARTICLES = SETTINGS.particles.bonus;
+  const GRAVITON_PARTICLE = SETTINGS.particles.graviton;
+
+  const START_OVERLAY_MESSAGE = SETTINGS.ui.start.message;
+  const START_OVERLAY_BUTTON = SETTINGS.ui.start.buttonLabel;
+  const PAUSE_OVERLAY_MESSAGE = SETTINGS.ui.pause.message;
+  const PAUSE_OVERLAY_BUTTON = SETTINGS.ui.pause.buttonLabel;
+  const LIFE_LOST_MESSAGE = SETTINGS.ui.lifeLost.message;
+  const LIFE_LOST_BUTTON = SETTINGS.ui.lifeLost.buttonLabel;
+  const LEVEL_CLEARED_TEMPLATE = SETTINGS.ui.levelCleared.template;
+  const LEVEL_CLEARED_BUTTON = SETTINGS.ui.levelCleared.buttonLabel;
+  const LEVEL_CLEARED_REWARD_TEMPLATE = SETTINGS.ui.levelCleared.rewardTemplate;
+  const LEVEL_CLEARED_NO_REWARD = SETTINGS.ui.levelCleared.noReward;
+  const GAME_OVER_WITH_TICKETS = SETTINGS.ui.gameOver.withTickets;
+  const GAME_OVER_WITHOUT_TICKETS = SETTINGS.ui.gameOver.withoutTickets;
+  const GAME_OVER_BUTTON = SETTINGS.ui.gameOver.buttonLabel;
+  const HUD_TICKET_SINGULAR = SETTINGS.ui.hud.ticketSingular;
+  const HUD_TICKET_PLURAL = SETTINGS.ui.hud.ticketPlural;
+  const HUD_BONUS_TICKET_SINGULAR = SETTINGS.ui.hud.bonusTicketSingular;
+  const HUD_BONUS_TICKET_PLURAL = SETTINGS.ui.hud.bonusTicketPlural;
+  const GRAVITON_DETECTION_MESSAGE = SETTINGS.graviton.detectionMessage;
+  const GRAVITON_DETECTION_DURATION = SETTINGS.graviton.detectionMessageDurationMs;
+  const GRAVITON_DISSIPATE_MESSAGE = SETTINGS.graviton.dissipateMessage;
+  const GRAVITON_DISSIPATE_DURATION = SETTINGS.graviton.dissipateMessageDurationMs;
+  const GRAVITON_CAPTURE_MESSAGE = SETTINGS.graviton.captureMessage;
+  const GRAVITON_CAPTURE_DURATION = SETTINGS.graviton.captureMessageDurationMs;
   const createCubicBezierEasing = (p1x, p1y, p2x, p2y) => {
     const cx = 3 * p1x;
     const bx = 3 * (p2x - p1x) - cx;
@@ -82,13 +724,13 @@
 
   const defaultTicketFormatter = value => {
     const numeric = Math.max(0, Math.floor(Number(value) || 0));
-    const unit = numeric === 1 ? 'ticket' : 'tickets';
+    const unit = numeric === 1 ? HUD_TICKET_SINGULAR : HUD_TICKET_PLURAL;
     return `${numeric.toLocaleString('fr-FR')} ${unit}`;
   };
 
   const defaultBonusTicketFormatter = value => {
     const numeric = Math.max(0, Math.floor(Number(value) || 0));
-    const unit = numeric === 1 ? 'ticket Bonus Particules' : 'tickets Bonus Particules';
+    const unit = numeric === 1 ? HUD_BONUS_TICKET_SINGULAR : HUD_BONUS_TICKET_PLURAL;
     return `${numeric.toLocaleString('fr-FR')} ${unit}`;
   };
 
@@ -97,205 +739,6 @@
     : null);
 
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-  const SIMPLE_PARTICLES = [
-    {
-      id: 'quarkRed',
-      family: 'quark',
-      quarkColor: 'red',
-      colors: ['#ff4d6a', '#ff859b'],
-      symbol: 'qᵣ',
-      symbolColor: '#fff'
-    },
-    {
-      id: 'quarkGreen',
-      family: 'quark',
-      quarkColor: 'green',
-      colors: ['#45c77b', '#7ae0a4'],
-      symbol: 'qᵍ',
-      symbolColor: '#08291a'
-    },
-    {
-      id: 'quarkBlue',
-      family: 'quark',
-      quarkColor: 'blue',
-      colors: ['#4f7bff', '#87a7ff'],
-      symbol: 'qᵇ',
-      symbolColor: '#0c163a'
-    },
-    {
-      id: 'electron',
-      family: 'lepton',
-      colors: ['#dadfea', '#f5f6fb'],
-      symbol: 'e⁻',
-      symbolColor: '#1c2136'
-    },
-    {
-      id: 'muon',
-      family: 'lepton',
-      colors: ['#cbbdfd', '#e6deff'],
-      symbol: 'μ',
-      symbolColor: '#2c1446'
-    },
-    {
-      id: 'neutrino',
-      family: 'lepton',
-      colors: ['#bfc5cc', '#e0e4e8'],
-      symbol: 'ν',
-      symbolColor: '#222733'
-    }
-  ];
-
-  const RESISTANT_PARTICLES = [
-    {
-      id: 'photon',
-      family: 'boson',
-      colors: ['#ffd447', '#ffb347'],
-      symbol: 'γ',
-      symbolColor: '#3e2500',
-      minHits: 2,
-      maxHits: 2
-    },
-    {
-      id: 'gluon',
-      family: 'boson',
-      colors: ['#14151c', '#2c2e36'],
-      symbol: 'g',
-      symbolColor: '#9fa5ff',
-      minHits: 3,
-      maxHits: 3
-    },
-    {
-      id: 'wz',
-      family: 'boson',
-      colors: ['#a874ff', '#7c4dff'],
-      symbol: 'w/z',
-      symbolColor: '#f6f1ff',
-      symbolScale: 0.85,
-      minHits: 2,
-      maxHits: 3
-    },
-    {
-      id: 'higgs',
-      family: 'boson',
-      colors: ['#ffe680', '#f7c948'],
-      symbol: 'H⁰',
-      symbolColor: '#4d3100',
-      minHits: 3,
-      maxHits: 3
-    }
-  ];
-
-  const BONUS_PARTICLES = [
-    {
-      id: 'positron',
-      family: 'lepton',
-      colors: ['#f6f6ff', '#dcdcf9'],
-      symbol: 'e⁺',
-      symbolColor: '#312a5c'
-    },
-    {
-      id: 'tau',
-      family: 'lepton',
-      colors: ['#b89bff', '#d9c9ff'],
-      symbol: 'τ',
-      symbolColor: '#1f0b45'
-    },
-    {
-      id: 'sterileNeutrino',
-      family: 'lepton',
-      colors: ['#c3c7d4', '#eff1f6'],
-      symbol: 'νₛ',
-      symbolColor: '#1f2535'
-    }
-  ];
-
-  const GRAVITON_PARTICLE = {
-    id: 'graviton',
-    family: 'graviton',
-    colors: ['#ff6ec7', '#7afcff', '#ffe45e', '#9d4edd'],
-    symbol: 'G*',
-    symbolColor: '#ffffff'
-  };
-
-  const POWER_UP_LABELS = {
-    [POWER_UP_IDS.EXTEND]: 'Barre allongée',
-    [POWER_UP_IDS.MULTIBALL]: 'Multiballe',
-    [POWER_UP_IDS.LASER]: 'Tir laser',
-    [POWER_UP_IDS.SPEED]: 'Accélération',
-    [POWER_UP_IDS.FLOOR]: 'Bouclier inférieur'
-  };
-
-  const DEFAULT_POWER_UP_VISUAL = {
-    symbol: 'P',
-    gradient: ['#ffffff', '#a6d8ff'],
-    textColor: '#041022',
-    glow: 'rgba(140, 210, 255, 0.45)',
-    border: 'rgba(255, 255, 255, 0.5)',
-    widthMultiplier: 1.45
-  };
-
-  const POWER_UP_VISUALS = {
-    [POWER_UP_IDS.EXTEND]: {
-      symbol: 'L',
-      gradient: ['#66f4ff', '#2c9cff'],
-      textColor: '#041222',
-      glow: 'rgba(110, 220, 255, 0.55)',
-      border: 'rgba(255, 255, 255, 0.65)',
-      widthMultiplier: 1.5
-    },
-    [POWER_UP_IDS.MULTIBALL]: {
-      symbol: 'M',
-      gradient: ['#ffe066', '#ff7b6b'],
-      textColor: '#241104',
-      glow: 'rgba(255, 160, 110, 0.55)',
-      border: 'rgba(255, 255, 255, 0.6)',
-      widthMultiplier: 1.6
-    },
-    [POWER_UP_IDS.LASER]: {
-      symbol: 'T',
-      gradient: ['#ff96c7', '#ff4d9a'],
-      textColor: '#36001a',
-      glow: 'rgba(255, 120, 190, 0.55)',
-      border: 'rgba(255, 255, 255, 0.55)',
-      widthMultiplier: 1.45
-    },
-    [POWER_UP_IDS.SPEED]: {
-      symbol: 'S',
-      gradient: ['#9d7bff', '#4f3bff'],
-      textColor: '#1a083a',
-      glow: 'rgba(160, 140, 255, 0.52)',
-      border: 'rgba(255, 255, 255, 0.55)',
-      widthMultiplier: 1.45
-    },
-    [POWER_UP_IDS.FLOOR]: {
-      symbol: 'F',
-      gradient: ['#6ef7a6', '#1ec37a'],
-      textColor: '#052615',
-      glow: 'rgba(90, 240, 180, 0.55)',
-      border: 'rgba(255, 255, 255, 0.55)',
-      widthMultiplier: 1.55
-    }
-  };
-
-  const POWER_UP_PULSE_INTENSITY = {
-    [POWER_UP_IDS.MULTIBALL]: 1.06,
-    [POWER_UP_IDS.EXTEND]: 1.04,
-    [POWER_UP_IDS.FLOOR]: 1.05
-  };
-
-  const POWER_UP_EFFECTS = {
-    [POWER_UP_IDS.EXTEND]: { duration: 12000 },
-    [POWER_UP_IDS.LASER]: { duration: 9000 },
-    [POWER_UP_IDS.SPEED]: { duration: 8000 },
-    [POWER_UP_IDS.FLOOR]: { duration: 10000 }
-  };
-
-  const COMBO_POWER_UPS = [
-    POWER_UP_IDS.LASER,
-    POWER_UP_IDS.EXTEND,
-    POWER_UP_IDS.MULTIBALL
-  ];
 
   class ParticulesGame {
     constructor(options = {}) {
@@ -392,10 +835,10 @@
       this.stagePulseTimeout = null;
 
       this.paddle = {
-        baseWidthRatio: 0.18,
-        currentWidthRatio: 0.18,
-        minWidthRatio: 0.12,
-        heightRatio: 0.025,
+        baseWidthRatio: SETTINGS.paddle.baseWidthRatio,
+        currentWidthRatio: SETTINGS.paddle.baseWidthRatio,
+        minWidthRatio: SETTINGS.paddle.minWidthRatio,
+        heightRatio: SETTINGS.paddle.heightRatio,
         x: 0,
         y: 0,
         width: 0,
@@ -404,9 +847,9 @@
       };
 
       this.ballSettings = {
-        radiusRatio: 0.015,
-        baseSpeedRatio: 1.9,
-        speedGrowthRatio: 0.15
+        radiusRatio: SETTINGS.ball.radiusRatio,
+        baseSpeedRatio: SETTINGS.ball.baseSpeedRatio,
+        speedGrowthRatio: SETTINGS.ball.speedGrowthRatio
       };
 
       this.handleFrame = this.handleFrame.bind(this);
@@ -435,8 +878,8 @@
       this.showOverlay({
         message:
           (this.overlayMessage?.textContent || '').trim()
-          || 'Touchez ou cliquez la raquette pour guider la particule et détruire les briques quantiques.',
-        buttonLabel: 'Commencer',
+          || START_OVERLAY_MESSAGE,
+        buttonLabel: START_OVERLAY_BUTTON,
         action: 'start'
       });
     }
@@ -551,7 +994,11 @@
         return;
       }
       const normalizedIntensity = clamp(intensity, 0.1, 2.2);
-      const amplitude = clamp(paddleHeight * 0.28 * normalizedIntensity, 0, paddleHeight * 0.7);
+      const amplitude = clamp(
+        paddleHeight * PADDLE_BOUNCE_INTENSITY_BASE * normalizedIntensity,
+        0,
+        paddleHeight * PADDLE_BOUNCE_MAX_RATIO
+      );
       if (amplitude <= 0) {
         return;
       }
@@ -643,14 +1090,14 @@
     }
 
     getGridGeometry() {
-      const paddingX = 0.08;
-      const paddingY = 0.04;
+      const paddingX = SETTINGS.geometry.paddingX;
+      const paddingY = SETTINGS.geometry.paddingY;
       const usableWidth = 1 - paddingX * 2;
-      const usableHeight = 0.46;
+      const usableHeight = SETTINGS.geometry.usableHeight;
       const brickWidth = usableWidth / this.gridCols;
       const brickHeight = usableHeight / this.gridRows;
-      const innerWidthRatio = 0.92;
-      const innerHeightRatio = 0.68;
+      const innerWidthRatio = SETTINGS.geometry.innerWidthRatio;
+      const innerHeightRatio = SETTINGS.geometry.innerHeightRatio;
       const horizontalOffset = (1 - innerWidthRatio) / 2;
       const verticalOffset = (1 - innerHeightRatio) / 2;
       return {
@@ -705,8 +1152,15 @@
         return bricks;
       }
       const existingBonus = eligible.filter(brick => brick.type === BRICK_TYPES.BONUS).length;
-      const patternBoost = ['singleLine', 'uniformLines', 'diagonals'].includes(pattern) ? 0.32 : 0.22;
-      const desiredRatio = clamp(patternBoost + (this.level - 1) * 0.01, 0.18, 0.42);
+      const targetedPatterns = new Set(['singleLine', 'uniformLines', 'diagonals']);
+      const patternBoost = targetedPatterns.has(pattern)
+        ? BONUS_DISTRIBUTION.targetedPatternRatio
+        : BONUS_DISTRIBUTION.otherPatternRatio;
+      const desiredRatio = clamp(
+        patternBoost + (this.level - 1) * BONUS_DISTRIBUTION.perLevelIncrement,
+        BONUS_DISTRIBUTION.minRatio,
+        BONUS_DISTRIBUTION.maxRatio
+      );
       const desiredCount = Math.max(1, Math.round(eligible.length * desiredRatio));
       if (existingBonus >= desiredCount) {
         return bricks;
@@ -734,17 +1188,7 @@
     }
 
     pickLevelPattern() {
-      const weights = [
-        { id: 'organic', weight: 0.25 },
-        { id: 'singleGap', weight: 0.10 },
-        { id: 'multiGap', weight: 0.10 },
-        { id: 'singleBrick', weight: 0.01 },
-        { id: 'singleLine', weight: 0.10 },
-        { id: 'bottomUniform', weight: 0.10 },
-        { id: 'uniformLines', weight: 0.10 },
-        { id: 'checkerboard', weight: 0.12 },
-        { id: 'diagonals', weight: 0.12 }
-      ];
+      const weights = PATTERN_WEIGHTS;
       const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
       const roll = Math.random() * total;
       let cumulative = 0;
@@ -759,15 +1203,27 @@
 
     generateOrganicLayout(geometry) {
       const bricks = [];
-      const baseFill = clamp(0.55 + (this.level - 1) * 0.02, 0.55, 0.82);
+      const baseFill = clamp(
+        ORGANIC_CONFIG.baseFillStart + (this.level - 1) * ORGANIC_CONFIG.baseFillGrowth,
+        ORGANIC_CONFIG.minFill,
+        ORGANIC_CONFIG.maxFill
+      );
       for (let row = 0; row < this.gridRows; row += 1) {
         let rowHasBrick = false;
         const candidates = [];
         for (let col = 0; col < this.gridCols; col += 1) {
           const position = this.getCellPosition(row, col, geometry);
-          const variability = (Math.random() - 0.5) * 0.12;
-          const depthBias = clamp((row / Math.max(1, this.gridRows - 1)) * 0.18, 0, 0.18);
-          const fillProbability = clamp(baseFill + depthBias + variability, 0.35, 0.92);
+          const variability = (Math.random() - 0.5) * ORGANIC_CONFIG.variability;
+          const depthBias = clamp(
+            (row / Math.max(1, this.gridRows - 1)) * ORGANIC_CONFIG.depthBiasMax,
+            0,
+            ORGANIC_CONFIG.depthBiasMax
+          );
+          const fillProbability = clamp(
+            baseFill + depthBias + variability,
+            ORGANIC_CONFIG.minProbability,
+            ORGANIC_CONFIG.maxProbability
+          );
           if (Math.random() > fillProbability) {
             candidates.push(position);
             continue;
@@ -789,7 +1245,7 @@
 
     generateSingleGapLayout(geometry) {
       const bricks = [];
-      const removeRow = Math.random() < 0.5;
+      const removeRow = Math.random() < SINGLE_GAP_CONFIG.removeRowChance;
       const gapIndex = removeRow
         ? Math.floor(Math.random() * this.gridRows)
         : Math.floor(Math.random() * this.gridCols);
@@ -806,21 +1262,27 @@
 
     generateMultiGapLayout(geometry) {
       const bricks = [];
-      let removeRows = Math.random() < 0.75;
-      let removeCols = Math.random() < 0.65;
+      let removeRows = Math.random() < MULTI_GAP_CONFIG.removeRowChance;
+      let removeCols = Math.random() < MULTI_GAP_CONFIG.removeColumnChance;
       if (!removeRows && !removeCols) {
         removeRows = true;
       }
       const emptyRows = new Set();
       const emptyCols = new Set();
       if (removeRows) {
-        const emptyRowCount = Math.max(2, Math.floor(Math.random() * Math.min(3, Math.max(2, this.gridRows - 1))) + 1);
+        const maxRows = Math.max(1, Math.min(MULTI_GAP_CONFIG.maxEmptyRows, this.gridRows - 1));
+        const minRows = Math.max(1, Math.min(MULTI_GAP_CONFIG.minEmptyRows, maxRows));
+        const rangeRows = Math.max(0, maxRows - minRows);
+        const emptyRowCount = minRows + (rangeRows > 0 ? Math.floor(Math.random() * (rangeRows + 1)) : 0);
         while (emptyRows.size < emptyRowCount) {
           emptyRows.add(Math.floor(Math.random() * this.gridRows));
         }
       }
       if (removeCols) {
-        const emptyColCount = Math.max(2, Math.floor(Math.random() * Math.min(4, Math.max(2, this.gridCols - 1))) + 1);
+        const maxCols = Math.max(1, Math.min(MULTI_GAP_CONFIG.maxEmptyCols, this.gridCols - 1));
+        const minCols = Math.max(1, Math.min(MULTI_GAP_CONFIG.minEmptyCols, maxCols));
+        const rangeCols = Math.max(0, maxCols - minCols);
+        const emptyColCount = minCols + (rangeCols > 0 ? Math.floor(Math.random() * (rangeCols + 1)) : 0);
         while (emptyCols.size < emptyColCount) {
           emptyCols.add(Math.floor(Math.random() * this.gridCols));
         }
@@ -922,7 +1384,7 @@
     }
 
     pickUniformRows() {
-      if (Math.random() < 0.25) {
+      if (Math.random() < UNIFORM_CONFIG.fullRowChance) {
         return Array.from({ length: this.gridRows }, (_, index) => index);
       }
       const rowCount = Math.max(2, Math.floor(Math.random() * Math.max(2, this.gridRows - 1)) + 1);
@@ -950,7 +1412,7 @@
         for (let col = 0; col < this.gridCols; col += 1) {
           if ((row + col) % 2 === 0) {
             this.placeBrick(bricks, row, col, geometry, type, particle);
-          } else if (Math.random() < 0.45) {
+          } else if (Math.random() < CHECKERBOARD_CONFIG.extraFillChance) {
             this.placeBrick(bricks, row, col, geometry);
           }
         }
@@ -967,7 +1429,7 @@
           const onSecondary = row + col === this.gridCols - 1;
           if (onMain || onSecondary) {
             this.placeBrick(bricks, row, col, geometry, mainType);
-          } else if (Math.random() < 0.4) {
+          } else if (Math.random() < DIAGONALS_CONFIG.extraFillChance) {
             this.placeBrick(bricks, row, col, geometry);
           }
         }
@@ -979,7 +1441,12 @@
       if (bricks.length <= 1) {
         return bricks;
       }
-      const gravitonChance = clamp(0.05 + (this.level - 1) * 0.015, 0.05, 0.18);
+      const spawnConfig = SETTINGS.graviton.spawnChance;
+      const gravitonChance = clamp(
+        spawnConfig.base + (this.level - 1) * spawnConfig.perLevel,
+        spawnConfig.min,
+        spawnConfig.max
+      );
       if (Math.random() >= gravitonChance) {
         return bricks;
       }
@@ -1010,11 +1477,22 @@
     }
 
     pickBrickType() {
-      const levelFactor = clamp((this.level - 1) * 0.015, 0, 0.2);
+      const factorStep = BRICK_TYPE_WEIGHTS.levelFactor.step;
+      const maxFactor = BRICK_TYPE_WEIGHTS.levelFactor.max;
+      const levelFactor = clamp((this.level - 1) * factorStep, 0, maxFactor);
       const weights = [
-        { type: BRICK_TYPES.SIMPLE, weight: 0.6 - levelFactor * 0.25 },
-        { type: BRICK_TYPES.RESISTANT, weight: 0.26 + levelFactor * 0.55 },
-        { type: BRICK_TYPES.BONUS, weight: 0.14 + levelFactor * 0.2 }
+        {
+          type: BRICK_TYPES.SIMPLE,
+          weight: BRICK_TYPE_WEIGHTS.base.simple + levelFactor * BRICK_TYPE_WEIGHTS.levelFactor.simple
+        },
+        {
+          type: BRICK_TYPES.RESISTANT,
+          weight: BRICK_TYPE_WEIGHTS.base.resistant + levelFactor * BRICK_TYPE_WEIGHTS.levelFactor.resistant
+        },
+        {
+          type: BRICK_TYPES.BONUS,
+          weight: BRICK_TYPE_WEIGHTS.base.bonus + levelFactor * BRICK_TYPE_WEIGHTS.levelFactor.bonus
+        }
       ];
       const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
       const roll = Math.random() * total;
@@ -1080,7 +1558,7 @@
       const ball = {
         id: `ball-${this.ballIdCounter += 1}`,
         x: paddleCenter,
-        y: this.paddle.y - radius * 1.6,
+        y: this.paddle.y - radius * BALL_FOLLOW_OFFSET_RATIO,
         vx: 0,
         vy: 0,
         radius,
@@ -1108,8 +1586,8 @@
         Math.max(0, this.level - 1)
       );
       const ratio = this.ballSettings.baseSpeedRatio * levelMultiplier;
-      const speedPerMillisecond = base * ratio * 0.0006 * this.ballSpeedMultiplier;
-      return Math.max(0.25, speedPerMillisecond);
+      const speedPerMillisecond = base * ratio * BALL_SPEED_FACTOR * this.ballSpeedMultiplier;
+      return Math.max(BALL_MIN_SPEED_PER_MS, speedPerMillisecond);
     }
 
     launchBallFromPaddle(ball) {
@@ -1140,7 +1618,7 @@
     updateBallFollowingPaddle(ball) {
       const paddleCenter = this.paddle.x + this.paddle.width / 2;
       ball.x = paddleCenter;
-      ball.y = this.paddle.y - ball.radius * 1.6;
+      ball.y = this.paddle.y - ball.radius * BALL_FOLLOW_OFFSET_RATIO;
       ball.vx = 0;
       ball.vy = 0;
       ball.inPlay = false;
@@ -1223,12 +1701,12 @@
         ball.trail = [];
       }
       const lastEntry = ball.trail[ball.trail.length - 1];
-      const minDistance = Math.max(2, ball.radius * 0.35);
+      const minDistance = Math.max(BALL_TRAIL_MIN_DISTANCE, ball.radius * BALL_TRAIL_MIN_DISTANCE_FACTOR);
       if (lastEntry) {
         const dx = lastEntry.x - ball.x;
         const dy = lastEntry.y - ball.y;
         const distanceSquared = dx * dx + dy * dy;
-        if (distanceSquared < minDistance * minDistance && now - lastEntry.time < 18) {
+        if (distanceSquared < minDistance * minDistance && now - lastEntry.time < BALL_TRAIL_CAPTURE_INTERVAL_MS) {
           return;
         }
       }
@@ -1237,11 +1715,11 @@
         y: ball.y,
         time: now
       });
-      const maxPoints = 12;
+      const maxPoints = BALL_TRAIL_MAX_POINTS;
       while (ball.trail.length > maxPoints) {
         ball.trail.shift();
       }
-      const ghostInterval = 68;
+      const ghostInterval = BALL_GHOST_INTERVAL_MS;
       if (
         this.particleLayer
         && !ball.attachedToPaddle
@@ -1257,7 +1735,7 @@
       const now = Number.isFinite(timestamp) && timestamp > 0
         ? timestamp
         : (typeof performance !== 'undefined' ? performance.now() : Date.now());
-      const maxLifetime = 260;
+      const maxLifetime = BALL_TRAIL_PRUNE_MS;
       while (ball.trail.length > 0 && now - ball.trail[0].time > maxLifetime) {
         ball.trail.shift();
       }
@@ -1300,7 +1778,7 @@
       const size = radius * 2;
       ghost.style.width = `${size.toFixed(2)}px`;
       ghost.style.height = `${size.toFixed(2)}px`;
-      const blur = Math.max(6, radius * 1.4);
+      const blur = Math.max(6, radius * BALL_GHOST_BLUR_FACTOR);
       ghost.style.setProperty('--arcade-ball-ghost-blur', `${blur.toFixed(2)}px`);
       const removeGhost = () => {
         ghost.removeEventListener('animationend', removeGhost);
@@ -1310,7 +1788,7 @@
       };
       ghost.addEventListener('animationend', removeGhost);
       this.particleLayer.appendChild(ghost);
-      setTimeout(removeGhost, 360);
+      setTimeout(removeGhost, BALL_GHOST_REMOVE_DELAY_MS);
     }
 
     updateEffects(now) {
@@ -1337,7 +1815,7 @@
           if (!blocked) {
             brick.hidden = false;
             brick.revealedAt = now;
-            this.setComboMessage('Graviton détecté !', 2600);
+            this.setComboMessage(GRAVITON_DETECTION_MESSAGE, GRAVITON_DETECTION_DURATION);
           }
           return;
         }
@@ -1347,7 +1825,7 @@
         if (!brick.dissipated && brick.revealedAt && now - brick.revealedAt >= this.gravitonLifetimeMs) {
           brick.active = false;
           brick.dissipated = true;
-          this.setComboMessage('Le graviton s’est dissipé…', 2800);
+          this.setComboMessage(GRAVITON_DISSIPATE_MESSAGE, GRAVITON_DISSIPATE_DURATION);
         }
       });
     }
@@ -1604,7 +2082,8 @@
         widthMultiplier: visuals.widthMultiplier || DEFAULT_POWER_UP_VISUAL.widthMultiplier
       };
       this.powerUps.push(powerUp);
-      this.setComboMessage(`Bonus: ${POWER_UP_LABELS[type]}`, 2400);
+      const label = POWER_UP_LABELS[type] || '';
+      this.setComboMessage(`${COMBO_BONUS_PREFIX}${label}`, COMBO_BONUS_DURATION);
     }
 
     checkPowerUpCatch(powerUp) {
@@ -1655,7 +2134,7 @@
     }
 
     captureGraviton() {
-      this.setComboMessage('Graviton capturé ! Ticket spécial +1', 3600);
+      this.setComboMessage(GRAVITON_CAPTURE_MESSAGE, GRAVITON_CAPTURE_DURATION);
       this.specialTicketsEarned += 1;
       if (this.onSpecialTicket) {
         this.onSpecialTicket(1);
@@ -1669,7 +2148,8 @@
         const reward = randomChoice(COMBO_POWER_UPS);
         if (reward) {
           this.activatePowerUp(reward);
-          this.setComboMessage(`Combo quark ! ${POWER_UP_LABELS[reward]}`, 3200);
+          const label = POWER_UP_LABELS[reward] || '';
+          this.setComboMessage(`${COMBO_QUARK_PREFIX}${label}`, COMBO_QUARK_DURATION);
         }
       }
     }
@@ -1677,19 +2157,18 @@
     registerComboChain(brick) {
       if (!brick) return;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      const threshold = 520;
-      if (now - this.lastBrickDestroyedAt <= threshold) {
+      if (now - this.lastBrickDestroyedAt <= COMBO_CHAIN_WINDOW_MS) {
         this.comboChainCount += 1;
       } else {
         this.comboChainCount = 1;
       }
       this.lastBrickDestroyedAt = now;
-      if (this.comboChainCount >= 3) {
+      if (this.comboChainCount >= COMBO_CHAIN_THRESHOLD) {
         this.triggerComboShockwave(brick, this.comboChainCount);
       }
     }
 
-    triggerComboShockwave(brick, chainCount = 3) {
+    triggerComboShockwave(brick, chainCount = COMBO_CHAIN_THRESHOLD) {
       if (!this.particleLayer) return;
       const doc = this.particleLayer.ownerDocument || (typeof document !== 'undefined' ? document : null);
       if (!doc) return;
@@ -1698,9 +2177,13 @@
       shockwave.className = 'arcade-shockwave';
       const centerX = ((brick.relX + brick.relWidth / 2) * 100).toFixed(2);
       const centerY = ((brick.relY + brick.relHeight / 2) * 100).toFixed(2);
-      const originalScale = 1.25 + Math.min(chainCount, 6) * 0.08;
+      const effectiveChains = Math.min(chainCount, COMBO_SHOCKWAVE.maxScaleChains);
+      const originalScale = COMBO_SHOCKWAVE.baseScale + effectiveChains * COMBO_SHOCKWAVE.scalePerChain;
       const scale = 1 + (originalScale - 1) * 0.5;
-      const opacity = Math.min(0.78 + chainCount * 0.03, 0.92) * 0.5;
+      const opacity = Math.min(
+        COMBO_SHOCKWAVE.baseOpacity + chainCount * COMBO_SHOCKWAVE.opacityPerChain,
+        COMBO_SHOCKWAVE.maxOpacity
+      ) * 0.5;
       shockwave.style.setProperty('--shockwave-x', `${centerX}%`);
       shockwave.style.setProperty('--shockwave-y', `${centerY}%`);
       shockwave.style.setProperty('--shockwave-scale', scale.toFixed(2));
@@ -1713,8 +2196,10 @@
         }
       };
       shockwave.addEventListener('animationend', removeShockwave);
-      setTimeout(removeShockwave, 640);
-      const originalIntensity = 1.02 + Math.min(chainCount, 5) * 0.005;
+      setTimeout(removeShockwave, COMBO_SHOCKWAVE.removeDelayMs);
+      const stagePulse = COMBO_SHOCKWAVE.stagePulse;
+      const effectivePulseChains = Math.min(chainCount, stagePulse.maxChains);
+      const originalIntensity = stagePulse.baseIntensity + effectivePulseChains * stagePulse.intensityPerChain;
       const intensity = 1 + (originalIntensity - 1) * 0.5;
       this.triggerScreenPulse(intensity);
     }
@@ -1735,7 +2220,7 @@
         if (this.stage) {
           this.stage.classList.remove('arcade-stage--pulse');
         }
-      }, 420);
+      }, COMBO_SHOCKWAVE.stagePulse.durationMs);
     }
 
     maybePulseForPowerUp(type) {
@@ -1754,14 +2239,14 @@
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const existing = this.effects.get(type);
       const effectConfig = POWER_UP_EFFECTS[type];
-      const duration = effectConfig?.duration || 8000;
+      const duration = effectConfig?.duration ?? 0;
       if (existing) {
         existing.expiresAt = now + duration;
-        existing.interval = effectConfig?.interval || existing.interval;
+        existing.interval = effectConfig?.interval ?? existing.interval;
       } else {
         const newEffect = {
           expiresAt: now + duration,
-          interval: effectConfig?.interval || LASER_INTERVAL_MS,
+          interval: effectConfig?.interval ?? LASER_INTERVAL_MS,
           cooldown: 0
         };
         this.effects.set(type, newEffect);
@@ -1775,7 +2260,10 @@
         case POWER_UP_IDS.EXTEND:
           {
             const previousWidth = this.paddle.width;
-            this.paddle.currentWidthRatio = Math.min(0.32, this.paddle.baseWidthRatio * 1.6);
+            this.paddle.currentWidthRatio = Math.min(
+              PADDLE_EXTEND_MAX_WIDTH_RATIO,
+              this.paddle.baseWidthRatio * PADDLE_EXTEND_MULTIPLIER
+            );
             this.updatePaddleSize();
             this.triggerPaddleStretchAnimation(previousWidth, this.paddle.width);
           }
@@ -1784,7 +2272,7 @@
           effect.cooldown = 0;
           break;
         case POWER_UP_IDS.SPEED:
-          this.ballSpeedMultiplier = 1.35;
+          this.ballSpeedMultiplier = POWER_UP_SPEED_MULTIPLIER;
           break;
         case POWER_UP_IDS.FLOOR:
           break;
@@ -1845,11 +2333,16 @@
           this.onTicketsEarned(reward, { level: completedLevel, score: this.score });
         }
       }
-      const rewardLabel = reward > 0 ? ` ${this.formatTicketLabel(reward)} obtenu !` : ' Aucun ticket cette fois.';
+      const rewardLabel = reward > 0
+        ? LEVEL_CLEARED_REWARD_TEMPLATE.replace('{reward}', this.formatTicketLabel(reward))
+        : LEVEL_CLEARED_NO_REWARD;
+      const message = LEVEL_CLEARED_TEMPLATE
+        .replace('{level}', completedLevel)
+        .replace('{reward}', rewardLabel);
       this.pendingLevelAdvance = true;
       this.showOverlay({
-        message: `Niveau ${completedLevel} terminé !${rewardLabel}`,
-        buttonLabel: 'Continuer',
+        message,
+        buttonLabel: LEVEL_CLEARED_BUTTON,
         action: 'next'
       });
     }
@@ -1861,8 +2354,8 @@
       if (this.lives > 0) {
         this.prepareServe();
         this.showOverlay({
-          message: 'Particule perdue ! Touchez la raquette pour continuer.',
-          buttonLabel: 'Reprendre',
+          message: LIFE_LOST_MESSAGE,
+          buttonLabel: LIFE_LOST_BUTTON,
           action: 'resume'
         });
       } else {
@@ -1878,11 +2371,13 @@
         ? ` · ${this.formatBonusTicketLabel(this.specialTicketsEarned)}`
         : '';
       const message = this.ticketsEarned > 0 || this.specialTicketsEarned > 0
-        ? `Partie terminée ! Tickets gagnés : ${ticketSummary}${bonusSummary}.`
-        : 'Partie terminée ! Aucun ticket gagné cette fois-ci.';
+        ? GAME_OVER_WITH_TICKETS
+            .replace('{tickets}', ticketSummary)
+            .replace('{bonus}', bonusSummary)
+        : GAME_OVER_WITHOUT_TICKETS;
       this.showOverlay({
         message,
-        buttonLabel: 'Rejouer',
+        buttonLabel: GAME_OVER_BUTTON,
         action: 'restart'
       });
     }
@@ -2012,8 +2507,8 @@
       this.handleResize();
       if (this.pendingResume && !this.isOverlayVisible()) {
         this.showOverlay({
-          message: 'Partie en pause. Touchez la raquette pour continuer.',
-          buttonLabel: 'Reprendre',
+          message: PAUSE_OVERLAY_MESSAGE,
+          buttonLabel: PAUSE_OVERLAY_BUTTON,
           action: 'resume'
         });
         this.pendingResume = false;
@@ -2158,7 +2653,10 @@
         ctx.fillRect(laser.x - laser.width / 2, laser.y - laser.height, laser.width, laser.height);
       });
 
-      const floorHeight = Math.max(12, this.height * 0.06);
+      const floorHeight = Math.max(
+        FLOOR_SHIELD_CONFIG.minHeightPx,
+        this.height * FLOOR_SHIELD_CONFIG.heightRatio
+      );
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       if (floorShieldActive) {

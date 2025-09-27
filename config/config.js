@@ -645,6 +645,414 @@ const GAME_CONFIG = {
   },
 
   /**
+   * Configuration des mini-jeux d'arcade.
+   * Chaque sous-objet contient l'équilibrage spécifique au jeu concerné
+   * (vitesses, probabilités, textes, etc.) afin de centraliser les réglages.
+   */
+  arcade: {
+    particules: {
+      ticketReward: 1,
+      grid: {
+        columns: 14,
+        rows: 6
+      },
+      maxLives: 3,
+      geometry: {
+        paddingX: 0.08,
+        paddingY: 0.04,
+        usableHeight: 0.46,
+        innerWidthRatio: 0.92,
+        innerHeightRatio: 0.68
+      },
+      paddle: {
+        baseWidthRatio: 0.18,
+        minWidthRatio: 0.12,
+        heightRatio: 0.025,
+        extend: {
+          maxWidthRatio: 0.32,
+          multiplier: 1.6
+        },
+        stretchDurationMs: 620,
+        bounceDurationMs: 260,
+        bounce: {
+          intensityBase: 0.28,
+          maxHeightRatio: 0.7
+        }
+      },
+      ball: {
+        radiusRatio: 0.015,
+        baseSpeedRatio: 1.9,
+        speedGrowthRatio: 0.15,
+        minSpeedPerMs: 0.25,
+        speedFactor: 0.0006,
+        followOffsetRatio: 1.6,
+        trail: {
+          minDistance: 2,
+          minDistanceFactor: 0.35,
+          captureIntervalMs: 18,
+          maxPoints: 12,
+          pruneMs: 260
+        },
+        ghost: {
+          intervalMs: 68,
+          blurFactor: 1.4,
+          removeDelayMs: 360
+        }
+      },
+      graviton: {
+        lifetimeMs: 10000,
+        spawnChance: {
+          base: 0.05,
+          perLevel: 0.015,
+          min: 0.05,
+          max: 0.18
+        },
+        detectionMessage: 'Graviton détecté !',
+        detectionMessageDurationMs: 2600,
+        dissipateMessage: 'Le graviton s’est dissipé…',
+        dissipateMessageDurationMs: 2800,
+        captureMessage: 'Graviton capturé ! Ticket spécial +1',
+        captureMessageDurationMs: 3600
+      },
+      combos: {
+        requiredColors: ['red', 'green', 'blue'],
+        powerUpRewards: ['laser', 'extend', 'multiball'],
+        chainThreshold: 3,
+        bonusMessagePrefix: 'Bonus: ',
+        bonusMessageDurationMs: 2400,
+        quarkMessagePrefix: 'Combo quark ! ',
+        quarkMessageDurationMs: 3200,
+        chainWindowMs: 520,
+        shockwave: {
+          baseScale: 1.25,
+          scalePerChain: 0.08,
+          maxScaleChains: 6,
+          baseOpacity: 0.78,
+          opacityPerChain: 0.03,
+          maxOpacity: 0.92,
+          removeDelayMs: 640,
+          stagePulse: {
+            baseIntensity: 1.02,
+            intensityPerChain: 0.005,
+            maxChains: 5,
+            durationMs: 420
+          }
+        }
+      },
+      powerUps: {
+        ids: {
+          extend: 'extend',
+          multiball: 'multiball',
+          laser: 'laser',
+          speed: 'speed',
+          floor: 'floor'
+        },
+        fallSpeedRatio: 0.00042,
+        laserSpeedRatio: -0.0026,
+        laserIntervalMs: 420,
+        labels: {
+          extend: 'Barre allongée',
+          multiball: 'Multiballe',
+          laser: 'Tir laser',
+          speed: 'Accélération',
+          floor: 'Bouclier inférieur'
+        },
+        visuals: {
+          default: {
+            symbol: 'P',
+            gradient: ['#ffffff', '#a6d8ff'],
+            textColor: '#041022',
+            glow: 'rgba(140, 210, 255, 0.45)',
+            border: 'rgba(255, 255, 255, 0.5)',
+            widthMultiplier: 1.45
+          },
+          extend: {
+            symbol: 'L',
+            gradient: ['#66f4ff', '#2c9cff'],
+            textColor: '#041222',
+            glow: 'rgba(110, 220, 255, 0.55)',
+            border: 'rgba(255, 255, 255, 0.65)',
+            widthMultiplier: 1.5
+          },
+          multiball: {
+            symbol: 'M',
+            gradient: ['#ffe066', '#ff7b6b'],
+            textColor: '#241104',
+            glow: 'rgba(255, 160, 110, 0.55)',
+            border: 'rgba(255, 255, 255, 0.6)',
+            widthMultiplier: 1.6
+          },
+          laser: {
+            symbol: 'T',
+            gradient: ['#ff96c7', '#ff4d9a'],
+            textColor: '#36001a',
+            glow: 'rgba(255, 120, 190, 0.55)',
+            border: 'rgba(255, 255, 255, 0.55)',
+            widthMultiplier: 1.45
+          },
+          speed: {
+            symbol: 'S',
+            gradient: ['#9d7bff', '#4f3bff'],
+            textColor: '#1a083a',
+            glow: 'rgba(160, 140, 255, 0.52)',
+            border: 'rgba(255, 255, 255, 0.55)',
+            widthMultiplier: 1.45
+          },
+          floor: {
+            symbol: 'F',
+            gradient: ['#6ef7a6', '#1ec37a'],
+            textColor: '#052615',
+            glow: 'rgba(90, 240, 180, 0.55)',
+            border: 'rgba(255, 255, 255, 0.55)',
+            widthMultiplier: 1.55
+          }
+        },
+        pulseIntensity: {
+          multiball: 1.06,
+          extend: 1.04,
+          floor: 1.05
+        },
+        effects: {
+          extend: { durationMs: 12000 },
+          laser: { durationMs: 9000 },
+          speed: { durationMs: 8000, speedMultiplier: 1.35 },
+          floor: { durationMs: 10000 }
+        },
+        floorShield: {
+          heightRatio: 0.06,
+          minHeightPx: 12
+        }
+      },
+      bricks: {
+        types: {
+          simple: 'simple',
+          resistant: 'resistant',
+          bonus: 'bonus',
+          graviton: 'graviton'
+        },
+        scoreValues: {
+          simple: 120,
+          resistant: 200,
+          bonus: 160,
+          graviton: 420
+        },
+        bonusDistribution: {
+          targetedPatternRatio: 0.32,
+          otherPatternRatio: 0.22,
+          perLevelIncrement: 0.01,
+          minRatio: 0.18,
+          maxRatio: 0.42
+        },
+        patterns: [
+          { id: 'organic', weight: 0.25 },
+          { id: 'singleGap', weight: 0.1 },
+          { id: 'multiGap', weight: 0.1 },
+          { id: 'singleBrick', weight: 0.01 },
+          { id: 'singleLine', weight: 0.1 },
+          { id: 'bottomUniform', weight: 0.1 },
+          { id: 'uniformLines', weight: 0.1 },
+          { id: 'checkerboard', weight: 0.12 },
+          { id: 'diagonals', weight: 0.12 }
+        ],
+        organic: {
+          baseFillStart: 0.55,
+          baseFillGrowth: 0.02,
+          minFill: 0.55,
+          maxFill: 0.82,
+          depthBiasMax: 0.18,
+          variability: 0.12,
+          minProbability: 0.35,
+          maxProbability: 0.92
+        },
+        singleGap: {
+          removeRowChance: 0.5
+        },
+        multiGap: {
+          removeRowChance: 0.75,
+          removeColumnChance: 0.65,
+          minEmptyRows: 2,
+          maxEmptyRows: 3,
+          minEmptyCols: 2,
+          maxEmptyCols: 4
+        },
+        uniform: {
+          fullRowChance: 0.25
+        },
+        checkerboard: {
+          extraFillChance: 0.45
+        },
+        diagonals: {
+          extraFillChance: 0.4
+        },
+        brickTypeWeights: {
+          base: {
+            simple: 0.6,
+            resistant: 0.26,
+            bonus: 0.14
+          },
+          levelFactor: {
+            step: 0.015,
+            simple: -0.25,
+            resistant: 0.55,
+            bonus: 0.2,
+            max: 0.2
+          }
+        }
+      },
+      particles: {
+        simple: [
+          {
+            id: 'quarkRed',
+            family: 'quark',
+            quarkColor: 'red',
+            colors: ['#ff4d6a', '#ff859b'],
+            symbol: 'qᵣ',
+            symbolColor: '#fff'
+          },
+          {
+            id: 'quarkGreen',
+            family: 'quark',
+            quarkColor: 'green',
+            colors: ['#45c77b', '#7ae0a4'],
+            symbol: 'qᵍ',
+            symbolColor: '#08291a'
+          },
+          {
+            id: 'quarkBlue',
+            family: 'quark',
+            quarkColor: 'blue',
+            colors: ['#4f7bff', '#87a7ff'],
+            symbol: 'qᵇ',
+            symbolColor: '#0c163a'
+          },
+          {
+            id: 'electron',
+            family: 'lepton',
+            colors: ['#dadfea', '#f5f6fb'],
+            symbol: 'e⁻',
+            symbolColor: '#1c2136'
+          },
+          {
+            id: 'muon',
+            family: 'lepton',
+            colors: ['#cbbdfd', '#e6deff'],
+            symbol: 'μ',
+            symbolColor: '#2c1446'
+          },
+          {
+            id: 'neutrino',
+            family: 'lepton',
+            colors: ['#bfc5cc', '#e0e4e8'],
+            symbol: 'ν',
+            symbolColor: '#222733'
+          }
+        ],
+        resistant: [
+          {
+            id: 'photon',
+            family: 'boson',
+            colors: ['#ffd447', '#ffb347'],
+            symbol: 'γ',
+            symbolColor: '#3e2500',
+            minHits: 2,
+            maxHits: 2
+          },
+          {
+            id: 'gluon',
+            family: 'boson',
+            colors: ['#14151c', '#2c2e36'],
+            symbol: 'g',
+            symbolColor: '#9fa5ff',
+            minHits: 3,
+            maxHits: 3
+          },
+          {
+            id: 'wz',
+            family: 'boson',
+            colors: ['#a874ff', '#7c4dff'],
+            symbol: 'w/z',
+            symbolColor: '#f6f1ff',
+            symbolScale: 0.85,
+            minHits: 2,
+            maxHits: 3
+          },
+          {
+            id: 'higgs',
+            family: 'boson',
+            colors: ['#ffe680', '#f7c948'],
+            symbol: 'H⁰',
+            symbolColor: '#4d3100',
+            minHits: 3,
+            maxHits: 3
+          }
+        ],
+        bonus: [
+          {
+            id: 'positron',
+            family: 'lepton',
+            colors: ['#f6f6ff', '#dcdcf9'],
+            symbol: 'e⁺',
+            symbolColor: '#312a5c'
+          },
+          {
+            id: 'tau',
+            family: 'lepton',
+            colors: ['#b89bff', '#d9c9ff'],
+            symbol: 'τ',
+            symbolColor: '#1f0b45'
+          },
+          {
+            id: 'sterileNeutrino',
+            family: 'lepton',
+            colors: ['#c3c7d4', '#eff1f6'],
+            symbol: 'νₛ',
+            symbolColor: '#1f2535'
+          }
+        ],
+        graviton: {
+          id: 'graviton',
+          family: 'graviton',
+          colors: ['#ff6ec7', '#7afcff', '#ffe45e', '#9d4edd'],
+          symbol: 'G*',
+          symbolColor: '#ffffff'
+        }
+      },
+      ui: {
+        start: {
+          message:
+            'Touchez ou cliquez la raquette pour guider la particule et détruire les briques quantiques.',
+          buttonLabel: 'Commencer'
+        },
+        pause: {
+          message: 'Partie en pause. Touchez la raquette pour continuer.',
+          buttonLabel: 'Reprendre'
+        },
+        lifeLost: {
+          message: 'Particule perdue ! Touchez la raquette pour continuer.',
+          buttonLabel: 'Reprendre'
+        },
+        levelCleared: {
+          template: 'Niveau {level} terminé !{reward}',
+          buttonLabel: 'Continuer',
+          rewardTemplate: ' {reward} obtenu !',
+          noReward: ' Aucun ticket cette fois.'
+        },
+        gameOver: {
+          withTickets: 'Partie terminée ! Tickets gagnés : {tickets}{bonus}.',
+          withoutTickets: 'Partie terminée ! Aucun ticket gagné cette fois-ci.',
+          buttonLabel: 'Rejouer'
+        },
+        hud: {
+          ticketSingular: 'ticket',
+          ticketPlural: 'tickets',
+          bonusTicketSingular: 'ticket Bonus Particules',
+          bonusTicketPlural: 'tickets Bonus Particules'
+        }
+      }
+    }
+  },
+
+  /**
    * Ordre d'affichage des étapes de calcul des productions dans l'onglet Infos.
    * Chaque entrée correspond à un identifiant d'étape connu du jeu. La liste
    * peut être réorganisée ou complétée pour s'adapter à de futurs bonus.
