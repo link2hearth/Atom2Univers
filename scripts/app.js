@@ -3661,20 +3661,6 @@ let apsCritPulseTimeoutId = null;
 
 const APS_CRIT_TIMER_EPSILON = 1e-3;
 
-function hasActiveApsCritEffect(state = ensureApsCritState()) {
-  if (!state || !Array.isArray(state.effects) || !state.effects.length) {
-    return false;
-  }
-  return state.effects.some(effect => {
-    if (!effect) {
-      return false;
-    }
-    const remaining = Number(effect.remainingSeconds) || 0;
-    const value = Number(effect.multiplierAdd) || 0;
-    return remaining > APS_CRIT_TIMER_EPSILON && value > 0;
-  });
-}
-
 function updateApsCritTimer(deltaSeconds) {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
     return;
@@ -6761,8 +6747,9 @@ function updateApsCritDisplay() {
     return;
   }
   const state = ensureApsCritState();
-  const isActive = hasActiveApsCritEffect(state);
-  const remainingSeconds = isActive ? getApsCritRemainingSeconds(state) : 0;
+  const remainingSeconds = getApsCritRemainingSeconds(state);
+  const multiplierValue = getApsCritMultiplier(state);
+  const isActive = remainingSeconds > APS_CRIT_TIMER_EPSILON && multiplierValue > 1;
   panel.hidden = !isActive;
   panel.classList.toggle('is-active', isActive);
   panel.setAttribute('aria-hidden', String(!isActive));
@@ -6775,8 +6762,8 @@ function updateApsCritDisplay() {
   if (elements.statusApsCritChrono) {
     elements.statusApsCritChrono.textContent = chronoText;
   }
-  const multiplierValue = isActive ? getApsCritMultiplier(state) : 1;
-  const multiplierText = `×${multiplierValue.toLocaleString('fr-FR')}`;
+  const displayMultiplier = isActive ? multiplierValue : 1;
+  const multiplierText = `×${displayMultiplier.toLocaleString('fr-FR')}`;
   if (elements.statusApsCritMultiplier) {
     elements.statusApsCritMultiplier.textContent = multiplierText;
   }
