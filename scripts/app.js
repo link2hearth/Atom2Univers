@@ -1773,10 +1773,20 @@ const soundEffects = (() => {
   const popPool = createSoundPool(POP_SOUND_SRC, 6);
   const critPool = createSoundPool(POP_SOUND_SRC, 3);
 
-  return {
+  const fallbackEffects = {
     pop: { play: () => popPool.play(1) },
     crit: { play: () => critPool.play(CRIT_PLAYBACK_RATE) }
   };
+
+  if (typeof window !== 'undefined' && window.SoundDesignerBridge && typeof window.SoundDesignerBridge.createSoundEffects === 'function') {
+    try {
+      return window.SoundDesignerBridge.createSoundEffects(fallbackEffects);
+    } catch (error) {
+      // If the sound designer bridge fails we still fallback to audio pools.
+    }
+  }
+
+  return fallbackEffects;
 })();
 
 const musicPlayer = (() => {
