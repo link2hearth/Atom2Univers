@@ -592,6 +592,7 @@
 
   renderPresetList();
   resetForm();
+  closeOverlay();
 
   if (statusElement) {
     statusElement.textContent = window.Tone && window.Tone.isSupported !== false
