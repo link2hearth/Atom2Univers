@@ -1588,8 +1588,8 @@ function updateArcadeTicketDisplay() {
     elements.arcadeBonusTicketValue.textContent = bonusCount.toLocaleString('fr-FR');
   }
   if (elements.arcadeBonusTicketDisplay) {
-    elements.arcadeBonusTicketDisplay.title = `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`;
-    elements.arcadeBonusTicketDisplay.setAttribute('aria-label', `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`);
+    elements.arcadeBonusTicketDisplay.title = `Mach3 : ${formatBonusTicketLabel(bonusCount)}`;
+    elements.arcadeBonusTicketDisplay.setAttribute('aria-label', `Mach3 : ${formatBonusTicketLabel(bonusCount)}`);
   }
   updateMetauxCreditsUI();
 }
@@ -1621,17 +1621,17 @@ function updateMetauxCreditsUI() {
   const available = getMetauxCreditCount();
   const active = isMetauxSessionRunning();
   if (elements.metauxNewGameCredits) {
-    elements.metauxNewGameCredits.textContent = `Bonus Particules : ${formatMetauxCreditLabel(available)}`;
+    elements.metauxNewGameCredits.textContent = `Mach3 : ${formatMetauxCreditLabel(available)}`;
   }
   if (elements.metauxNewGameButton) {
     const canStart = available > 0 && !active;
     elements.metauxNewGameButton.disabled = !canStart;
     elements.metauxNewGameButton.setAttribute('aria-disabled', canStart ? 'false' : 'true');
     const tooltip = canStart
-      ? `Consomme 1 crédit Bonus Particules (restant : ${formatMetauxCreditLabel(available)}).`
+      ? `Consomme 1 crédit Mach3 (restant : ${formatMetauxCreditLabel(available)}).`
       : available > 0
         ? 'Partie en cours… Terminez-la avant de relancer.'
-        : 'Aucun crédit Bonus Particules disponible. Jouez à Particules pour en gagner.';
+        : 'Aucun crédit Mach3 disponible. Jouez à Atom2Univers pour en gagner.';
     elements.metauxNewGameButton.title = tooltip;
     elements.metauxNewGameButton.setAttribute('aria-label', `${available > 0 ? 'Nouvelle partie' : 'Crédit indisponible'} — ${tooltip}`);
   }
@@ -1642,7 +1642,7 @@ function updateMetauxCreditsUI() {
     } else if (available > 0) {
       statusText = `Crédits disponibles : ${formatMetauxCreditLabel(available)}.`;
     } else {
-      statusText = 'Aucun crédit Bonus Particules disponible. Jouez à Particules pour en gagner.';
+      statusText = 'Aucun crédit Mach3 disponible. Jouez à Atom2Univers pour en gagner.';
     }
     elements.metauxCreditStatus.textContent = statusText;
     elements.metauxCreditStatus.hidden = false;
@@ -4540,7 +4540,7 @@ if (elements.metauxNewGameButton) {
       return;
     }
     if (credits <= 0) {
-      showToast('Aucun crédit Bonus Particules disponible.');
+      showToast('Aucun crédit Mach3 disponible.');
       updateMetauxCreditsUI();
       return;
     }

@@ -1669,7 +1669,7 @@ function formatTicketLabel(count) {
 function formatBonusTicketLabel(count) {
   const numeric = Math.max(0, Math.floor(Number(count) || 0));
   const formatted = numeric.toLocaleString('fr-FR');
-  const unit = numeric === 1 ? 'ticket Bonus Particules' : 'tickets Bonus Particules';
+  const unit = numeric === 1 ? 'ticket Mach3' : 'tickets Mach3';
   return `${formatted} ${unit}`;
 }
 

@@ -570,11 +570,11 @@ main {
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
-  --arcade-padding-x: clamp(0.8rem, 2vw, 1.2rem);
-  --arcade-padding-top: clamp(0rem, 0.2vw, 0.15rem);
-  --arcade-padding-bottom: clamp(1rem, 2.8vw, 1.6rem);
-  --arcade-stage-spacing: clamp(0.25rem, 1.4vh, 0.8rem);
-  --arcade-header-height: clamp(2.9rem, 5.5vh, 3.8rem);
+  --arcade-padding-x: clamp(0.5rem, 1.4vw, 0.82rem);
+  --arcade-padding-top: clamp(0rem, 0.12vw, 0.08rem);
+  --arcade-padding-bottom: clamp(0.55rem, 1.8vw, 0.9rem);
+  --arcade-stage-spacing: clamp(0.15rem, 0.9vh, 0.45rem);
+  --arcade-header-height: clamp(1.6rem, 3.2vh, 2.1rem);
   --arcade-vertical-offset: calc(
     var(--arcade-padding-top) + var(--arcade-padding-bottom) + var(--arcade-stage-spacing) * 2 + var(--arcade-header-height)
   );
@@ -593,32 +593,49 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(0.5rem, 1.4vw, 1rem);
+  gap: clamp(0.28rem, 0.77vw, 0.55rem);
   min-height: var(--arcade-header-height);
-  padding: clamp(0.4rem, 1.1vw, 0.7rem) clamp(0.7rem, 1.6vw, 1rem);
-  border-radius: 1rem;
+  padding: clamp(0.24rem, 0.7vw, 0.45rem) clamp(0.4rem, 1vw, 0.6rem);
+  border-radius: 0.85rem;
   background: linear-gradient(140deg, rgba(18, 24, 56, 0.78), rgba(8, 12, 34, 0.82));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 28px rgba(6, 10, 32, 0.32);
+  box-shadow: 0 8px 20px rgba(6, 10, 32, 0.28);
 }
 
 .arcade-header__brand {
   flex-shrink: 0;
-  padding-inline: clamp(0.78rem, 1.6vw, 1.3rem);
-  padding-block: clamp(0.46rem, 1.05vw, 0.78rem);
+  padding-inline: clamp(0.42rem, 0.88vw, 0.72rem);
+  padding-block: clamp(0.25rem, 0.58vw, 0.43rem);
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  font-size: clamp(0.95rem, 2.1vw, 1.3rem);
+  font-size: clamp(0.55rem, 1.15vw, 0.72rem);
   letter-spacing: 0.1em;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.arcade-header__brand--primary {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.arcade-header__brand-text {
+  display: inline-block;
+  background: linear-gradient(120deg, #ffd166, #ff8ba7, #70d6ff, #caffbf, #bdb2ff, #ffd166);
+  background-size: 240% 240%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: statusMainSheen 8s linear infinite;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.28);
 }
 
 .arcade-header__status-group {
   display: flex;
   align-items: stretch;
-  gap: clamp(0.5rem, 1.1vw, 0.85rem);
+  gap: clamp(0.28rem, 0.77vw, 0.55rem);
 }
 
 .arcade-header__brand:hover,
@@ -659,8 +676,8 @@ main {
   font-family: 'Orbitron', 'Inter', sans-serif;
   display: inline-flex;
   align-items: baseline;
-  gap: clamp(0.45rem, 1vw, 0.85rem);
-  padding: clamp(0.55rem, 1.1vw, 0.95rem) clamp(0.95rem, 1.6vw, 1.35rem);
+  gap: clamp(0.26rem, 0.68vw, 0.45rem);
+  padding: clamp(0.3rem, 0.6vw, 0.53rem) clamp(0.52rem, 0.88vw, 0.74rem);
   border-radius: 1.2rem;
   cursor: pointer;
   letter-spacing: 0.08em;
@@ -675,7 +692,7 @@ main {
 }
 
 .arcade-header__status--info .arcade-header__status-value {
-  font-size: clamp(0.95rem, 1.8vw, 1.3rem);
+  font-size: clamp(0.53rem, 0.99vw, 0.72rem);
 }
 
 .arcade-header__status:hover,
@@ -690,12 +707,12 @@ main {
 }
 
 .arcade-header__status-label {
-  font-size: clamp(0.66rem, 1vw, 0.85rem);
+  font-size: clamp(0.36rem, 0.55vw, 0.47rem);
   opacity: 0.78;
 }
 
 .arcade-header__status-value {
-  font-size: clamp(1.1rem, 2.1vw, 1.52rem);
+  font-size: clamp(0.62rem, 1.15vw, 0.84rem);
   font-weight: 700;
   letter-spacing: 0.08em;
 }

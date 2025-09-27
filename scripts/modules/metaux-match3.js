@@ -810,7 +810,7 @@ class MetauxMatch3Game {
   enterIdleState(options = {}) {
     const message = Object.prototype.hasOwnProperty.call(options, 'message')
       ? options.message
-      : 'Utilisez un crédit Bonus Particules pour lancer une nouvelle partie.';
+      : 'Utilisez un crédit Mach3 pour lancer une nouvelle partie.';
     this.pauseTimer();
     this.clearDragState();
     this.processing = false;

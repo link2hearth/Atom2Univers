@@ -1084,8 +1084,8 @@ const GAME_CONFIG = {
         hud: {
           ticketSingular: 'ticket',
           ticketPlural: 'tickets',
-          bonusTicketSingular: 'ticket Bonus Particules',
-          bonusTicketPlural: 'tickets Bonus Particules'
+          bonusTicketSingular: 'ticket Mach3',
+          bonusTicketPlural: 'tickets Mach3'
         }
       }
     }
