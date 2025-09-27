@@ -1404,7 +1404,6 @@
       const brickHeight = brick.relHeight * rect.height;
       const brickCenterX = brickLeft + brickWidth / 2;
       const brickCenterY = brickTop + brickHeight / 2;
-      const distanceToBottom = Math.max(60, rect.height - brickCenterY);
       const baseCount = Math.max(14, Math.round(18 + Math.random() * 10));
       const maxHorizontalScatter = Math.min(rect.width * 0.2, 180);
 
@@ -1430,13 +1429,8 @@
         const burstAngle = Math.random() * Math.PI * 2;
         const burstX = clamp(Math.cos(burstAngle) * burstRadius, -maxHorizontalScatter, maxHorizontalScatter);
         const burstY = -Math.abs(Math.sin(burstAngle)) * (burstRadius * 0.82 + Math.random() * 34) - (16 + Math.random() * 28);
-        const sway = (Math.random() - 0.5) * burstRadius * 0.45;
-        const fallDistance = Math.min(rect.height * 0.95, Math.max(140, distanceToBottom * (0.65 + Math.random() * 0.55) + 90));
-        const finalDx = clamp(burstX * (0.35 + Math.random() * 0.4) + sway, -maxHorizontalScatter * 1.3, maxHorizontalScatter * 1.3);
         particle.style.setProperty('--arcade-particle-burst-x', `${burstX.toFixed(2)}px`);
         particle.style.setProperty('--arcade-particle-burst-y', `${burstY.toFixed(2)}px`);
-        particle.style.setProperty('--arcade-particle-dx', `${(burstX + finalDx).toFixed(2)}px`);
-        particle.style.setProperty('--arcade-particle-dy', `${fallDistance.toFixed(2)}px`);
         const scaleStart = 0.6 + Math.random() * 0.4;
         const peakScale = scaleStart + 0.3 + Math.random() * 0.25;
         const scaleEnd = 0.35 + Math.random() * 0.25;
@@ -1444,8 +1438,8 @@
         particle.style.setProperty('--arcade-particle-scale-peak', peakScale.toFixed(2));
         particle.style.setProperty('--arcade-particle-scale-end', scaleEnd.toFixed(2));
         particle.style.setProperty('--arcade-particle-rotation', `${((Math.random() - 0.5) * 220).toFixed(1)}deg`);
-        const duration = 2000 + Math.random() * 720;
-        particle.style.setProperty('--arcade-particle-duration', `${duration.toFixed(0)}ms`);
+        const duration = 1500;
+        particle.style.setProperty('--arcade-particle-duration', `${duration}ms`);
         particle.style.animationDelay = `${Math.random() * 130}ms`;
         const removeParticle = () => {
           particle.removeEventListener('animationend', removeParticle);

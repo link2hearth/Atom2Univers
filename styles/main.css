@@ -866,17 +866,17 @@ body.theme-neon .arcade-header__status--info {
   mix-blend-mode: screen;
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1));
-  animation: arcade-particle-fall var(--arcade-particle-duration, 2s)
+  animation: arcade-particle-burst var(--arcade-particle-duration, 1.5s)
     cubic-bezier(0.18, 0.58, 0.28, 1) forwards;
 }
 
-@keyframes arcade-particle-fall {
+@keyframes arcade-particle-burst {
   0% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1))
       rotate(var(--arcade-particle-rotation, 35deg));
   }
-  35% {
+  45% {
     opacity: 1;
     transform: translate3d(
         var(--arcade-particle-burst-x, 0px),
@@ -886,14 +886,25 @@ body.theme-neon .arcade-header__status--info {
       scale(var(--arcade-particle-scale-peak, 1.15))
       rotate(var(--arcade-particle-rotation, 35deg));
   }
-  60% {
-    opacity: 0.92;
+  70% {
+    opacity: 0.9;
+    transform: translate3d(
+        var(--arcade-particle-burst-x, 0px),
+        var(--arcade-particle-burst-y, -80px),
+        0
+      )
+      scale(
+        calc(
+          (var(--arcade-particle-scale-peak, 1.15) + var(--arcade-particle-scale-end, 0.45)) / 2
+        )
+      )
+      rotate(var(--arcade-particle-rotation, 35deg));
   }
   100% {
     opacity: 0;
     transform: translate3d(
-        var(--arcade-particle-dx, 0px),
-        var(--arcade-particle-dy, 140px),
+        var(--arcade-particle-burst-x, 0px),
+        var(--arcade-particle-burst-y, -80px),
         0
       )
       scale(var(--arcade-particle-scale-end, 0.45))
