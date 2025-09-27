@@ -1603,6 +1603,7 @@ const elements = {
   statusApsCrit: document.getElementById('statusApsCrit'),
   statusApsCritChrono: document.getElementById('statusApsCritChrono'),
   statusApsCritMultiplier: document.getElementById('statusApsCritMultiplier'),
+  statusApsCritSeparator: document.querySelector('.status-aps-crit-separator'),
   statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
@@ -3660,20 +3661,6 @@ let toastElement = null;
 let apsCritPulseTimeoutId = null;
 
 const APS_CRIT_TIMER_EPSILON = 1e-3;
-
-function hasActiveApsCritEffect(state = ensureApsCritState()) {
-  if (!state || !Array.isArray(state.effects) || !state.effects.length) {
-    return false;
-  }
-  return state.effects.some(effect => {
-    if (!effect) {
-      return false;
-    }
-    const remaining = Number(effect.remainingSeconds) || 0;
-    const value = Number(effect.multiplierAdd) || 0;
-    return remaining > APS_CRIT_TIMER_EPSILON && value > 0;
-  });
-}
 
 function updateApsCritTimer(deltaSeconds) {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
@@ -6761,24 +6748,34 @@ function updateApsCritDisplay() {
     return;
   }
   const state = ensureApsCritState();
-  const isActive = hasActiveApsCritEffect(state);
-  const remainingSeconds = isActive ? getApsCritRemainingSeconds(state) : 0;
+  const remainingSeconds = getApsCritRemainingSeconds(state);
+  const multiplierValue = getApsCritMultiplier(state);
+  const isActive = remainingSeconds > APS_CRIT_TIMER_EPSILON && multiplierValue > 1;
   panel.hidden = !isActive;
+  panel.style.display = isActive ? '' : 'none';
   panel.classList.toggle('is-active', isActive);
   panel.setAttribute('aria-hidden', String(!isActive));
   const container = panel.closest('.status-item--crit-aps');
   if (container) {
     container.hidden = !isActive;
+    container.style.display = isActive ? '' : 'none';
     container.setAttribute('aria-hidden', String(!isActive));
+  }
+  if (elements.statusApsCritSeparator) {
+    elements.statusApsCritSeparator.hidden = !isActive;
   }
   const chronoText = isActive ? formatApsCritChrono(remainingSeconds) : '';
   if (elements.statusApsCritChrono) {
     elements.statusApsCritChrono.textContent = chronoText;
+    elements.statusApsCritChrono.hidden = !isActive;
+    elements.statusApsCritChrono.setAttribute('aria-hidden', String(!isActive));
   }
-  const multiplierValue = isActive ? getApsCritMultiplier(state) : 1;
   const multiplierText = `×${multiplierValue.toLocaleString('fr-FR')}`;
+  const multiplierDisplayText = isActive ? multiplierText : '';
   if (elements.statusApsCritMultiplier) {
-    elements.statusApsCritMultiplier.textContent = multiplierText;
+    elements.statusApsCritMultiplier.textContent = multiplierDisplayText;
+    elements.statusApsCritMultiplier.hidden = !isActive;
+    elements.statusApsCritMultiplier.setAttribute('aria-hidden', String(!isActive));
   }
   panel.setAttribute(
     'aria-label',
