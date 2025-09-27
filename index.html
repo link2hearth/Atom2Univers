@@ -142,8 +142,12 @@
 
     <section id="arcade" class="page page--arcade" aria-label="Particules" hidden>
       <header class="arcade-header" aria-label="Navigation du jeu Particules">
-        <button class="arcade-header__brand brand brand-button" id="arcadeReturnButton" type="button">
-          Particules
+        <button
+          class="arcade-header__brand brand brand-button arcade-header__brand--primary"
+          id="arcadeReturnButton"
+          type="button"
+        >
+          <span class="arcade-header__brand-text">Atom2Univers</span>
         </button>
         <div class="arcade-header__status-group" role="presentation">
           <button class="arcade-header__status" id="arcadeTicketButton" type="button">
@@ -151,7 +155,7 @@
             <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
           </button>
           <div class="arcade-header__status arcade-header__status--info" id="arcadeBonusTicketDisplay" role="status" aria-live="polite">
-            <span class="arcade-header__status-label">Bonus Particules</span>
+            <span class="arcade-header__status-label">Mach3</span>
             <span class="arcade-header__status-value" id="arcadeBonusTicketValue">0</span>
           </div>
         </div>
@@ -428,7 +432,7 @@
               <div class="metaux-end-screen__actions">
                 <button type="button" id="metauxNewGameButton" class="metaux-end-screen__button">
                   Nouvelle partie
-                  <span id="metauxNewGameCredits" class="metaux-end-screen__button-note">Bonus Particules : 0</span>
+                  <span id="metauxNewGameCredits" class="metaux-end-screen__button-note">Mach3 : 0</span>
                 </button>
                 <button
                   type="button"

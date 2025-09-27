@@ -552,8 +552,8 @@
     hud: {
       ticketSingular: readString(uiHudConfig.ticketSingular, 'ticket'),
       ticketPlural: readString(uiHudConfig.ticketPlural, 'tickets'),
-      bonusTicketSingular: readString(uiHudConfig.bonusTicketSingular, 'ticket Bonus Particules'),
-      bonusTicketPlural: readString(uiHudConfig.bonusTicketPlural, 'tickets Bonus Particules')
+      bonusTicketSingular: readString(uiHudConfig.bonusTicketSingular, 'ticket Mach3'),
+      bonusTicketPlural: readString(uiHudConfig.bonusTicketPlural, 'tickets Mach3')
     }
   };
 
