@@ -825,6 +825,37 @@ body.theme-neon .arcade-header__status--info {
   overflow: hidden;
 }
 
+.arcade-ball-ghost {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(160, 220, 255, 0.18) 55%, rgba(80, 140, 255, 0));
+  mix-blend-mode: screen;
+  box-shadow: 0 0 var(--arcade-ball-ghost-blur, 12px) rgba(140, 210, 255, 0.65);
+  opacity: 0.7;
+  animation: arcade-ball-ghost-fade 260ms ease-out forwards;
+}
+
+.arcade-ball-ghost::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(200, 240, 255, 0.25), rgba(100, 180, 255, 0));
+  filter: blur(2px);
+  opacity: 0.6;
+}
+
+.arcade-ball-ghost::before {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  filter: blur(1px);
+  opacity: 0.7;
+}
+
 .arcade-particle {
   position: absolute;
   width: 5px;
@@ -856,6 +887,17 @@ body.theme-neon .arcade-header__status--info {
       )
       scale(var(--arcade-particle-scale-end, 0.45))
       rotate(var(--arcade-particle-rotation, 35deg));
+  }
+}
+
+@keyframes arcade-ball-ghost-fade {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
   }
 }
 
