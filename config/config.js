@@ -741,10 +741,10 @@ const GAME_CONFIG = {
       graviton: {
         lifetimeMs: 10000,
         spawnChance: {
-          base: 0.05,
-          perLevel: 0.015,
-          min: 0.05,
-          max: 0.18
+          base: 0.15,
+          perLevel: 0.05,
+          min: 0.15,
+          max: 0.5
         },
         detectionMessage: 'Graviton détecté !',
         detectionMessageDurationMs: 2600,
@@ -752,6 +752,13 @@ const GAME_CONFIG = {
         dissipateMessageDurationMs: 2800,
         captureMessage: 'Graviton capturé ! Ticket spécial +1',
         captureMessageDurationMs: 3600
+      },
+      lingerBonus: {
+        thresholdMs: 20000,
+        intervalMs: 1000,
+        chance: 0.1,
+        message: 'Multiballe bonus !',
+        messageDurationMs: 2400
       },
       combos: {
         requiredColors: ['red', 'green', 'blue'],
