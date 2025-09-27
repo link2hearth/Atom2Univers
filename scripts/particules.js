@@ -28,6 +28,7 @@
   const LASER_SPEED_RATIO = -0.0026;
   const LASER_INTERVAL_MS = 420;
   const PADDLE_STRETCH_DURATION_MS = 620;
+  const PADDLE_BOUNCE_DURATION_MS = 260;
 
   const createCubicBezierEasing = (p1x, p1y, p2x, p2y) => {
     const cx = 3 * p1x;
@@ -385,6 +386,7 @@
       this.ballSpeedMultiplier = 1;
       this.gravitonLifetimeMs = GRAVITON_LIFETIME_MS;
       this.paddleStretchAnimation = null;
+      this.paddleBounceAnimation = null;
       this.comboChainCount = 0;
       this.lastBrickDestroyedAt = 0;
       this.stagePulseTimeout = null;
@@ -457,6 +459,7 @@
         clearTimeout(this.stagePulseTimeout);
         this.stagePulseTimeout = null;
       }
+      this.paddleBounceAnimation = null;
       if (this.stage && typeof this.stage.classList?.remove === 'function') {
         this.stage.classList.remove('arcade-stage--pulse');
       }
@@ -513,6 +516,10 @@
         from: fromScale,
         to: 1
       };
+      if (nextWidth > priorWidth) {
+        const growthRatio = clamp((nextWidth - priorWidth) / Math.max(priorWidth, 1), 0.2, 1.6);
+        this.triggerPaddleBounce(0.8 + growthRatio * 0.6);
+      }
       this.startAnimation();
     }
 
@@ -538,6 +545,46 @@
       return state.from + (state.to - state.from) * eased;
     }
 
+    triggerPaddleBounce(intensity = 1) {
+      const paddleHeight = this.paddle?.height || 0;
+      if (paddleHeight <= 0) {
+        return;
+      }
+      const normalizedIntensity = clamp(intensity, 0.1, 2.2);
+      const amplitude = clamp(paddleHeight * 0.28 * normalizedIntensity, 0, paddleHeight * 0.7);
+      if (amplitude <= 0) {
+        return;
+      }
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const current = this.paddleBounceAnimation;
+      const nextAmplitude = Math.max(amplitude, current?.amplitude || 0);
+      this.paddleBounceAnimation = {
+        start: now,
+        duration: PADDLE_BOUNCE_DURATION_MS,
+        amplitude: nextAmplitude
+      };
+      this.startAnimation();
+    }
+
+    getPaddleBounceOffset(renderTimestamp) {
+      const state = this.paddleBounceAnimation;
+      if (!state) {
+        return 0;
+      }
+      const duration = state.duration > 0 ? state.duration : PADDLE_BOUNCE_DURATION_MS;
+      const elapsed = Number.isFinite(renderTimestamp) ? renderTimestamp - state.start : 0;
+      if (!Number.isFinite(elapsed) || elapsed < 0) {
+        return 0;
+      }
+      if (elapsed >= duration) {
+        this.paddleBounceAnimation = null;
+        return 0;
+      }
+      const progress = clamp(elapsed / duration, 0, 1);
+      const wave = Math.sin(progress * Math.PI);
+      return state.amplitude * wave;
+    }
+
     updateBallRadius() {
       this.ballRadius = Math.max(6, this.ballSettings.radiusRatio * Math.min(this.width, this.height));
     }
@@ -554,6 +601,7 @@
       this.comboMessage = '';
       this.comboMessageExpiry = 0;
       this.ballSpeedMultiplier = 1;
+      this.paddleBounceAnimation = null;
       this.lives = this.maxLives;
       this.bricks = this.generateBricks();
       this.resetComboChain();
@@ -1393,6 +1441,8 @@
       ball.vx = speed * Math.sin(angle);
       ball.vy = -Math.abs(speed * Math.cos(angle));
       ball.y = this.paddle.y - ball.radius - 1;
+      const impactIntensity = 0.6 + Math.abs(clamped) * 0.4;
+      this.triggerPaddleBounce(impactIntensity);
     }
 
     handleBrickCollisions(ball) {
@@ -2144,10 +2194,14 @@
 
       const paddleCenterX = this.paddle.x + this.paddle.width / 2;
       const paddleScaleX = this.getPaddleStretchScale(renderTimestamp);
+      const paddleBounceOffset = this.getPaddleBounceOffset(renderTimestamp);
       ctx.save();
       ctx.translate(paddleCenterX, 0);
       ctx.scale(paddleScaleX, 1);
       ctx.translate(-paddleCenterX, 0);
+      if (paddleBounceOffset !== 0) {
+        ctx.translate(0, paddleBounceOffset);
+      }
       const paddleGradient = ctx.createLinearGradient(
         this.paddle.x,
         this.paddle.y,
@@ -2167,6 +2221,14 @@
       }
       ctx.restore();
 
+      const speedTrailActive = this.effects.has(POWER_UP_IDS.SPEED);
+      const trailFillColor = speedTrailActive ? '#ffe5cc' : '#ffffff';
+      const trailGlowColor = speedTrailActive
+        ? { r: 255, g: 120, b: 40 }
+        : { r: 150, g: 220, b: 255 };
+      const trailBlurBoost = speedTrailActive ? 1.35 : 1;
+      const trailRadiusBoost = speedTrailActive ? 1.25 : 1;
+
       this.balls.forEach(ball => {
         const electricSeed = typeof ball.electricSeed === 'number' ? ball.electricSeed : 0;
         const pulse = 0.55 + 0.35 * Math.sin(time * 7.1 + electricSeed);
@@ -2174,7 +2236,7 @@
         if (trail.length > 0) {
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = trailFillColor;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 0;
           trail.forEach(point => {
@@ -2183,12 +2245,15 @@
             if (age < 0) return;
             const lifeRatio = clamp(1 - age / 260, 0, 1);
             if (lifeRatio <= 0) return;
-            const alpha = 0.08 + lifeRatio * 0.2;
+            const alphaBase = speedTrailActive ? 0.12 : 0.08;
+            const alphaRange = speedTrailActive ? 0.28 : 0.2;
+            const alpha = alphaBase + lifeRatio * alphaRange;
             ctx.globalAlpha = alpha;
-            const blur = ball.radius * (1.1 + (1 - lifeRatio) * 0.9);
+            const blur = ball.radius * (1.1 + (1 - lifeRatio) * 0.9 * trailBlurBoost);
             ctx.shadowBlur = blur;
-            ctx.shadowColor = `rgba(150, 220, 255, ${0.25 + lifeRatio * 0.35})`;
-            const radius = ball.radius * (0.85 + lifeRatio * 0.35);
+            const glowAlpha = Math.min(1, 0.25 + lifeRatio * (speedTrailActive ? 0.45 : 0.35));
+            ctx.shadowColor = `rgba(${trailGlowColor.r}, ${trailGlowColor.g}, ${trailGlowColor.b}, ${glowAlpha})`;
+            const radius = ball.radius * (0.85 + lifeRatio * 0.35 * trailRadiusBoost);
             ctx.beginPath();
             ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
             ctx.fill();
