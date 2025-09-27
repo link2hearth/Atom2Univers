@@ -426,7 +426,10 @@
                 <ul id="metauxEndMatchesList"></ul>
               </div>
               <div class="metaux-end-screen__actions">
-                <button type="button" id="metauxReplayButton" class="metaux-end-screen__button">Rejouer</button>
+                <button type="button" id="metauxNewGameButton" class="metaux-end-screen__button">
+                  Nouvelle partie
+                  <span id="metauxNewGameCredits" class="metaux-end-screen__button-note">Bonus Particules : 0</span>
+                </button>
                 <button
                   type="button"
                   id="metauxReturnButton"
@@ -435,6 +438,7 @@
                   Options
                 </button>
               </div>
+              <p id="metauxCreditStatus" class="metaux-credit-status" role="status" aria-live="polite"></p>
             </div>
           </div>
           <p class="metaux-message" id="metauxMessage" role="status" aria-live="polite"></p>

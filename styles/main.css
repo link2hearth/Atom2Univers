@@ -4613,6 +4613,12 @@ body.theme-neon .devkit-panel__footer kbd {
   cursor: pointer;
 }
 
+.metaux-end-screen__button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
 .metaux-end-screen__button:hover,
 .metaux-end-screen__button:focus {
   transform: translateY(-1px);
@@ -4631,6 +4637,23 @@ body.theme-neon .devkit-panel__footer kbd {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.32);
   color: rgba(255, 255, 255, 0.86);
+}
+
+.metaux-end-screen__button-note {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  opacity: 0.84;
+}
+
+.metaux-credit-status {
+  margin-top: 0.6rem;
+  text-align: center;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .metaux-board::before {

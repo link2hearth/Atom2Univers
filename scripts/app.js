@@ -1439,7 +1439,9 @@ const elements = {
   metauxEndTimeValue: document.getElementById('metauxEndTimeValue'),
   metauxEndMatchesValue: document.getElementById('metauxEndMatchesValue'),
   metauxEndMatchList: document.getElementById('metauxEndMatchesList'),
-  metauxReplayButton: document.getElementById('metauxReplayButton'),
+  metauxNewGameButton: document.getElementById('metauxNewGameButton'),
+  metauxNewGameCredits: document.getElementById('metauxNewGameCredits'),
+  metauxCreditStatus: document.getElementById('metauxCreditStatus'),
   metauxLastComboValue: document.getElementById('metauxLastComboValue'),
   metauxBestComboValue: document.getElementById('metauxBestComboValue'),
   metauxTotalTilesValue: document.getElementById('metauxTotalTilesValue'),
@@ -1589,7 +1591,65 @@ function updateArcadeTicketDisplay() {
     elements.arcadeBonusTicketDisplay.title = `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`;
     elements.arcadeBonusTicketDisplay.setAttribute('aria-label', `Bonus Particules : ${formatBonusTicketLabel(bonusCount)}`);
   }
+  updateMetauxCreditsUI();
 }
+
+function getMetauxCreditCount() {
+  return Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets) || 0));
+}
+
+function formatMetauxCreditLabel(count) {
+  if (typeof formatBonusTicketLabel === 'function') {
+    return formatBonusTicketLabel(count);
+  }
+  const numeric = Math.max(0, Math.floor(Number(count) || 0));
+  const unit = numeric === 1 ? 'crédit' : 'crédits';
+  return `${numeric.toLocaleString('fr-FR')} ${unit}`;
+}
+
+function isMetauxSessionRunning() {
+  if (!metauxGame) {
+    return false;
+  }
+  if (typeof metauxGame.isSessionRunning === 'function') {
+    return metauxGame.isSessionRunning();
+  }
+  return metauxGame.gameOver === false;
+}
+
+function updateMetauxCreditsUI() {
+  const available = getMetauxCreditCount();
+  const active = isMetauxSessionRunning();
+  if (elements.metauxNewGameCredits) {
+    elements.metauxNewGameCredits.textContent = `Bonus Particules : ${formatMetauxCreditLabel(available)}`;
+  }
+  if (elements.metauxNewGameButton) {
+    const canStart = available > 0 && !active;
+    elements.metauxNewGameButton.disabled = !canStart;
+    elements.metauxNewGameButton.setAttribute('aria-disabled', canStart ? 'false' : 'true');
+    const tooltip = canStart
+      ? `Consomme 1 crédit Bonus Particules (restant : ${formatMetauxCreditLabel(available)}).`
+      : available > 0
+        ? 'Partie en cours… Terminez-la avant de relancer.'
+        : 'Aucun crédit Bonus Particules disponible. Jouez à Particules pour en gagner.';
+    elements.metauxNewGameButton.title = tooltip;
+    elements.metauxNewGameButton.setAttribute('aria-label', `${available > 0 ? 'Nouvelle partie' : 'Crédit indisponible'} — ${tooltip}`);
+  }
+  if (elements.metauxCreditStatus) {
+    let statusText = '';
+    if (active) {
+      statusText = 'Forge en cours… Utilisez vos déplacements pour créer des alliages !';
+    } else if (available > 0) {
+      statusText = `Crédits disponibles : ${formatMetauxCreditLabel(available)}.`;
+    } else {
+      statusText = 'Aucun crédit Bonus Particules disponible. Jouez à Particules pour en gagner.';
+    }
+    elements.metauxCreditStatus.textContent = statusText;
+    elements.metauxCreditStatus.hidden = false;
+  }
+}
+
+window.updateMetauxCreditsUI = updateMetauxCreditsUI;
 
 function updateBrandPortalState(options = {}) {
   if (!elements.brandPortal) {
@@ -4356,6 +4416,7 @@ updateDevKitUI();
 initParticulesGame();
 
 function handleMetauxSessionEnd(summary) {
+  updateMetauxCreditsUI();
   if (!summary || typeof summary !== 'object') {
     return;
   }
@@ -4465,12 +4526,28 @@ if (elements.metauxReshuffleButton) {
   });
 }
 
-if (elements.metauxReplayButton) {
-  elements.metauxReplayButton.addEventListener('click', () => {
+if (elements.metauxNewGameButton) {
+  elements.metauxNewGameButton.addEventListener('click', () => {
     initMetauxGame();
-    if (metauxGame) {
-      metauxGame.restart();
+    const credits = getMetauxCreditCount();
+    if (!metauxGame) {
+      showToast('Forge indisponible pour le moment.');
+      return;
     }
+    if (isMetauxSessionRunning()) {
+      showToast('Une partie est déjà en cours. Terminez-la avant de relancer.');
+      updateMetauxCreditsUI();
+      return;
+    }
+    if (credits <= 0) {
+      showToast('Aucun crédit Bonus Particules disponible.');
+      updateMetauxCreditsUI();
+      return;
+    }
+    gameState.bonusParticulesTickets = credits - 1;
+    metauxGame.restart();
+    updateMetauxCreditsUI();
+    saveGame();
   });
 }
 
@@ -6618,6 +6695,7 @@ function updateUI() {
   updatePageUnlockUI();
   updateBigBangVisibility();
   updateBrandPortalState();
+  updateMetauxCreditsUI();
   if (elements.statusAtoms) {
     elements.statusAtoms.textContent = gameState.atoms.toString();
   }
