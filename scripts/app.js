@@ -4221,6 +4221,9 @@ function showPage(pageId) {
   document.body.classList.toggle('view-game', pageId === 'game');
   document.body.classList.toggle('view-arcade', pageId === 'arcade');
   document.body.classList.toggle('view-metaux', pageId === 'metaux');
+  if (pageId === 'metaux') {
+    initMetauxGame();
+  }
   if (particulesGame) {
     if (pageId === 'arcade') {
       particulesGame.onEnter();
@@ -4394,7 +4397,6 @@ document.addEventListener('keydown', event => {
 updateDevKitUI();
 
 initParticulesGame();
-initMetauxGame();
 
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -4408,7 +4410,6 @@ elements.navButtons.forEach(btn => {
 
 if (elements.metauxOpenButton) {
   elements.metauxOpenButton.addEventListener('click', () => {
-    initMetauxGame();
     showPage('metaux');
   });
 }

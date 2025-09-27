@@ -1,16 +1,57 @@
-const METAUX_TILE_TYPES = [
-  { id: 'bronze', label: 'Bronze' },
-  { id: 'argent', label: 'Argent' },
-  { id: 'or', label: 'Or' },
-  { id: 'platine', label: 'Platine' },
-  { id: 'diamant', label: 'Diamant' }
-];
+const GLOBAL_METAUX_CONFIG =
+  typeof window !== 'undefined' && window.GAME_CONFIG ? window.GAME_CONFIG.metaux : null;
 
-const METAUX_ROWS = 18;
-const METAUX_COLS = 32;
-const METAUX_CLEAR_DELAY = 200;
-const METAUX_MAX_SHUFFLE_ATTEMPTS = 120;
-const METAUX_TILE_CLASSES = METAUX_TILE_TYPES.map(type => `metaux-tile--${type.id}`);
+const DEFAULT_METAUX_CONFIG = {
+  rows: 9,
+  cols: 16,
+  clearDelayMs: 200,
+  maxShuffleAttempts: 120,
+  tileTypes: [
+    { id: 'bronze', label: 'Bronze', color: 'rgba(199, 126, 54, 0.72)' },
+    { id: 'argent', label: 'Argent', color: 'rgba(173, 190, 202, 0.78)' },
+    { id: 'or', label: 'Or', color: 'rgba(245, 204, 79, 0.82)' },
+    { id: 'platine', label: 'Platine', color: 'rgba(166, 211, 227, 0.82)' },
+    { id: 'diamant', label: 'Diamant', color: 'rgba(130, 217, 255, 0.88)' }
+  ]
+};
+
+function toPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const METAUX_CONFIG = {
+  ...DEFAULT_METAUX_CONFIG,
+  ...(GLOBAL_METAUX_CONFIG && typeof GLOBAL_METAUX_CONFIG === 'object' ? GLOBAL_METAUX_CONFIG : {})
+};
+
+const METAUX_TILE_TYPES_SOURCE = Array.isArray(METAUX_CONFIG.tileTypes) && METAUX_CONFIG.tileTypes.length
+  ? METAUX_CONFIG.tileTypes
+      .map(type => ({
+        id: typeof type.id === 'string' ? type.id : '',
+        label: typeof type.label === 'string' ? type.label : type.id,
+        color: typeof type.color === 'string' ? type.color : null
+      }))
+      .filter(type => type.id)
+  : null;
+
+const METAUX_TILE_TYPES =
+  METAUX_TILE_TYPES_SOURCE && METAUX_TILE_TYPES_SOURCE.length
+    ? METAUX_TILE_TYPES_SOURCE
+    : DEFAULT_METAUX_CONFIG.tileTypes;
+
+const METAUX_TYPE_MAP = new Map(METAUX_TILE_TYPES.map(type => [type.id, type]));
+
+const METAUX_ROWS = toPositiveInteger(METAUX_CONFIG.rows, DEFAULT_METAUX_CONFIG.rows);
+const METAUX_COLS = toPositiveInteger(METAUX_CONFIG.cols, DEFAULT_METAUX_CONFIG.cols);
+const METAUX_CLEAR_DELAY = toPositiveInteger(
+  METAUX_CONFIG.clearDelayMs,
+  DEFAULT_METAUX_CONFIG.clearDelayMs
+);
+const METAUX_MAX_SHUFFLE_ATTEMPTS = toPositiveInteger(
+  METAUX_CONFIG.maxShuffleAttempts,
+  DEFAULT_METAUX_CONFIG.maxShuffleAttempts
+);
 
 class MetauxMatch3Game {
   constructor(options = {}) {
@@ -69,6 +110,10 @@ class MetauxMatch3Game {
     if (!this.boardElement) {
       return;
     }
+    this.boardElement.style.setProperty('--metaux-cols', METAUX_COLS);
+    this.boardElement.style.gridTemplateColumns = `repeat(${METAUX_COLS}, minmax(0, 1fr))`;
+    this.boardElement.dataset.rows = String(METAUX_ROWS);
+    this.boardElement.dataset.cols = String(METAUX_COLS);
     const fragment = document.createDocumentFragment();
     for (let row = 0; row < METAUX_ROWS; row += 1) {
       for (let col = 0; col < METAUX_COLS; col += 1) {
@@ -163,30 +208,38 @@ class MetauxMatch3Game {
       return;
     }
     tile.classList.remove('is-selected', 'is-target', 'is-clearing', 'is-empty');
-    METAUX_TILE_CLASSES.forEach(cls => {
-      tile.classList.remove(cls);
-    });
     tile.dataset.type = type || '';
     const labelElement = tile._label || tile.firstElementChild;
     if (!type) {
       tile.classList.add('is-empty');
+      tile.style.removeProperty('--tile-color');
       if (labelElement) {
         labelElement.textContent = '';
       }
       tile.setAttribute('aria-label', 'Case vide');
       return;
     }
-    tile.classList.add(`metaux-tile--${type}`);
     const label = this.getTypeLabel(type);
+    const color = this.getTypeColor(type);
     if (labelElement) {
       labelElement.textContent = label;
+    }
+    if (color) {
+      tile.style.setProperty('--tile-color', color);
+    } else {
+      tile.style.removeProperty('--tile-color');
     }
     tile.setAttribute('aria-label', label);
   }
 
   getTypeLabel(type) {
-    const found = METAUX_TILE_TYPES.find(entry => entry.id === type);
-    return found ? found.label : type;
+    const found = METAUX_TYPE_MAP.get(type);
+    return found && found.label ? found.label : type;
+  }
+
+  getTypeColor(type) {
+    const found = METAUX_TYPE_MAP.get(type);
+    return found && found.color ? found.color : null;
   }
 
   onPointerDown(event) {

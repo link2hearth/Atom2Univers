@@ -4269,7 +4269,7 @@ body.theme-neon .devkit-panel__footer kbd {
 .metaux-board {
   --board-bg: linear-gradient(160deg, rgba(14, 18, 34, 0.9), rgba(8, 10, 22, 0.78));
   display: grid;
-  grid-template-columns: repeat(32, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--metaux-cols, 16), minmax(0, 1fr));
   gap: clamp(0.28rem, 0.6vw, 0.48rem);
   width: min(96vw, 1320px);
   padding: clamp(0.8rem, 2vw, 1.4rem);
@@ -4369,26 +4369,6 @@ body.theme-neon .devkit-panel__footer kbd {
   pointer-events: none;
   box-shadow: none;
   border-color: transparent;
-}
-
-.metaux-tile--bronze {
-  --tile-color: rgba(199, 126, 54, 0.72);
-}
-
-.metaux-tile--argent {
-  --tile-color: rgba(173, 190, 202, 0.78);
-}
-
-.metaux-tile--or {
-  --tile-color: rgba(245, 204, 79, 0.82);
-}
-
-.metaux-tile--platine {
-  --tile-color: rgba(166, 211, 227, 0.82);
-}
-
-.metaux-tile--diamant {
-  --tile-color: rgba(130, 217, 255, 0.88);
 }
 
 .metaux-message {
