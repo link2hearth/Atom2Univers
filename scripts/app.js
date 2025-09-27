@@ -3661,6 +3661,20 @@ let apsCritPulseTimeoutId = null;
 
 const APS_CRIT_TIMER_EPSILON = 1e-3;
 
+function hasActiveApsCritEffect(state = ensureApsCritState()) {
+  if (!state || !Array.isArray(state.effects) || !state.effects.length) {
+    return false;
+  }
+  return state.effects.some(effect => {
+    if (!effect) {
+      return false;
+    }
+    const remaining = Number(effect.remainingSeconds) || 0;
+    const value = Number(effect.multiplierAdd) || 0;
+    return remaining > APS_CRIT_TIMER_EPSILON && value > 0;
+  });
+}
+
 function updateApsCritTimer(deltaSeconds) {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
     return;
@@ -6747,11 +6761,16 @@ function updateApsCritDisplay() {
     return;
   }
   const state = ensureApsCritState();
-  const remainingSeconds = getApsCritRemainingSeconds(state);
-  const isActive = remainingSeconds > APS_CRIT_TIMER_EPSILON;
+  const isActive = hasActiveApsCritEffect(state);
+  const remainingSeconds = isActive ? getApsCritRemainingSeconds(state) : 0;
   panel.hidden = !isActive;
   panel.classList.toggle('is-active', isActive);
   panel.setAttribute('aria-hidden', String(!isActive));
+  const container = panel.closest('.status-item--crit-aps');
+  if (container) {
+    container.hidden = !isActive;
+    container.setAttribute('aria-hidden', String(!isActive));
+  }
   const chronoText = isActive ? formatApsCritChrono(remainingSeconds) : '';
   if (elements.statusApsCritChrono) {
     elements.statusApsCritChrono.textContent = chronoText;
