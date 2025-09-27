@@ -253,6 +253,76 @@ body.view-metaux .status-bar {
   overflow: hidden;
 }
 
+.status-item--crit-aps {
+  align-items: stretch;
+  justify-self: flex-end;
+}
+
+.status-crit-display--aps {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+  padding: clamp(0.28rem, 0.6vw, 0.42rem) clamp(0.6rem, 1.2vw, 0.95rem);
+  opacity: 1;
+  transform: none;
+  transition: box-shadow 0.32s ease, transform 0.32s ease;
+  white-space: normal;
+}
+
+.status-crit-display--aps::before {
+  inset: -45% -45% auto -45%;
+  opacity: 0.95;
+}
+
+.status-crit-display--aps.is-pulsing {
+  transform: translateY(0) scale(1.03);
+  box-shadow: 0 0.55rem 1.6rem rgba(255, 160, 60, 0.32);
+}
+
+.status-aps-crit-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.status-aps-crit-label {
+  font-size: 0.68em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.status-aps-crit-value {
+  font-size: 0.92em;
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.status-aps-crit-value--pulse {
+  animation: aps-crit-value-pulse 0.62s cubic-bezier(0.16, 0.75, 0.38, 1.18);
+}
+
+@keyframes aps-crit-value-pulse {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 180, 80, 0));
+  }
+  25% {
+    transform: scale(1.16);
+    filter: drop-shadow(0 0.5rem 1.1rem rgba(255, 200, 120, 0.45));
+  }
+  60% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 0.2rem 0.5rem rgba(255, 160, 60, 0.25));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+  }
+}
+
 .status-crit-display::before {
   content: '';
   position: absolute;
