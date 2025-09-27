@@ -7,11 +7,11 @@ const DEFAULT_METAUX_CONFIG = {
   clearDelayMs: 200,
   maxShuffleAttempts: 120,
   tileTypes: [
-    { id: 'bronze', label: 'Bronze', color: 'rgba(199, 126, 54, 0.72)' },
-    { id: 'argent', label: 'Argent', color: 'rgba(173, 190, 202, 0.78)' },
-    { id: 'or', label: 'Or', color: 'rgba(245, 204, 79, 0.82)' },
-    { id: 'platine', label: 'Platine', color: 'rgba(166, 211, 227, 0.82)' },
-    { id: 'diamant', label: 'Diamant', color: 'rgba(130, 217, 255, 0.88)' }
+    { id: 'bronze', label: 'Bronze', color: '#C77E36' },
+    { id: 'argent', label: 'Argent', color: '#ADBECA' },
+    { id: 'or', label: 'Or', color: '#E6C838' },
+    { id: 'platine', label: 'Platine', color: '#A6D3E3' },
+    { id: 'diamant', label: 'Diamant', color: '#82D9FF' }
   ]
 };
 
