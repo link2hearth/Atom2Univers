@@ -375,6 +375,53 @@
       </div>
     </section>
 
+    <section id="metaux" class="page page--metaux" aria-label="Métaux" hidden>
+      <header class="metaux-header" aria-label="Navigation du jeu Métaux">
+        <button class="metaux-header__brand brand brand-button" id="metauxReturnButton" type="button">
+          Métaux
+        </button>
+        <div class="metaux-header__stats" role="status" aria-live="polite">
+          <div class="metaux-stat">
+            <span class="metaux-stat__label">Dernier combo</span>
+            <span class="metaux-stat__value" id="metauxLastComboValue">0</span>
+          </div>
+          <div class="metaux-stat">
+            <span class="metaux-stat__label">Meilleur combo</span>
+            <span class="metaux-stat__value" id="metauxBestComboValue">0</span>
+          </div>
+          <div class="metaux-stat">
+            <span class="metaux-stat__label">Coups joués</span>
+            <span class="metaux-stat__value" id="metauxMovesValue">0</span>
+          </div>
+        </div>
+      </header>
+      <div class="metaux-content">
+        <div class="metaux-board-wrapper">
+          <div class="metaux-board" id="metauxBoard" role="grid" aria-label="Grille du mini-jeu Métaux"></div>
+          <p class="metaux-message" id="metauxMessage" role="status" aria-live="polite"></p>
+        </div>
+        <aside class="metaux-sidebar" aria-label="Suivi des métaux">
+          <h3 class="metaux-sidebar__title">Forge quantique</h3>
+          <p class="metaux-sidebar__intro">
+            Alignez au moins trois lingots identiques pour les raffiner et déclencher des réactions en cascade.
+          </p>
+          <dl class="metaux-sidebar__stats">
+            <div class="metaux-sidebar__stat">
+              <dt>Total de tuiles fondues</dt>
+              <dd id="metauxTotalTilesValue">0</dd>
+            </div>
+            <div class="metaux-sidebar__stat">
+              <dt>Re-mélanges</dt>
+              <dd id="metauxReshufflesValue">0</dd>
+            </div>
+          </dl>
+          <button type="button" class="metaux-reshuffle-button" id="metauxReshuffleButton">
+            Re-mélanger
+          </button>
+        </aside>
+      </div>
+    </section>
+
     <section id="goals" class="page" aria-labelledby="goals-title">
       <h2 id="goals-title">Objectifs &amp; trophées</h2>
       <p class="section-intro">Surveillez vos succès galactiques et débloquez des bonus permanents.</p>
@@ -427,6 +474,16 @@
           <div class="option-row">
             <button type="button" id="soundDesignerOpenButton" class="primary">Ouvrir le studio</button>
             <span class="option-note" id="soundDesignerStatus" role="status"></span>
+          </div>
+        </div>
+        <div class="option-card option-card--minigame">
+          <h3>Mini-jeux</h3>
+          <p class="option-note">
+            Expérimentez de nouvelles mécaniques inspirées du laboratoire principal.
+          </p>
+          <div class="option-row">
+            <button type="button" id="metauxOpenButton" class="primary">Lancer Métaux</button>
+            <span class="option-note" id="metauxOptionStatus" role="status"></span>
           </div>
         </div>
         <div class="option-card" id="bigBangOptionCard" hidden>
@@ -630,6 +687,7 @@
   <script src="scripts/modules/gacha.js"></script>
   <script src="scripts/modules/info.js"></script>
   <script src="scripts/modules/sound-designer.js"></script>
+  <script src="scripts/modules/metaux-match3.js"></script>
   <script src="scripts/app.js"></script>
 </body>
 </html>

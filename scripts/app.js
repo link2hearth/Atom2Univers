@@ -1550,6 +1550,17 @@ const elements = {
   arcadeLivesValue: document.getElementById('arcadeLivesValue'),
   arcadeScoreValue: document.getElementById('arcadeScoreValue'),
   arcadeComboMessage: document.getElementById('arcadeComboMessage'),
+  metauxOpenButton: document.getElementById('metauxOpenButton'),
+  metauxOptionStatus: document.getElementById('metauxOptionStatus'),
+  metauxReturnButton: document.getElementById('metauxReturnButton'),
+  metauxBoard: document.getElementById('metauxBoard'),
+  metauxLastComboValue: document.getElementById('metauxLastComboValue'),
+  metauxBestComboValue: document.getElementById('metauxBestComboValue'),
+  metauxTotalTilesValue: document.getElementById('metauxTotalTilesValue'),
+  metauxReshufflesValue: document.getElementById('metauxReshufflesValue'),
+  metauxMovesValue: document.getElementById('metauxMovesValue'),
+  metauxMessage: document.getElementById('metauxMessage'),
+  metauxReshuffleButton: document.getElementById('metauxReshuffleButton'),
   themeSelect: document.getElementById('themeSelect'),
   musicTrackSelect: document.getElementById('musicTrackSelect'),
   musicTrackStatus: document.getElementById('musicTrackStatus'),
@@ -4209,11 +4220,19 @@ function showPage(pageId) {
   document.body.dataset.activePage = pageId;
   document.body.classList.toggle('view-game', pageId === 'game');
   document.body.classList.toggle('view-arcade', pageId === 'arcade');
+  document.body.classList.toggle('view-metaux', pageId === 'metaux');
   if (particulesGame) {
     if (pageId === 'arcade') {
       particulesGame.onEnter();
     } else {
       particulesGame.onLeave();
+    }
+  }
+  if (metauxGame) {
+    if (pageId === 'metaux') {
+      metauxGame.onEnter();
+    } else {
+      metauxGame.onLeave();
     }
   }
   if (pageId === 'game' && (typeof document === 'undefined' || !document.hidden)) {
@@ -4375,6 +4394,7 @@ document.addEventListener('keydown', event => {
 updateDevKitUI();
 
 initParticulesGame();
+initMetauxGame();
 
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -4385,6 +4405,32 @@ elements.navButtons.forEach(btn => {
     showPage(target);
   });
 });
+
+if (elements.metauxOpenButton) {
+  elements.metauxOpenButton.addEventListener('click', () => {
+    initMetauxGame();
+    showPage('metaux');
+  });
+}
+
+if (elements.metauxReturnButton) {
+  elements.metauxReturnButton.addEventListener('click', () => {
+    showPage('options');
+  });
+}
+
+if (elements.metauxReshuffleButton) {
+  elements.metauxReshuffleButton.addEventListener('click', () => {
+    initMetauxGame();
+    if (metauxGame) {
+      if (metauxGame.processing) {
+        metauxGame.updateMessage('Patientez, la réaction en chaîne est en cours.');
+        return;
+      }
+      metauxGame.forceReshuffle(true);
+    }
+  });
+}
 
 if (elements.brandPortal) {
   elements.brandPortal.addEventListener('click', () => {
