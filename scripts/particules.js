@@ -311,10 +311,10 @@
   settings.graviton = {
     lifetimeMs: readNumber(gravitonConfig.lifetimeMs, 10000, { min: 0 }),
     spawnChance: {
-      base: readNumber(gravitonSpawnConfig.base, 0.05, { min: 0 }),
-      perLevel: readNumber(gravitonSpawnConfig.perLevel, 0.015, { min: 0 }),
-      min: readNumber(gravitonSpawnConfig.min, 0.05, { min: 0 }),
-      max: readNumber(gravitonSpawnConfig.max, 0.18, { min: 0 })
+      base: readNumber(gravitonSpawnConfig.base, 0.15, { min: 0 }),
+      perLevel: readNumber(gravitonSpawnConfig.perLevel, 0.05, { min: 0 }),
+      min: readNumber(gravitonSpawnConfig.min, 0.15, { min: 0 }),
+      max: readNumber(gravitonSpawnConfig.max, 0.5, { min: 0 })
     },
     detectionMessage: readString(gravitonConfig.detectionMessage, 'Graviton détecté !'),
     detectionMessageDurationMs: readNumber(gravitonConfig.detectionMessageDurationMs, 2600, { min: 0 }),
@@ -351,6 +351,21 @@
         durationMs: readNumber(combosStagePulseConfig.durationMs, 420, { min: 0 })
       }
     }
+  };
+
+  const lingerBonusConfig = readObject(
+    ARCADE_CONFIG.lingerBonus ?? ARCADE_CONFIG.multiballIdleBonus
+  );
+  settings.lingerBonus = {
+    thresholdMs: readNumber(lingerBonusConfig.thresholdMs, 20000, { min: 0 }),
+    intervalMs: readNumber(
+      lingerBonusConfig.intervalMs ?? lingerBonusConfig.checkIntervalMs,
+      1000,
+      { min: 1 }
+    ),
+    chance: readNumber(lingerBonusConfig.chance, 0.1, { min: 0, max: 1 }),
+    message: readString(lingerBonusConfig.message, 'Multiballe bonus !'),
+    messageDurationMs: readNumber(lingerBonusConfig.messageDurationMs, 2400, { min: 0 })
   };
 
   const powerUpConfig = readObject(ARCADE_CONFIG.powerUps);
@@ -649,6 +664,13 @@
   const BONUS_PARTICLES = SETTINGS.particles.bonus;
   const GRAVITON_PARTICLE = SETTINGS.particles.graviton;
 
+  const LINGER_BONUS_CONFIG = SETTINGS.lingerBonus;
+  const LEVEL_LINGER_THRESHOLD_MS = LINGER_BONUS_CONFIG.thresholdMs;
+  const LEVEL_LINGER_INTERVAL_MS = LINGER_BONUS_CONFIG.intervalMs;
+  const LEVEL_LINGER_CHANCE = LINGER_BONUS_CONFIG.chance;
+  const LEVEL_LINGER_MESSAGE = LINGER_BONUS_CONFIG.message;
+  const LEVEL_LINGER_MESSAGE_DURATION = LINGER_BONUS_CONFIG.messageDurationMs;
+
   const START_OVERLAY_MESSAGE = SETTINGS.ui.start.message;
   const START_OVERLAY_BUTTON = SETTINGS.ui.start.buttonLabel;
   const PAUSE_OVERLAY_MESSAGE = SETTINGS.ui.pause.message;
@@ -833,6 +855,8 @@
       this.comboChainCount = 0;
       this.lastBrickDestroyedAt = 0;
       this.stagePulseTimeout = null;
+      this.levelStartedAt = 0;
+      this.lastLingerBonusCheckAt = 0;
 
       this.paddle = {
         baseWidthRatio: SETTINGS.paddle.baseWidthRatio,
@@ -1039,6 +1063,8 @@
     setupLevel() {
       if (!this.enabled) return;
       this.pendingLevelAdvance = false;
+      this.levelStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      this.lastLingerBonusCheckAt = 0;
       this.effects.clear();
       this.powerUps = [];
       this.lasers = [];
@@ -1658,6 +1684,7 @@
       this.updatePowerUps(delta);
       this.updateLasers(delta);
       this.updateBalls(delta, now);
+      this.updateLingerBonus(now);
       this.refreshComboMessage(now);
     }
 
@@ -1689,6 +1716,38 @@
       }
       if (lostBall && this.balls.length === 0) {
         this.handleLifeLost();
+      }
+    }
+
+    updateLingerBonus(now) {
+      if (!this.running) {
+        return;
+      }
+      if (!(LEVEL_LINGER_THRESHOLD_MS > 0)) {
+        return;
+      }
+      const start = this.levelStartedAt;
+      if (!Number.isFinite(start) || start <= 0) {
+        return;
+      }
+      if (now - start < LEVEL_LINGER_THRESHOLD_MS) {
+        return;
+      }
+      const interval = Math.max(LEVEL_LINGER_INTERVAL_MS, 16);
+      const lastCheck = this.lastLingerBonusCheckAt || 0;
+      if (lastCheck && now - lastCheck < interval) {
+        return;
+      }
+      this.lastLingerBonusCheckAt = now;
+      if (LEVEL_LINGER_CHANCE <= 0) {
+        return;
+      }
+      if (Math.random() < LEVEL_LINGER_CHANCE) {
+        this.activatePowerUp(POWER_UP_IDS.MULTIBALL);
+        if (LEVEL_LINGER_MESSAGE) {
+          const duration = LEVEL_LINGER_MESSAGE_DURATION || COMBO_BONUS_DURATION;
+          this.setComboMessage(LEVEL_LINGER_MESSAGE, duration);
+        }
       }
     }
 
