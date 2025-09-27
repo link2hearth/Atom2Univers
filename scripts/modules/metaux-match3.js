@@ -4,7 +4,13 @@ const GLOBAL_METAUX_CONFIG =
 const DEFAULT_METAUX_CONFIG = {
   rows: 9,
   cols: 16,
-  clearDelayMs: 200,
+  clearDelayMs: 220,
+  refillDelayMs: 120,
+  popEffect: {
+    durationMs: 220,
+    scale: 1.18,
+    glowOpacity: 0.8
+  },
   maxShuffleAttempts: 120,
   tileTypes: [
     { id: 'bronze', label: 'Bronze', color: '#C77E36' },
@@ -18,6 +24,22 @@ const DEFAULT_METAUX_CONFIG = {
 function toPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function toNonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function toNumberWithinRange(value, fallback, { min = Number.NEGATIVE_INFINITY, max = Number.POSITIVE_INFINITY } = {}) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  if (parsed < min || parsed > max) {
+    return fallback;
+  }
+  return parsed;
 }
 
 const METAUX_CONFIG = {
@@ -48,6 +70,29 @@ const METAUX_CLEAR_DELAY = toPositiveInteger(
   METAUX_CONFIG.clearDelayMs,
   DEFAULT_METAUX_CONFIG.clearDelayMs
 );
+const METAUX_REFILL_DELAY = toNonNegativeInteger(
+  METAUX_CONFIG.refillDelayMs,
+  DEFAULT_METAUX_CONFIG.refillDelayMs
+);
+const METAUX_POP_EFFECT_SOURCE =
+  METAUX_CONFIG.popEffect && typeof METAUX_CONFIG.popEffect === 'object' ? METAUX_CONFIG.popEffect : {};
+const METAUX_MATCH_POP_EFFECT = {
+  durationMs: toNonNegativeInteger(
+    METAUX_POP_EFFECT_SOURCE.durationMs,
+    DEFAULT_METAUX_CONFIG.popEffect.durationMs
+  ),
+  scale: toNumberWithinRange(
+    METAUX_POP_EFFECT_SOURCE.scale,
+    DEFAULT_METAUX_CONFIG.popEffect.scale,
+    { min: 0.5, max: 3 }
+  ),
+  glowOpacity: toNumberWithinRange(
+    METAUX_POP_EFFECT_SOURCE.glowOpacity,
+    DEFAULT_METAUX_CONFIG.popEffect.glowOpacity,
+    { min: 0, max: 1 }
+  )
+};
+const METAUX_CLEAR_STEP_DELAY = Math.max(METAUX_CLEAR_DELAY, METAUX_MATCH_POP_EFFECT.durationMs);
 const METAUX_MAX_SHUFFLE_ATTEMPTS = toPositiveInteger(
   METAUX_CONFIG.maxShuffleAttempts,
   DEFAULT_METAUX_CONFIG.maxShuffleAttempts
@@ -112,6 +157,12 @@ class MetauxMatch3Game {
     this.boardElement.style.setProperty('--metaux-cols', METAUX_COLS);
     this.boardElement.style.setProperty('--metaux-rows', METAUX_ROWS);
     this.boardElement.style.gridTemplateColumns = `repeat(${METAUX_COLS}, minmax(0, 1fr))`;
+    this.boardElement.style.setProperty('--metaux-pop-duration', `${METAUX_MATCH_POP_EFFECT.durationMs}ms`);
+    this.boardElement.style.setProperty('--metaux-pop-scale', String(METAUX_MATCH_POP_EFFECT.scale));
+    this.boardElement.style.setProperty(
+      '--metaux-pop-glow-opacity',
+      String(METAUX_MATCH_POP_EFFECT.glowOpacity)
+    );
     this.boardElement.dataset.rows = String(METAUX_ROWS);
     this.boardElement.dataset.cols = String(METAUX_COLS);
     const fragment = document.createDocumentFragment();
@@ -405,16 +456,18 @@ class MetauxMatch3Game {
         this.board[position.row][position.col] = null;
         this.updateTileElement(position.row, position.col, null);
       });
-      this.applyGravity();
-      this.fillEmptySpaces();
-      this.refreshBoard();
-      const nextMatches = this.findMatches();
-      if (nextMatches.length) {
-        this.resolveCascade(nextMatches);
-      } else {
-        this.finishCascade();
-      }
-    }, METAUX_CLEAR_DELAY);
+      window.setTimeout(() => {
+        this.applyGravity();
+        this.fillEmptySpaces();
+        this.refreshBoard();
+        const nextMatches = this.findMatches();
+        if (nextMatches.length) {
+          this.resolveCascade(nextMatches);
+        } else {
+          this.finishCascade();
+        }
+      }, METAUX_REFILL_DELAY);
+    }, METAUX_CLEAR_STEP_DELAY);
   }
 
   finishCascade() {

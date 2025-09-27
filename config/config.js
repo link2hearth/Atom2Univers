@@ -648,13 +648,21 @@ const GAME_CONFIG = {
    * Réglages du mini-jeu Métaux.
    * - rows / cols : dimensions de la grille.
    * - clearDelayMs : délai avant la disparition visuelle d'un alignement.
+   * - refillDelayMs : délai avant la réapparition de nouvelles cases.
+   * - popEffect : animation lors de la disparition, paramétrable.
    * - maxShuffleAttempts : nombre maximal de tentatives de redistribution.
    * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
    */
   metaux: {
     rows: 8,
     cols: 16,
-    clearDelayMs: 200,
+    clearDelayMs: 220,
+    refillDelayMs: 120,
+    popEffect: {
+      durationMs: 220,
+      scale: 1.18,
+      glowOpacity: 0.8
+    },
     maxShuffleAttempts: 120,
     tileTypes: [
       { id: 'bronze', label: 'Cu', color: '#C77E36' },
