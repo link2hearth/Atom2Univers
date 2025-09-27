@@ -225,6 +225,64 @@
     [POWER_UP_IDS.FLOOR]: 'Bouclier inférieur'
   };
 
+  const DEFAULT_POWER_UP_VISUAL = {
+    symbol: 'P',
+    gradient: ['#ffffff', '#a6d8ff'],
+    textColor: '#041022',
+    glow: 'rgba(140, 210, 255, 0.45)',
+    border: 'rgba(255, 255, 255, 0.5)',
+    widthMultiplier: 1.45
+  };
+
+  const POWER_UP_VISUALS = {
+    [POWER_UP_IDS.EXTEND]: {
+      symbol: 'L',
+      gradient: ['#66f4ff', '#2c9cff'],
+      textColor: '#041222',
+      glow: 'rgba(110, 220, 255, 0.55)',
+      border: 'rgba(255, 255, 255, 0.65)',
+      widthMultiplier: 1.5
+    },
+    [POWER_UP_IDS.MULTIBALL]: {
+      symbol: 'M',
+      gradient: ['#ffe066', '#ff7b6b'],
+      textColor: '#241104',
+      glow: 'rgba(255, 160, 110, 0.55)',
+      border: 'rgba(255, 255, 255, 0.6)',
+      widthMultiplier: 1.6
+    },
+    [POWER_UP_IDS.LASER]: {
+      symbol: 'T',
+      gradient: ['#ff96c7', '#ff4d9a'],
+      textColor: '#36001a',
+      glow: 'rgba(255, 120, 190, 0.55)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.45
+    },
+    [POWER_UP_IDS.SPEED]: {
+      symbol: 'S',
+      gradient: ['#9d7bff', '#4f3bff'],
+      textColor: '#1a083a',
+      glow: 'rgba(160, 140, 255, 0.52)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.45
+    },
+    [POWER_UP_IDS.FLOOR]: {
+      symbol: 'F',
+      gradient: ['#6ef7a6', '#1ec37a'],
+      textColor: '#052615',
+      glow: 'rgba(90, 240, 180, 0.55)',
+      border: 'rgba(255, 255, 255, 0.55)',
+      widthMultiplier: 1.55
+    }
+  };
+
+  const POWER_UP_PULSE_INTENSITY = {
+    [POWER_UP_IDS.MULTIBALL]: 1.06,
+    [POWER_UP_IDS.EXTEND]: 1.04,
+    [POWER_UP_IDS.FLOOR]: 1.05
+  };
+
   const POWER_UP_EFFECTS = {
     [POWER_UP_IDS.EXTEND]: { duration: 12000 },
     [POWER_UP_IDS.LASER]: { duration: 9000 },
@@ -263,6 +321,9 @@
       const hasHTMLElement = typeof HTMLElement !== 'undefined';
       this.particleLayer = hasHTMLElement && particleLayer instanceof HTMLElement ? particleLayer : null;
       this.comboLabel = comboLabel;
+      this.stage = hasHTMLElement && canvas instanceof HTMLElement
+        ? canvas.closest('.arcade-stage')
+        : null;
       [levelLabel, livesLabel, scoreLabel].forEach(label => {
         const container = typeof label?.closest === 'function'
           ? label.closest('.arcade-hud__item')
@@ -324,6 +385,9 @@
       this.ballSpeedMultiplier = 1;
       this.gravitonLifetimeMs = GRAVITON_LIFETIME_MS;
       this.paddleStretchAnimation = null;
+      this.comboChainCount = 0;
+      this.lastBrickDestroyedAt = 0;
+      this.stagePulseTimeout = null;
 
       this.paddle = {
         baseWidthRatio: 0.18,
@@ -388,6 +452,13 @@
       }
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', this.handleResize);
+      }
+      if (this.stagePulseTimeout) {
+        clearTimeout(this.stagePulseTimeout);
+        this.stagePulseTimeout = null;
+      }
+      if (this.stage && typeof this.stage.classList?.remove === 'function') {
+        this.stage.classList.remove('arcade-stage--pulse');
       }
       this.clearImpactParticles();
       this.enabled = false;
@@ -485,9 +556,15 @@
       this.ballSpeedMultiplier = 1;
       this.lives = this.maxLives;
       this.bricks = this.generateBricks();
+      this.resetComboChain();
       this.prepareServe();
       this.updateHud();
       this.render();
+    }
+
+    resetComboChain() {
+      this.comboChainCount = 0;
+      this.lastBrickDestroyedAt = 0;
     }
 
     clearImpactParticles() {
@@ -945,6 +1022,7 @@
     }
 
     prepareServe() {
+      this.resetComboChain();
       this.balls = [this.createBall({ attachToPaddle: true })];
     }
 
@@ -1380,6 +1458,7 @@
       if (brick.particle?.family === 'quark' && brick.particle?.quarkColor) {
         this.registerQuarkCombo(brick.particle.quarkColor);
       }
+      this.registerComboChain(brick);
       const hasRemaining = this.bricks.some(entry => entry.active);
       if (!hasRemaining) {
         this.handleLevelCleared();
@@ -1463,21 +1542,29 @@
       ];
       const type = randomChoice(powerUpTypes);
       if (!type) return;
+      const visuals = POWER_UP_VISUALS[type] || DEFAULT_POWER_UP_VISUAL;
       const powerUp = {
         id: `pu-${Math.random().toString(36).slice(2, 7)}`,
         type,
         x: brick.relX * this.width + (brick.relWidth * this.width) / 2,
         y: brick.relY * this.height + (brick.relHeight * this.height) / 2,
-        size: Math.max(14, this.ballRadius * 1.6)
+        size: Math.max(14, this.ballRadius * 1.6),
+        symbol: visuals.symbol || DEFAULT_POWER_UP_VISUAL.symbol,
+        widthMultiplier: visuals.widthMultiplier || DEFAULT_POWER_UP_VISUAL.widthMultiplier
       };
       this.powerUps.push(powerUp);
       this.setComboMessage(`Bonus: ${POWER_UP_LABELS[type]}`, 2400);
     }
 
     checkPowerUpCatch(powerUp) {
-      const half = powerUp.size / 2;
-      const withinX = powerUp.x + half >= this.paddle.x && powerUp.x - half <= this.paddle.x + this.paddle.width;
-      const withinY = powerUp.y + half >= this.paddle.y && powerUp.y - half <= this.paddle.y + this.paddle.height;
+      const visuals = POWER_UP_VISUALS[powerUp.type] || DEFAULT_POWER_UP_VISUAL;
+      const widthMultiplier = typeof powerUp.widthMultiplier === 'number'
+        ? powerUp.widthMultiplier
+        : visuals.widthMultiplier || DEFAULT_POWER_UP_VISUAL.widthMultiplier;
+      const halfWidth = (powerUp.size * widthMultiplier) / 2;
+      const halfHeight = powerUp.size / 2;
+      const withinX = powerUp.x + halfWidth >= this.paddle.x && powerUp.x - halfWidth <= this.paddle.x + this.paddle.width;
+      const withinY = powerUp.y + halfHeight >= this.paddle.y && powerUp.y - halfHeight <= this.paddle.y + this.paddle.height;
       if (withinX && withinY) {
         this.activatePowerUp(powerUp.type);
         return true;
@@ -1536,8 +1623,77 @@
       }
     }
 
+    registerComboChain(brick) {
+      if (!brick) return;
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const threshold = 520;
+      if (now - this.lastBrickDestroyedAt <= threshold) {
+        this.comboChainCount += 1;
+      } else {
+        this.comboChainCount = 1;
+      }
+      this.lastBrickDestroyedAt = now;
+      if (this.comboChainCount >= 3) {
+        this.triggerComboShockwave(brick, this.comboChainCount);
+      }
+    }
+
+    triggerComboShockwave(brick, chainCount = 3) {
+      if (!this.particleLayer) return;
+      const doc = this.particleLayer.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (!doc) return;
+      const shockwave = doc.createElement('div');
+      if (!shockwave) return;
+      shockwave.className = 'arcade-shockwave';
+      const centerX = ((brick.relX + brick.relWidth / 2) * 100).toFixed(2);
+      const centerY = ((brick.relY + brick.relHeight / 2) * 100).toFixed(2);
+      const scale = 1.25 + Math.min(chainCount, 6) * 0.08;
+      const opacity = Math.min(0.78 + chainCount * 0.03, 0.92);
+      shockwave.style.setProperty('--shockwave-x', `${centerX}%`);
+      shockwave.style.setProperty('--shockwave-y', `${centerY}%`);
+      shockwave.style.setProperty('--shockwave-scale', scale.toFixed(2));
+      shockwave.style.setProperty('--shockwave-opacity', opacity.toFixed(2));
+      this.particleLayer.appendChild(shockwave);
+      const removeShockwave = () => {
+        shockwave.removeEventListener('animationend', removeShockwave);
+        if (shockwave.parentNode === this.particleLayer) {
+          this.particleLayer.removeChild(shockwave);
+        }
+      };
+      shockwave.addEventListener('animationend', removeShockwave);
+      setTimeout(removeShockwave, 640);
+      this.triggerScreenPulse(1.02 + Math.min(chainCount, 5) * 0.005);
+    }
+
+    triggerScreenPulse(intensity = 1.03) {
+      if (!this.stage || typeof this.stage.classList?.add !== 'function') return;
+      const scale = Math.max(1, intensity);
+      this.stage.style.setProperty('--arcade-pulse-scale', scale.toFixed(3));
+      this.stage.classList.remove('arcade-stage--pulse');
+      if (typeof this.stage.offsetWidth === 'number') {
+        void this.stage.offsetWidth;
+      }
+      this.stage.classList.add('arcade-stage--pulse');
+      if (this.stagePulseTimeout) {
+        clearTimeout(this.stagePulseTimeout);
+      }
+      this.stagePulseTimeout = setTimeout(() => {
+        if (this.stage) {
+          this.stage.classList.remove('arcade-stage--pulse');
+        }
+      }, 420);
+    }
+
+    maybePulseForPowerUp(type) {
+      const intensity = POWER_UP_PULSE_INTENSITY[type];
+      if (intensity && intensity > 1) {
+        this.triggerScreenPulse(intensity);
+      }
+    }
+
     activatePowerUp(type) {
       if (type === POWER_UP_IDS.MULTIBALL) {
+        this.maybePulseForPowerUp(type);
         this.spawnAdditionalBalls();
         return;
       }
@@ -1557,6 +1713,7 @@
         this.effects.set(type, newEffect);
         this.startEffect(type, newEffect);
       }
+      this.maybePulseForPowerUp(type);
     }
 
     startEffect(type, effect) {
@@ -1895,25 +2052,48 @@
       });
 
       this.powerUps.forEach(powerUp => {
-        const gradient = ctx.createRadialGradient(
-          powerUp.x,
-          powerUp.y,
-          powerUp.size * 0.1,
-          powerUp.x,
-          powerUp.y,
-          powerUp.size / 2
-        );
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-        gradient.addColorStop(1, 'rgba(120, 200, 255, 0.65)');
+        const visuals = POWER_UP_VISUALS[powerUp.type] || DEFAULT_POWER_UP_VISUAL;
+        const widthMultiplier = typeof powerUp.widthMultiplier === 'number'
+          ? powerUp.widthMultiplier
+          : visuals.widthMultiplier || DEFAULT_POWER_UP_VISUAL.widthMultiplier;
+        const height = powerUp.size;
+        const width = height * widthMultiplier;
+        const left = powerUp.x - width / 2;
+        const top = powerUp.y - height / 2;
+        const radius = Math.min(18, height * 0.45);
+        const colors = visuals.gradient || DEFAULT_POWER_UP_VISUAL.gradient;
+        const gradient = ctx.createLinearGradient(left, top, left, top + height);
+        gradient.addColorStop(0, colors[0]);
+        gradient.addColorStop(1, colors[1] || colors[0]);
+        ctx.save();
+        ctx.shadowColor = visuals.glow || DEFAULT_POWER_UP_VISUAL.glow;
+        ctx.shadowBlur = height * 0.55;
         ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(powerUp.x, powerUp.y, powerUp.size / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#0a1630';
-        ctx.font = `${Math.max(12, powerUp.size * 0.45)}px 'Orbitron', 'Inter', sans-serif`;
+        if (hasRoundRect) {
+          ctx.beginPath();
+          ctx.roundRect(left, top, width, height, radius);
+          ctx.fill();
+        } else {
+          ctx.fillRect(left, top, width, height);
+        }
+        if (visuals.border) {
+          ctx.lineWidth = Math.max(1.2, height * 0.12);
+          ctx.strokeStyle = visuals.border;
+          if (hasRoundRect) {
+            ctx.stroke();
+          } else {
+            ctx.strokeRect(left, top, width, height);
+          }
+        }
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        ctx.fillStyle = visuals.textColor || DEFAULT_POWER_UP_VISUAL.textColor;
+        ctx.font = `${Math.max(14, height * 0.6)}px 'Orbitron', 'Inter', sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(POWER_UP_LABELS[powerUp.type]?.[0] || 'P', powerUp.x, powerUp.y);
+        const symbol = powerUp.symbol || visuals.symbol || DEFAULT_POWER_UP_VISUAL.symbol;
+        ctx.fillText(symbol, powerUp.x, powerUp.y + height * 0.04);
+        ctx.restore();
       });
 
       this.lasers.forEach(laser => {

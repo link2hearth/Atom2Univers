@@ -699,6 +699,24 @@ body.theme-neon .arcade-header__status--info {
   background: radial-gradient(circle at top, rgba(28, 36, 88, 0.65), rgba(8, 12, 34, 0.95));
   overflow: hidden;
   box-shadow: 0 32px 68px rgba(6, 8, 28, 0.55);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.arcade-stage--pulse {
+  animation: arcade-stage-pulse 420ms cubic-bezier(0.22, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes arcade-stage-pulse {
+  0% {
+    transform: translateZ(0) scale(1);
+  }
+  38% {
+    transform: translateZ(0) scale(var(--arcade-pulse-scale, 1.04));
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+  }
 }
 
 .arcade-stage {
@@ -823,6 +841,37 @@ body.theme-neon .arcade-header__status--info {
   pointer-events: none;
   z-index: 2;
   overflow: hidden;
+}
+
+.arcade-shockwave {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--shockwave-x, 50%) var(--shockwave-y, 50%),
+    rgba(210, 245, 255, 0.85),
+    rgba(120, 200, 255, 0.18) 45%,
+    rgba(20, 40, 80, 0) 75%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform-origin: var(--shockwave-x, 50%) var(--shockwave-y, 50%);
+  animation: arcade-shockwave 520ms ease-out forwards;
+  filter: saturate(1.2);
+}
+
+@keyframes arcade-shockwave {
+  0% {
+    opacity: var(--shockwave-opacity, 0.8);
+    transform: scale(0.55);
+  }
+  45% {
+    opacity: calc(var(--shockwave-opacity, 0.8) * 0.65);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--shockwave-scale, 1.35));
+  }
 }
 
 .arcade-ball-ghost {
