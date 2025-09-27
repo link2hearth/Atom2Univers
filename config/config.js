@@ -654,8 +654,8 @@ const GAME_CONFIG = {
    * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
    */
   metaux: {
-    rows: 8,
-    cols: 16,
+    rows: 7,
+    cols: 18,
     clearDelayMs: 220,
     refillDelayMs: 120,
     popEffect: {
