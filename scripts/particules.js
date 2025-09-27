@@ -469,15 +469,15 @@
 
     pickLevelPattern() {
       const weights = [
-        { id: 'organic', weight: 0.36 },
-        { id: 'singleGap', weight: 0.11 },
-        { id: 'multiGap', weight: 0.08 },
-        { id: 'singleBrick', weight: 0.05 },
-        { id: 'singleLine', weight: 0.13 },
-        { id: 'bottomUniform', weight: 0.09 },
-        { id: 'uniformLines', weight: 0.08 },
-        { id: 'checkerboard', weight: 0.05 },
-        { id: 'diagonals', weight: 0.05 }
+        { id: 'organic', weight: 0.25 },
+        { id: 'singleGap', weight: 0.10 },
+        { id: 'multiGap', weight: 0.10 },
+        { id: 'singleBrick', weight: 0.01 },
+        { id: 'singleLine', weight: 0.10 },
+        { id: 'bottomUniform', weight: 0.10 },
+        { id: 'uniformLines', weight: 0.10 },
+        { id: 'checkerboard', weight: 0.12 },
+        { id: 'diagonals', weight: 0.12 }
       ];
       const total = weights.reduce((sum, entry) => sum + entry.weight, 0);
       const roll = Math.random() * total;
