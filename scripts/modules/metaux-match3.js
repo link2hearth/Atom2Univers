@@ -18,7 +18,16 @@ const DEFAULT_METAUX_CONFIG = {
     { id: 'or', label: 'Or', color: '#E6C838' },
     { id: 'platine', label: 'Platine', color: '#A6D3E3' },
     { id: 'diamant', label: 'Diamant', color: '#82D9FF' }
-  ]
+  ],
+  timer: {
+    initialSeconds: 6,
+    maxSeconds: 6,
+    matchRewardSeconds: 2,
+    penaltyWindowSeconds: 30,
+    penaltyAmountSeconds: 1,
+    minMaxSeconds: 1,
+    tickIntervalMs: 100
+  }
 };
 
 function toPositiveInteger(value, fallback) {
@@ -40,6 +49,19 @@ function toNumberWithinRange(value, fallback, { min = Number.NEGATIVE_INFINITY, 
     return fallback;
   }
   return parsed;
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
 }
 
 const METAUX_CONFIG = {
@@ -98,9 +120,73 @@ const METAUX_MAX_SHUFFLE_ATTEMPTS = toPositiveInteger(
   DEFAULT_METAUX_CONFIG.maxShuffleAttempts
 );
 
+const METAUX_TIMER_SOURCE =
+  METAUX_CONFIG.timer && typeof METAUX_CONFIG.timer === 'object' ? METAUX_CONFIG.timer : {};
+
+const METAUX_TIMER_CONFIG = {
+  initialSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.initialSeconds,
+    DEFAULT_METAUX_CONFIG.timer.initialSeconds,
+    { min: 0.5, max: 600 }
+  ),
+  maxSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.maxSeconds,
+    DEFAULT_METAUX_CONFIG.timer.maxSeconds,
+    { min: 0.5, max: 600 }
+  ),
+  matchRewardSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.matchRewardSeconds,
+    DEFAULT_METAUX_CONFIG.timer.matchRewardSeconds,
+    { min: 0, max: 60 }
+  ),
+  penaltyWindowSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.penaltyWindowSeconds,
+    DEFAULT_METAUX_CONFIG.timer.penaltyWindowSeconds,
+    { min: 1, max: 600 }
+  ),
+  penaltyAmountSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.penaltyAmountSeconds,
+    DEFAULT_METAUX_CONFIG.timer.penaltyAmountSeconds,
+    { min: 0, max: 60 }
+  ),
+  minMaxSeconds: toNumberWithinRange(
+    METAUX_TIMER_SOURCE.minMaxSeconds,
+    DEFAULT_METAUX_CONFIG.timer.minMaxSeconds,
+    { min: 0.5, max: 600 }
+  ),
+  tickIntervalMs: Math.max(
+    16,
+    toPositiveInteger(METAUX_TIMER_SOURCE.tickIntervalMs, DEFAULT_METAUX_CONFIG.timer.tickIntervalMs)
+  )
+};
+
+if (METAUX_TIMER_CONFIG.maxSeconds < METAUX_TIMER_CONFIG.initialSeconds) {
+  METAUX_TIMER_CONFIG.maxSeconds = METAUX_TIMER_CONFIG.initialSeconds;
+}
+METAUX_TIMER_CONFIG.minMaxSeconds = clamp(
+  METAUX_TIMER_CONFIG.minMaxSeconds,
+  0.5,
+  METAUX_TIMER_CONFIG.maxSeconds
+);
+
+const METAUX_TIMER_REWARD_SECONDS = Math.max(0, METAUX_TIMER_CONFIG.matchRewardSeconds);
+const METAUX_TIMER_PENALTY_WINDOW_MS = Math.max(
+  0,
+  METAUX_TIMER_CONFIG.penaltyWindowSeconds * 1000
+);
+const METAUX_TIMER_PENALTY_AMOUNT = Math.max(0, METAUX_TIMER_CONFIG.penaltyAmountSeconds);
+const METAUX_TIMER_TICK_INTERVAL = METAUX_TIMER_CONFIG.tickIntervalMs;
+
 class MetauxMatch3Game {
   constructor(options = {}) {
     this.boardElement = options.boardElement || null;
+    this.timerValueElement = options.timerValueElement || null;
+    this.timerFillElement = options.timerFillElement || null;
+    this.timerMaxElement = options.timerMaxElement || null;
+    this.endScreenElement = options.endScreenElement || null;
+    this.endTimeElement = options.endTimeElement || null;
+    this.endMatchesElement = options.endMatchesElement || null;
+    this.endMatchListElement = options.endMatchListElement || null;
     this.lastComboElement = options.lastComboElement || null;
     this.bestComboElement = options.bestComboElement || null;
     this.totalTilesElement = options.totalTilesElement || null;
@@ -113,13 +199,18 @@ class MetauxMatch3Game {
     this.processing = false;
     this.dragState = null;
     this.comboChain = 0;
-    this.stats = {
-      lastCombo: 0,
-      bestCombo: 0,
-      totalCleared: 0,
-      reshuffles: 0,
-      moves: 0
+    this.gameOver = false;
+    this.timerState = {
+      current: METAUX_TIMER_CONFIG.initialSeconds,
+      max: METAUX_TIMER_CONFIG.maxSeconds,
+      running: false,
+      intervalId: null,
+      lastUpdate: null,
+      totalElapsedMs: 0
     };
+    this.lastMatchPerType = new Map();
+    this.matchHistory = this.createEmptyMatchHistory();
+    this.resetStats();
     this.boundPointerDown = this.onPointerDown.bind(this);
     this.boundPointerMove = this.onPointerMove.bind(this);
     this.boundPointerUp = this.onPointerUp.bind(this);
@@ -133,7 +224,7 @@ class MetauxMatch3Game {
     this.buildBoard();
     this.populateBoard();
     this.refreshBoard();
-    this.updateStats();
+    this.prepareNewSession();
     this.updateMessage('Glissez pour échanger des lingots adjacents.');
     this.initialized = true;
   }
@@ -142,11 +233,15 @@ class MetauxMatch3Game {
     if (!this.initialized) {
       this.initialize();
     } else if (this.boardElement) {
+      if (!this.gameOver) {
+        this.startTimer();
+      }
       this.updateMessage('Repérez un alignement et glissez pour fusionner les métaux.');
     }
   }
 
   onLeave() {
+    this.pauseTimer();
     this.clearDragState();
   }
 
@@ -294,7 +389,7 @@ class MetauxMatch3Game {
   }
 
   onPointerDown(event) {
-    if (this.processing) {
+    if (this.processing || this.gameOver) {
       return;
     }
     const tile = event.currentTarget;
@@ -409,7 +504,7 @@ class MetauxMatch3Game {
   }
 
   attemptSwap(origin, target) {
-    if (this.processing) {
+    if (this.processing || this.gameOver) {
       return;
     }
     if (!this.isAdjacent(origin, target)) {
@@ -443,6 +538,8 @@ class MetauxMatch3Game {
       this.finishCascade();
       return;
     }
+    const matchGroups = this.extractMatchGroups(matches);
+    this.applyMatchRewards(matchGroups);
     this.comboChain += 1;
     this.stats.totalCleared += matches.length;
     matches.forEach(position => {
@@ -483,6 +580,9 @@ class MetauxMatch3Game {
     }
     this.comboChain = 0;
     this.processing = false;
+    if (this.gameOver) {
+      return;
+    }
     if (!this.hasAvailableMoves()) {
       this.forceReshuffle(false);
     }
@@ -644,6 +744,10 @@ class MetauxMatch3Game {
   }
 
   forceReshuffle(manual = true) {
+    if (this.gameOver) {
+      this.updateMessage('Partie terminée : relancez la forge pour recommencer.');
+      return;
+    }
     if (!this.initialized) {
       this.initialize();
     }
@@ -680,6 +784,341 @@ class MetauxMatch3Game {
         index += 1;
       }
     }
+  }
+
+  resetStats() {
+    this.stats = {
+      lastCombo: 0,
+      bestCombo: 0,
+      totalCleared: 0,
+      reshuffles: 0,
+      moves: 0
+    };
+  }
+
+  createEmptyMatchHistory() {
+    const perType = new Map();
+    METAUX_TILE_TYPES.forEach(type => {
+      perType.set(type.id, 0);
+    });
+    return {
+      totalMatches: 0,
+      perType
+    };
+  }
+
+  prepareNewSession() {
+    this.resetStats();
+    this.matchHistory = this.createEmptyMatchHistory();
+    this.comboChain = 0;
+    this.processing = false;
+    this.gameOver = false;
+    const now = this.getNow();
+    this.lastMatchPerType = new Map(METAUX_TILE_TYPES.map(type => [type.id, now]));
+    this.resetTimerState();
+    this.hideEndScreen();
+    this.startTimer();
+    this.updateStats();
+  }
+
+  resetTimerState() {
+    this.stopTimer();
+    this.timerState.max = METAUX_TIMER_CONFIG.maxSeconds;
+    this.timerState.current = METAUX_TIMER_CONFIG.initialSeconds;
+    this.timerState.totalElapsedMs = 0;
+    this.timerState.lastUpdate = null;
+    this.updateTimerUI();
+  }
+
+  startTimer() {
+    if (this.gameOver || this.timerState.running) {
+      return;
+    }
+    if (this.timerState.intervalId != null) {
+      window.clearInterval(this.timerState.intervalId);
+      this.timerState.intervalId = null;
+    }
+    this.timerState.running = true;
+    this.timerState.lastUpdate = this.getNow();
+    this.timerState.intervalId = window.setInterval(() => {
+      this.tickTimer();
+    }, METAUX_TIMER_TICK_INTERVAL);
+  }
+
+  pauseTimer() {
+    this.stopTimer();
+  }
+
+  stopTimer() {
+    if (this.timerState.intervalId != null) {
+      window.clearInterval(this.timerState.intervalId);
+      this.timerState.intervalId = null;
+    }
+    this.timerState.running = false;
+    this.timerState.lastUpdate = null;
+  }
+
+  tickTimer() {
+    if (!this.timerState.running || this.gameOver) {
+      return;
+    }
+    const now = this.getNow();
+    const lastUpdate = this.timerState.lastUpdate ?? now;
+    const deltaMs = Math.max(0, now - lastUpdate);
+    this.timerState.lastUpdate = now;
+    if (deltaMs <= 0) {
+      this.evaluateColorPenalties(now);
+      return;
+    }
+    this.timerState.totalElapsedMs += deltaMs;
+    const deltaSeconds = deltaMs / 1000;
+    this.timerState.current = Math.max(0, this.timerState.current - deltaSeconds);
+    this.updateTimerUI();
+    this.evaluateColorPenalties(now);
+    if (this.timerState.current <= 0) {
+      this.handleTimerExpired();
+    }
+  }
+
+  handleTimerExpired() {
+    if (this.gameOver) {
+      return;
+    }
+    this.timerState.current = 0;
+    this.updateTimerUI();
+    this.stopTimer();
+    this.gameOver = true;
+    this.clearDragState();
+    this.updateMessage('Temps écoulé ! Forge interrompue.');
+    this.showEndScreen();
+  }
+
+  addTime(seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0 || this.gameOver) {
+      return;
+    }
+    const nextValue = Math.min(this.timerState.max, this.timerState.current + seconds);
+    this.timerState.current = nextValue;
+    this.updateTimerUI();
+  }
+
+  reduceTimerMax() {
+    if (METAUX_TIMER_PENALTY_AMOUNT <= 0) {
+      return false;
+    }
+    const newMax = Math.max(METAUX_TIMER_CONFIG.minMaxSeconds, this.timerState.max - METAUX_TIMER_PENALTY_AMOUNT);
+    if (newMax === this.timerState.max) {
+      return false;
+    }
+    this.timerState.max = newMax;
+    if (this.timerState.current > this.timerState.max) {
+      this.timerState.current = this.timerState.max;
+    }
+    this.updateTimerUI();
+    return true;
+  }
+
+  evaluateColorPenalties(now) {
+    if (!METAUX_TIMER_PENALTY_WINDOW_MS || this.gameOver) {
+      return;
+    }
+    METAUX_TILE_TYPES.forEach(type => {
+      const lastMatch = this.lastMatchPerType.get(type.id) ?? now;
+      if (now - lastMatch >= METAUX_TIMER_PENALTY_WINDOW_MS) {
+        const reduced = this.reduceTimerMax();
+        this.lastMatchPerType.set(type.id, now);
+        if (reduced) {
+          this.updateMessage(`Le chrono se contracte : ${this.getTypeLabel(type.id)} tarde à apparaître.`);
+        }
+      }
+    });
+  }
+
+  extractMatchGroups(matches) {
+    if (!matches || !matches.length) {
+      return [];
+    }
+    const matchMap = new Map();
+    matches.forEach(position => {
+      const type = this.board[position.row]?.[position.col] || null;
+      if (!type) {
+        return;
+      }
+      matchMap.set(`${position.row},${position.col}`, {
+        row: position.row,
+        col: position.col,
+        type
+      });
+    });
+    const groups = [];
+    const visited = new Set();
+    const directions = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1]
+    ];
+    for (const [key, info] of matchMap.entries()) {
+      if (visited.has(key)) {
+        continue;
+      }
+      const group = { type: info.type };
+      const stack = [info];
+      visited.add(key);
+      while (stack.length) {
+        const current = stack.pop();
+        for (const [dRow, dCol] of directions) {
+          const nextRow = current.row + dRow;
+          const nextCol = current.col + dCol;
+          const neighborKey = `${nextRow},${nextCol}`;
+          if (visited.has(neighborKey)) {
+            continue;
+          }
+          const neighbor = matchMap.get(neighborKey);
+          if (neighbor && neighbor.type === group.type) {
+            visited.add(neighborKey);
+            stack.push(neighbor);
+          }
+        }
+      }
+      groups.push(group);
+    }
+    return groups;
+  }
+
+  applyMatchRewards(groups) {
+    if (!groups || !groups.length) {
+      return;
+    }
+    const now = this.getNow();
+    groups.forEach(group => {
+      this.recordMatch(group.type, now);
+    });
+    if (METAUX_TIMER_REWARD_SECONDS > 0) {
+      this.addTime(METAUX_TIMER_REWARD_SECONDS * groups.length);
+    }
+  }
+
+  recordMatch(type, timestamp) {
+    if (!type) {
+      return;
+    }
+    if (!this.matchHistory || !(this.matchHistory.perType instanceof Map)) {
+      this.matchHistory = this.createEmptyMatchHistory();
+    }
+    const previous = this.matchHistory.perType.get(type) || 0;
+    this.matchHistory.perType.set(type, previous + 1);
+    this.matchHistory.totalMatches += 1;
+    if (Number.isFinite(timestamp)) {
+      this.lastMatchPerType.set(type, timestamp);
+    }
+  }
+
+  populateEndScreen() {
+    if (this.endTimeElement) {
+      this.endTimeElement.textContent = this.formatDuration(this.timerState.totalElapsedMs);
+    }
+    if (this.endMatchesElement) {
+      this.endMatchesElement.textContent = this.matchHistory.totalMatches.toLocaleString('fr-FR');
+    }
+    if (this.endMatchListElement) {
+      this.endMatchListElement.innerHTML = '';
+      METAUX_TILE_TYPES.forEach(type => {
+        const item = document.createElement('li');
+        item.className = 'metaux-end-screen__color-row';
+        const label = document.createElement('span');
+        label.className = 'metaux-end-screen__color-label';
+        label.textContent = this.getTypeLabel(type.id);
+        if (type.color) {
+          label.style.setProperty('--match-color', type.color);
+        } else {
+          label.style.removeProperty('--match-color');
+        }
+        const value = document.createElement('span');
+        value.className = 'metaux-end-screen__color-value';
+        const count = this.matchHistory.perType.get(type.id) || 0;
+        value.textContent = count.toLocaleString('fr-FR');
+        item.appendChild(label);
+        item.appendChild(value);
+        this.endMatchListElement.appendChild(item);
+      });
+    }
+  }
+
+  showEndScreen() {
+    this.populateEndScreen();
+    if (this.endScreenElement) {
+      this.endScreenElement.hidden = false;
+    }
+  }
+
+  hideEndScreen() {
+    if (this.endScreenElement) {
+      this.endScreenElement.hidden = true;
+    }
+  }
+
+  updateTimerUI() {
+    if (this.timerValueElement) {
+      this.timerValueElement.textContent = this.formatSeconds(this.timerState.current, { decimals: 1 });
+    }
+    if (this.timerMaxElement) {
+      this.timerMaxElement.textContent = `Max ${this.formatSeconds(this.timerState.max, { decimals: 0 })}`;
+    }
+    if (this.timerFillElement) {
+      const ratio = this.timerState.max > 0 ? this.timerState.current / this.timerState.max : 0;
+      const clampedRatio = clamp(ratio, 0, 1);
+      this.timerFillElement.style.transform = `scaleX(${clampedRatio})`;
+      this.timerFillElement.style.width = `${clampedRatio * 100}%`;
+    }
+  }
+
+  formatSeconds(value, { decimals = 1 } = {}) {
+    const safeValue = Math.max(0, Number(value) || 0);
+    const options = {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    };
+    return `${safeValue.toLocaleString('fr-FR', options)} s`;
+  }
+
+  formatDuration(durationMs) {
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      return '0 s';
+    }
+    const totalSeconds = durationMs / 1000;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds - minutes * 60;
+    if (minutes > 0) {
+      const secondsText = seconds.toLocaleString('fr-FR', {
+        minimumFractionDigits: seconds % 1 === 0 ? 0 : 1,
+        maximumFractionDigits: 1
+      });
+      return `${minutes.toLocaleString('fr-FR')} min ${secondsText} s`;
+    }
+    return `${totalSeconds.toLocaleString('fr-FR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    })} s`;
+  }
+
+  restart() {
+    if (!this.initialized) {
+      this.initialize();
+      return;
+    }
+    this.pauseTimer();
+    this.clearDragState();
+    this.populateBoard();
+    this.refreshBoard();
+    this.prepareNewSession();
+    this.updateMessage('Nouvelle session : enchaînez les alliages !');
+  }
+
+  getNow() {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
   }
 
   updateStats() {
@@ -729,6 +1168,13 @@ function initMetauxGame() {
   }
   metauxGame = new MetauxMatch3Game({
     boardElement: elements.metauxBoard,
+    timerValueElement: elements.metauxTimerValue,
+    timerFillElement: elements.metauxTimerFill,
+    timerMaxElement: elements.metauxTimerMaxValue,
+    endScreenElement: elements.metauxEndScreen,
+    endTimeElement: elements.metauxEndTimeValue,
+    endMatchesElement: elements.metauxEndMatchesValue,
+    endMatchListElement: elements.metauxEndMatchList,
     lastComboElement: elements.metauxLastComboValue,
     bestComboElement: elements.metauxBestComboValue,
     totalTilesElement: elements.metauxTotalTilesValue,

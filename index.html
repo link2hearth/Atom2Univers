@@ -386,7 +386,45 @@
       </button>
       <div class="metaux-content">
         <div class="metaux-board-wrapper">
+          <div class="metaux-timer" id="metauxTimer" role="timer" aria-live="polite">
+            <span class="metaux-timer__label">Chrono</span>
+            <span class="metaux-timer__max" id="metauxTimerMaxValue">Max 6&nbsp;s</span>
+            <div class="metaux-timer__bar" aria-hidden="true">
+              <div class="metaux-timer__bar-fill" id="metauxTimerFill"></div>
+            </div>
+            <span class="metaux-timer__value" id="metauxTimerValue">6,0&nbsp;s</span>
+          </div>
           <div class="metaux-board" id="metauxBoard" role="grid" aria-label="Grille du mini-jeu Métaux"></div>
+          <div class="metaux-end-screen" id="metauxEndScreen" hidden>
+            <div class="metaux-end-screen__panel" role="dialog" aria-modal="true" aria-labelledby="metauxEndTitle">
+              <h2 id="metauxEndTitle">Forge terminée</h2>
+              <dl class="metaux-end-screen__summary">
+                <div class="metaux-end-screen__summary-item">
+                  <dt>Temps passé</dt>
+                  <dd id="metauxEndTimeValue">0&nbsp;s</dd>
+                </div>
+                <div class="metaux-end-screen__summary-item">
+                  <dt>Matches</dt>
+                  <dd id="metauxEndMatchesValue">0</dd>
+                </div>
+              </dl>
+              <div class="metaux-end-screen__colors">
+                <h3>Couleurs travaillées</h3>
+                <ul id="metauxEndMatchesList"></ul>
+              </div>
+              <div class="metaux-end-screen__actions">
+                <button type="button" id="metauxReplayButton" class="metaux-end-screen__button">Rejouer</button>
+                <button
+                  type="button"
+                  id="metauxReturnButton"
+                  class="metaux-end-screen__button metaux-end-screen__button--ghost"
+                >
+                  Options
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="metaux-message" id="metauxMessage" role="status" aria-live="polite"></p>
         </div>
       </div>
     </section>

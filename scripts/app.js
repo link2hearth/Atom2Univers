@@ -1554,6 +1554,14 @@ const elements = {
   metauxExitButton: document.getElementById('metauxExitButton'),
   metauxReturnButton: document.getElementById('metauxReturnButton'),
   metauxBoard: document.getElementById('metauxBoard'),
+  metauxTimerValue: document.getElementById('metauxTimerValue'),
+  metauxTimerFill: document.getElementById('metauxTimerFill'),
+  metauxTimerMaxValue: document.getElementById('metauxTimerMaxValue'),
+  metauxEndScreen: document.getElementById('metauxEndScreen'),
+  metauxEndTimeValue: document.getElementById('metauxEndTimeValue'),
+  metauxEndMatchesValue: document.getElementById('metauxEndMatchesValue'),
+  metauxEndMatchList: document.getElementById('metauxEndMatchesList'),
+  metauxReplayButton: document.getElementById('metauxReplayButton'),
   metauxLastComboValue: document.getElementById('metauxLastComboValue'),
   metauxBestComboValue: document.getElementById('metauxBestComboValue'),
   metauxTotalTilesValue: document.getElementById('metauxTotalTilesValue'),
@@ -4435,6 +4443,15 @@ if (elements.metauxReshuffleButton) {
         return;
       }
       metauxGame.forceReshuffle(true);
+    }
+  });
+}
+
+if (elements.metauxReplayButton) {
+  elements.metauxReplayButton.addEventListener('click', () => {
+    initMetauxGame();
+    if (metauxGame) {
+      metauxGame.restart();
     }
   });
 }
