@@ -4195,12 +4195,16 @@ body.theme-neon .devkit-panel__footer kbd {
 
 .page--metaux {
   --metaux-vertical-space: clamp(3.5rem, 18vh, 12rem);
-  display: flex;
-  flex-direction: column;
-  gap: clamp(1.5rem, 3vw, 2.4rem);
+  display: none;
   padding: clamp(1.2rem, 3vw, 2.6rem) clamp(1rem, 3.5vw, 3rem);
   position: relative;
   min-height: 100vh;
+}
+
+.page--metaux.active {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.4rem);
 }
 
 .metaux-exit-button {
