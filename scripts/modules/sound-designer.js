@@ -5,6 +5,7 @@
 
   const SOUND_PRESETS_KEY = 'atom2univers.soundDesigner.presets.v1';
   const SOUND_ASSIGNMENTS_KEY = 'atom2univers.soundDesigner.assignments.v1';
+  const STORAGE_VERSION = 1;
   const MAX_PRESETS = 16;
 
   const DEFAULT_PRESETS = [
@@ -34,14 +35,14 @@
     }
   ];
 
-  const DEFAULT_ASSIGNMENTS = {
-    pop: DEFAULT_PRESETS[0].id,
-    crit: DEFAULT_PRESETS[1].id
-  };
-
   const EFFECT_LABELS = {
     pop: "Clic principal",
     crit: "Coup critique"
+  };
+
+  const LEGACY_DEFAULT_ASSIGNMENTS = {
+    pop: DEFAULT_PRESETS[0].id,
+    crit: DEFAULT_PRESETS[1].id
   };
 
   const state = {
@@ -124,7 +125,11 @@
 
   function loadAssignments(presets) {
     const stored = safeParse(readStorage(SOUND_ASSIGNMENTS_KEY));
-    const assignments = stored && typeof stored === 'object' ? Object.assign({}, stored) : {};
+    const version = stored && typeof stored.__version === 'number' ? stored.__version : 0;
+    const assignments = stored && typeof stored === 'object' && !Array.isArray(stored)
+      ? Object.assign({}, stored)
+      : {};
+    delete assignments.__version;
     const presetIds = new Set(presets.map(preset => preset.id));
     const resolved = {};
     Object.keys(EFFECT_LABELS).forEach(effectId => {
@@ -133,19 +138,30 @@
         resolved[effectId] = saved;
       }
     });
-    if (!resolved.pop || !presetIds.has(resolved.pop)) {
-      resolved.pop = DEFAULT_ASSIGNMENTS.pop;
-    }
-    if (!resolved.crit || !presetIds.has(resolved.crit)) {
-      resolved.crit = DEFAULT_ASSIGNMENTS.crit;
-    }
+    Object.keys(EFFECT_LABELS).forEach(effectId => {
+      if (
+        version < STORAGE_VERSION &&
+        LEGACY_DEFAULT_ASSIGNMENTS[effectId] &&
+        resolved[effectId] === LEGACY_DEFAULT_ASSIGNMENTS[effectId]
+      ) {
+        resolved[effectId] = null;
+      }
+      if (!presetIds.has(resolved[effectId])) {
+        resolved[effectId] = null;
+      }
+    });
     return resolved;
   }
 
   function persistState() {
     try {
       window.localStorage.setItem(SOUND_PRESETS_KEY, JSON.stringify(state.presets));
-      window.localStorage.setItem(SOUND_ASSIGNMENTS_KEY, JSON.stringify(state.assignments));
+      const serializedAssignments = { __version: STORAGE_VERSION };
+      Object.keys(EFFECT_LABELS).forEach(effectId => {
+        const value = state.assignments[effectId];
+        serializedAssignments[effectId] = typeof value === 'string' ? value : null;
+      });
+      window.localStorage.setItem(SOUND_ASSIGNMENTS_KEY, JSON.stringify(serializedAssignments));
     } catch (error) {
       // Ignore storage errors (private mode, quota, etc.)
     }
