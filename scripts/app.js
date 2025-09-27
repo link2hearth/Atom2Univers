@@ -338,6 +338,28 @@ function normalizeFrenzyStats(raw) {
   };
 }
 
+function createDefaultApsCritState() {
+  return { chronoSeconds: 0, multiplier: 1 };
+}
+
+function normalizeApsCritState(raw) {
+  const state = createDefaultApsCritState();
+  if (!raw || typeof raw !== 'object') {
+    return state;
+  }
+  const chronoValue = Number(
+    raw.chronoSeconds ?? raw.chrono ?? raw.time ?? raw.seconds ?? raw.chronoSecs ?? 0
+  );
+  if (Number.isFinite(chronoValue) && chronoValue > 0) {
+    state.chronoSeconds = Math.max(0, chronoValue);
+  }
+  const multiplierValue = Number(raw.multiplier ?? raw.multi ?? raw.factor ?? 0);
+  if (Number.isFinite(multiplierValue) && multiplierValue > 0) {
+    state.multiplier = Math.max(1, multiplierValue);
+  }
+  return state;
+}
+
 function createEmptyProductionEntry() {
   const rarityMultipliers = new Map();
   RARITY_IDS.forEach(id => {
@@ -364,6 +386,7 @@ function createEmptyProductionEntry() {
         trophyMultiplier: LayeredNumber.one(),
         familyMultiplier: LayeredNumber.one(),
         frenzy: LayeredNumber.one(),
+        apsCrit: LayeredNumber.one(),
         rarityMultipliers
       }
     }
@@ -446,6 +469,9 @@ function cloneProductionEntry(entry) {
         frenzy: entry.sources?.multipliers?.frenzy instanceof LayeredNumber
           ? entry.sources.multipliers.frenzy.clone()
           : LayeredNumber.one(),
+        apsCrit: entry.sources?.multipliers?.apsCrit instanceof LayeredNumber
+          ? entry.sources.multipliers.apsCrit.clone()
+          : toMultiplierLayered(entry.sources?.multipliers?.apsCrit ?? 1),
         rarityMultipliers: cloneRarityMultipliers(entry.sources?.multipliers?.rarityMultipliers)
       }
     }
@@ -860,7 +886,8 @@ const DEFAULT_STATE = {
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
   musicEnabled: DEFAULT_MUSIC_ENABLED,
-  bigBangButtonVisible: false
+  bigBangButtonVisible: false,
+  apsCrit: createDefaultApsCritState()
 };
 
 const gameState = {
@@ -900,10 +927,33 @@ const gameState = {
   musicTrackId: null,
   musicVolume: DEFAULT_MUSIC_VOLUME,
   musicEnabled: DEFAULT_MUSIC_ENABLED,
-  bigBangButtonVisible: false
+  bigBangButtonVisible: false,
+  apsCrit: createDefaultApsCritState()
 };
 
 applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
+
+function ensureApsCritState() {
+  if (!gameState.apsCrit || typeof gameState.apsCrit !== 'object') {
+    gameState.apsCrit = createDefaultApsCritState();
+    return gameState.apsCrit;
+  }
+  const state = gameState.apsCrit;
+  const chrono = Number(state.chronoSeconds);
+  state.chronoSeconds = Number.isFinite(chrono) && chrono > 0 ? Math.max(0, chrono) : 0;
+  const multiplier = Number(state.multiplier);
+  state.multiplier = Number.isFinite(multiplier) && multiplier > 0 ? Math.max(1, multiplier) : 1;
+  return state;
+}
+
+function getApsCritMultiplier() {
+  const state = ensureApsCritState();
+  const chrono = Number(state.chronoSeconds) || 0;
+  if (chrono <= 0) {
+    return 1;
+  }
+  return Math.max(1, Number(state.multiplier) || 1);
+}
 
 const DEVKIT_STATE = {
   isOpen: false,
@@ -1501,6 +1551,10 @@ const elements = {
   statusAps: document.getElementById('statusAps'),
   statusCrit: document.getElementById('statusCrit'),
   statusCritValue: document.getElementById('statusCritValue'),
+  statusApsCrit: document.getElementById('statusApsCrit'),
+  statusApsCritChrono: document.getElementById('statusApsCritChrono'),
+  statusApsCritMultiplier: document.getElementById('statusApsCritMultiplier'),
+  statusApsCritTotal: document.getElementById('statusApsCritTotal'),
   statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
@@ -3555,6 +3609,28 @@ function renderProductionBreakdown(container, entry, context = null) {
 }
 
 let toastElement = null;
+let apsCritPulseTimeoutId = null;
+
+const APS_CRIT_TIMER_EPSILON = 1e-3;
+
+function updateApsCritTimer(deltaSeconds) {
+  if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+    return;
+  }
+  const state = ensureApsCritState();
+  const previousSeconds = Number(state.chronoSeconds) || 0;
+  if (previousSeconds <= 0) {
+    state.chronoSeconds = 0;
+    return;
+  }
+  const remaining = previousSeconds - deltaSeconds;
+  if (remaining <= APS_CRIT_TIMER_EPSILON) {
+    state.chronoSeconds = 0;
+    recalcProduction();
+  } else {
+    state.chronoSeconds = remaining;
+  }
+}
 
 const CLICK_WINDOW_MS = CONFIG.presentation?.clicks?.windowMs ?? 1000;
 const MAX_CLICKS_PER_SECOND = CONFIG.presentation?.clicks?.maxClicksPerSecond ?? 20;
@@ -4405,6 +4481,48 @@ document.addEventListener('keydown', event => {
 updateDevKitUI();
 
 initParticulesGame();
+
+function handleMetauxSessionEnd(summary) {
+  if (!summary || typeof summary !== 'object') {
+    return;
+  }
+  const elapsedMs = Number(summary.elapsedMs ?? summary.time ?? 0);
+  const matches = Number(summary.matches ?? summary.matchCount ?? 0);
+  const secondsEarned = Number.isFinite(elapsedMs) && elapsedMs > 0
+    ? Math.max(0, Math.round(elapsedMs / 1000))
+    : 0;
+  const matchesEarned = Number.isFinite(matches) && matches > 0
+    ? Math.max(0, Math.floor(matches))
+    : 0;
+  if (secondsEarned <= 0 && matchesEarned <= 0) {
+    return;
+  }
+  const apsCrit = ensureApsCritState();
+  if (secondsEarned > 0) {
+    apsCrit.chronoSeconds = Math.max(0, (Number(apsCrit.chronoSeconds) || 0) + secondsEarned);
+  }
+  if (matchesEarned > 0) {
+    apsCrit.multiplier = Math.max(1, (Number(apsCrit.multiplier) || 1) + matchesEarned);
+  } else {
+    apsCrit.multiplier = Math.max(1, Number(apsCrit.multiplier) || 1);
+  }
+  recalcProduction();
+  updateUI();
+  pulseApsCritPanel();
+  const messageParts = [];
+  if (secondsEarned > 0) {
+    messageParts.push(`Chrono +${secondsEarned.toLocaleString('fr-FR')} s`);
+  }
+  if (matchesEarned > 0) {
+    messageParts.push(`Multi +${matchesEarned.toLocaleString('fr-FR')}`);
+  }
+  if (messageParts.length) {
+    showToast(`Métaux : ${messageParts.join(' · ')}`);
+  }
+  saveGame();
+}
+
+window.handleMetauxSessionEnd = handleMetauxSessionEnd;
 
 elements.navButtons.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -6088,12 +6206,19 @@ function recalcProduction() {
     .multiply(clickFamilyMultiplier)
     .multiply(clickRarityProduct)
     .multiply(clickTrophyMultiplier);
-  const autoTotalMultiplier = LayeredNumber.one()
+  let autoTotalMultiplier = LayeredNumber.one()
     .multiply(autoShopBonus1)
     .multiply(autoShopBonus2)
     .multiply(autoFamilyMultiplier)
     .multiply(autoRarityProduct)
     .multiply(autoTrophyMultiplier);
+
+  const apsCritMultiplierValue = getApsCritMultiplier();
+  const apsCritMultiplier = toMultiplierLayered(apsCritMultiplierValue);
+  const hasApsCritMultiplier = !isLayeredOne(apsCritMultiplier);
+  if (hasApsCritMultiplier) {
+    autoTotalMultiplier = autoTotalMultiplier.multiply(apsCritMultiplier);
+  }
 
   clickDetails.totalMultiplier = clickTotalMultiplier.clone();
   autoDetails.totalMultiplier = autoTotalMultiplier.clone();
@@ -6123,6 +6248,18 @@ function recalcProduction() {
   perSecond = perSecond.multiply(autoFamilyMultiplier);
   perSecond = perSecond.multiply(autoRarityProduct);
   perSecond = perSecond.multiply(autoTrophyMultiplier);
+  if (hasApsCritMultiplier) {
+    perSecond = perSecond.multiply(apsCritMultiplier);
+    autoDetails.multipliers.push({
+      id: 'apsCrit',
+      label: 'Critique APS',
+      value: apsCritMultiplier.clone(),
+      source: 'metaux'
+    });
+  }
+  autoDetails.sources.multipliers.apsCrit = hasApsCritMultiplier
+    ? apsCritMultiplier.clone()
+    : LayeredNumber.one();
 
   perClick = normalizeProductionUnit(perClick);
   perSecond = normalizeProductionUnit(perSecond);
@@ -6479,6 +6616,90 @@ function updateFrenzyIndicators(now = performance.now()) {
   updateFrenzyIndicatorFor('perClick', elements.statusApcFrenzy, now);
 }
 
+function formatApsCritChrono(seconds) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
+  if (totalSeconds >= 3600) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    const parts = [`${hours.toLocaleString('fr-FR')} h`];
+    if (minutes > 0) {
+      parts.push(`${minutes.toLocaleString('fr-FR')} min`);
+    }
+    if (secs > 0) {
+      parts.push(`${secs.toLocaleString('fr-FR')} s`);
+    }
+    return parts.join(' ');
+  }
+  if (totalSeconds >= 60) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    const parts = [`${minutes.toLocaleString('fr-FR')} min`];
+    if (secs > 0) {
+      parts.push(`${secs.toLocaleString('fr-FR')} s`);
+    }
+    return parts.join(' ');
+  }
+  return `${totalSeconds.toLocaleString('fr-FR')} s`;
+}
+
+function updateApsCritDisplay() {
+  const panel = elements.statusApsCrit;
+  if (!panel) {
+    return;
+  }
+  const state = ensureApsCritState();
+  if (elements.statusApsCritChrono) {
+    elements.statusApsCritChrono.textContent = formatApsCritChrono(state.chronoSeconds);
+  }
+  if (elements.statusApsCritMultiplier) {
+    const chronoActive = Number(state.chronoSeconds) > 0;
+    const multiplierDisplay = chronoActive
+      ? Math.max(1, Number(state.multiplier) || 1)
+      : 1;
+    elements.statusApsCritMultiplier.textContent = `×${multiplierDisplay.toLocaleString('fr-FR')}`;
+  }
+  if (elements.statusApsCritTotal) {
+    elements.statusApsCritTotal.textContent = gameState.perSecond.toString();
+  }
+  const chronoText = elements.statusApsCritChrono?.textContent ?? '';
+  const multiplierText = elements.statusApsCritMultiplier?.textContent ?? '';
+  const apsText = elements.statusApsCritTotal?.textContent ?? '';
+  panel.setAttribute(
+    'aria-label',
+    `Compteur critique APS : chrono ${chronoText}, multiplicateur ${multiplierText}, production ${apsText} atomes par seconde.`
+  );
+}
+
+function pulseApsCritPanel() {
+  const panel = elements.statusApsCrit;
+  if (!panel) {
+    return;
+  }
+  panel.classList.remove('is-pulsing');
+  void panel.offsetWidth;
+  panel.classList.add('is-pulsing');
+  if (apsCritPulseTimeoutId != null) {
+    clearTimeout(apsCritPulseTimeoutId);
+  }
+  apsCritPulseTimeoutId = setTimeout(() => {
+    panel.classList.remove('is-pulsing');
+    apsCritPulseTimeoutId = null;
+  }, 620);
+  [
+    elements.statusApsCritChrono,
+    elements.statusApsCritMultiplier,
+    elements.statusApsCritTotal
+  ].forEach(valueElement => {
+    if (!valueElement) {
+      return;
+    }
+    valueElement.classList.remove('status-aps-crit-value--pulse');
+    void valueElement.offsetWidth;
+    valueElement.classList.add('status-aps-crit-value--pulse');
+  });
+}
+
 function updateUI() {
   updatePageUnlockUI();
   updateBigBangVisibility();
@@ -6492,6 +6713,7 @@ function updateUI() {
   if (elements.statusAps) {
     elements.statusAps.textContent = gameState.perSecond.toString();
   }
+  updateApsCritDisplay();
   updateFrenzyIndicators();
   updateGachaUI();
   updateCollectionDisplay();
@@ -6748,6 +6970,13 @@ function serializeState() {
         ? Number(gameState.frenzySpawnBonus.perSecond)
         : 1
     },
+    apsCrit: (() => {
+      const state = ensureApsCritState();
+      return {
+        chronoSeconds: Math.max(0, Number(state.chronoSeconds) || 0),
+        multiplier: Math.max(1, Number(state.multiplier) || 1)
+      };
+    })(),
     music: {
       selectedTrack: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null,
       enabled: gameState.musicEnabled !== false,
@@ -6819,7 +7048,8 @@ function resetGame() {
     musicTrackId: null,
     musicVolume: DEFAULT_MUSIC_VOLUME,
     musicEnabled: DEFAULT_MUSIC_ENABLED,
-    bigBangButtonVisible: false
+    bigBangButtonVisible: false,
+    apsCrit: createDefaultApsCritState()
   });
   applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
   setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
@@ -7001,6 +7231,7 @@ function loadGame() {
       gameState.frenzySpawnBonus = { perClick: 1, perSecond: 1 };
     }
     applyFrenzySpawnChanceBonus(gameState.frenzySpawnBonus);
+    gameState.apsCrit = normalizeApsCritState(data.apsCrit);
     const intervalChanged = setTicketStarAverageIntervalSeconds(gameState.ticketStarAverageIntervalSeconds);
     if (intervalChanged) {
       resetTicketStarState({ reschedule: true });
@@ -7233,6 +7464,8 @@ function loop(now) {
     const gain = gameState.perSecond.multiplyNumber(delta);
     gainAtoms(gain, 'aps');
   }
+
+  updateApsCritTimer(delta);
 
   updateClickVisuals(now);
   updatePlaytime(delta);

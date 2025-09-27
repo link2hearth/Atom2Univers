@@ -193,6 +193,7 @@ class MetauxMatch3Game {
     this.reshufflesElement = options.reshufflesElement || null;
     this.movesElement = options.movesElement || null;
     this.messageElement = options.messageElement || null;
+    this.onSessionEnd = typeof options.onSessionEnd === 'function' ? options.onSessionEnd : null;
     this.board = Array.from({ length: METAUX_ROWS }, () => Array(METAUX_COLS).fill(null));
     this.tiles = Array.from({ length: METAUX_ROWS }, () => Array(METAUX_COLS).fill(null));
     this.initialized = false;
@@ -891,6 +892,7 @@ class MetauxMatch3Game {
     this.clearDragState();
     this.updateMessage('Temps écoulé ! Forge interrompue.');
     this.showEndScreen();
+    this.notifySessionEnd();
   }
 
   addTime(seconds) {
@@ -1045,6 +1047,39 @@ class MetauxMatch3Game {
     }
   }
 
+  notifySessionEnd() {
+    if (typeof this.onSessionEnd !== 'function') {
+      return;
+    }
+    const safeTotalMs = Number.isFinite(this.timerState.totalElapsedMs)
+      ? Math.max(0, this.timerState.totalElapsedMs)
+      : 0;
+    const totalMatches = Number.isFinite(this.matchHistory.totalMatches)
+      ? Math.max(0, this.matchHistory.totalMatches)
+      : 0;
+    const perType = {};
+    if (this.matchHistory?.perType instanceof Map) {
+      this.matchHistory.perType.forEach((value, key) => {
+        perType[key] = Number.isFinite(value) ? Math.max(0, value) : 0;
+      });
+    }
+    const summary = {
+      elapsedMs: safeTotalMs,
+      matches: totalMatches,
+      perType,
+      stats: {
+        bestCombo: this.stats?.bestCombo || 0,
+        totalCleared: this.stats?.totalCleared || 0,
+        moves: this.stats?.moves || 0
+      }
+    };
+    try {
+      this.onSessionEnd(summary);
+    } catch (error) {
+      console.error('Erreur lors du rappel de fin de session Métaux', error);
+    }
+  }
+
   showEndScreen() {
     this.populateEndScreen();
     if (this.endScreenElement) {
@@ -1180,7 +1215,11 @@ function initMetauxGame() {
     totalTilesElement: elements.metauxTotalTilesValue,
     reshufflesElement: elements.metauxReshufflesValue,
     movesElement: elements.metauxMovesValue,
-    messageElement: elements.metauxMessage
+    messageElement: elements.metauxMessage,
+    onSessionEnd:
+      typeof window !== 'undefined' && typeof window.handleMetauxSessionEnd === 'function'
+        ? window.handleMetauxSessionEnd
+        : null
   });
   metauxGame.initialize();
 }
