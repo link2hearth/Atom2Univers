@@ -654,8 +654,8 @@ const GAME_CONFIG = {
    * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
    */
   metaux: {
-    rows: 7,
-    cols: 18,
+    rows: 8,
+    cols: 16,
     clearDelayMs: 220,
     refillDelayMs: 120,
     popEffect: {
@@ -668,7 +668,7 @@ const GAME_CONFIG = {
       { id: 'bronze', label: 'Cu', color: '#F8A436' },
       { id: 'argent', label: 'Ag', color: '#1C8213' },
       { id: 'or', label: 'Au', color: '#E6C838' },
-      { id: 'platine', label: 'Pt', color: '#97DEF8' },
+      { id: 'platine', label: 'Pt', color: '#45A9E2' },
       { id: 'diamant', label: 'C', color: '#E9F6FD' }
     ]
   },
