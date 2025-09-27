@@ -1603,6 +1603,7 @@ const elements = {
   statusApsCrit: document.getElementById('statusApsCrit'),
   statusApsCritChrono: document.getElementById('statusApsCritChrono'),
   statusApsCritMultiplier: document.getElementById('statusApsCritMultiplier'),
+  statusApsCritSeparator: document.querySelector('.status-aps-crit-separator'),
   statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
@@ -6751,21 +6752,30 @@ function updateApsCritDisplay() {
   const multiplierValue = getApsCritMultiplier(state);
   const isActive = remainingSeconds > APS_CRIT_TIMER_EPSILON && multiplierValue > 1;
   panel.hidden = !isActive;
+  panel.style.display = isActive ? '' : 'none';
   panel.classList.toggle('is-active', isActive);
   panel.setAttribute('aria-hidden', String(!isActive));
   const container = panel.closest('.status-item--crit-aps');
   if (container) {
     container.hidden = !isActive;
+    container.style.display = isActive ? '' : 'none';
     container.setAttribute('aria-hidden', String(!isActive));
+  }
+  if (elements.statusApsCritSeparator) {
+    elements.statusApsCritSeparator.hidden = !isActive;
   }
   const chronoText = isActive ? formatApsCritChrono(remainingSeconds) : '';
   if (elements.statusApsCritChrono) {
     elements.statusApsCritChrono.textContent = chronoText;
+    elements.statusApsCritChrono.hidden = !isActive;
+    elements.statusApsCritChrono.setAttribute('aria-hidden', String(!isActive));
   }
-  const displayMultiplier = isActive ? multiplierValue : 1;
-  const multiplierText = `×${displayMultiplier.toLocaleString('fr-FR')}`;
+  const multiplierText = `×${multiplierValue.toLocaleString('fr-FR')}`;
+  const multiplierDisplayText = isActive ? multiplierText : '';
   if (elements.statusApsCritMultiplier) {
-    elements.statusApsCritMultiplier.textContent = multiplierText;
+    elements.statusApsCritMultiplier.textContent = multiplierDisplayText;
+    elements.statusApsCritMultiplier.hidden = !isActive;
+    elements.statusApsCritMultiplier.setAttribute('aria-hidden', String(!isActive));
   }
   panel.setAttribute(
     'aria-label',
