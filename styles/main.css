@@ -1741,6 +1741,10 @@ body.theme-neon .gacha-ticket-counter {
   list-style: none;
 }
 
+.gacha-result__grid--wide {
+  width: min(720px, 92vw);
+}
+
 .gacha-result-card {
   --rarity-color: rgba(255, 255, 255, 0.5);
   position: relative;
