@@ -645,6 +645,27 @@ const GAME_CONFIG = {
   },
 
   /**
+   * Réglages du mini-jeu Métaux.
+   * - rows / cols : dimensions de la grille.
+   * - clearDelayMs : délai avant la disparition visuelle d'un alignement.
+   * - maxShuffleAttempts : nombre maximal de tentatives de redistribution.
+   * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
+   */
+  metaux: {
+    rows: 9,
+    cols: 16,
+    clearDelayMs: 200,
+    maxShuffleAttempts: 120,
+    tileTypes: [
+      { id: 'bronze', label: 'Bronze', color: 'rgba(199, 126, 54, 0.72)' },
+      { id: 'argent', label: 'Argent', color: 'rgba(173, 190, 202, 0.78)' },
+      { id: 'or', label: 'Or', color: 'rgba(245, 204, 79, 0.82)' },
+      { id: 'platine', label: 'Platine', color: 'rgba(166, 211, 227, 0.82)' },
+      { id: 'diamant', label: 'Diamant', color: 'rgba(130, 217, 255, 0.88)' }
+    ]
+  },
+
+  /**
    * Configuration des mini-jeux d'arcade.
    * Chaque sous-objet contient l'équilibrage spécifique au jeu concerné
    * (vitesses, probabilités, textes, etc.) afin de centraliser les réglages.
