@@ -1542,6 +1542,7 @@ const elements = {
   arcadeBonusTicketDisplay: document.getElementById('arcadeBonusTicketDisplay'),
   arcadeBonusTicketValue: document.getElementById('arcadeBonusTicketValue'),
   arcadeCanvas: document.getElementById('arcadeGameCanvas'),
+  arcadeParticleLayer: document.getElementById('arcadeParticleLayer'),
   arcadeOverlay: document.getElementById('arcadeOverlay'),
   arcadeOverlayMessage: document.getElementById('arcadeOverlayMessage'),
   arcadeOverlayButton: document.getElementById('arcadeOverlayButton'),

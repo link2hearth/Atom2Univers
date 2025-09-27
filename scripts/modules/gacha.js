@@ -1822,6 +1822,7 @@ function initParticulesGame() {
   }
   particulesGame = new ParticulesGame({
     canvas: elements.arcadeCanvas,
+    particleLayer: elements.arcadeParticleLayer,
     overlay: elements.arcadeOverlay,
     overlayButton: elements.arcadeOverlayButton,
     overlayMessage: elements.arcadeOverlayMessage,

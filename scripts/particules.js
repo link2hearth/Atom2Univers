@@ -194,6 +194,7 @@
         overlay,
         overlayButton,
         overlayMessage,
+        particleLayer,
         levelLabel,
         livesLabel,
         scoreLabel,
@@ -208,6 +209,8 @@
       this.overlay = overlay;
       this.overlayButton = overlayButton;
       this.overlayMessage = overlayMessage;
+      const hasHTMLElement = typeof HTMLElement !== 'undefined';
+      this.particleLayer = hasHTMLElement && particleLayer instanceof HTMLElement ? particleLayer : null;
       this.comboLabel = comboLabel;
       [levelLabel, livesLabel, scoreLabel].forEach(label => {
         const container = typeof label?.closest === 'function'
@@ -334,6 +337,7 @@
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', this.handleResize);
       }
+      this.clearImpactParticles();
       this.enabled = false;
     }
 
@@ -383,6 +387,7 @@
       this.powerUps = [];
       this.lasers = [];
       this.balls = [];
+      this.clearImpactParticles();
       this.quarkComboColors.clear();
       this.comboMessage = '';
       this.comboMessageExpiry = 0;
@@ -392,6 +397,13 @@
       this.prepareServe();
       this.updateHud();
       this.render();
+    }
+
+    clearImpactParticles() {
+      if (!this.particleLayer) return;
+      while (this.particleLayer.firstChild) {
+        this.particleLayer.removeChild(this.particleLayer.firstChild);
+      }
     }
 
     generateBricks() {
@@ -1127,6 +1139,7 @@
       const scoreGain = BRICK_SCORE_VALUE[brick.type] || 100;
       this.score += scoreGain;
       this.updateHud();
+      this.spawnBrickImpactParticles(brick);
       if (brick.type === BRICK_TYPES.BONUS) {
         this.spawnPowerUp(brick);
       }
@@ -1139,6 +1152,78 @@
       const hasRemaining = this.bricks.some(entry => entry.active);
       if (!hasRemaining) {
         this.handleLevelCleared();
+      }
+    }
+
+    spawnBrickImpactParticles(brick) {
+      if (!this.particleLayer || !brick || !this.canvas) {
+        return;
+      }
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        return;
+      }
+      const doc = this.particleLayer.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (!doc) {
+        return;
+      }
+      const brickLeft = brick.relX * rect.width;
+      const brickTop = brick.relY * rect.height;
+      const brickWidth = brick.relWidth * rect.width;
+      const brickHeight = brick.relHeight * rect.height;
+      const pixelRatio = this.pixelRatio || 1;
+      const paddleCenterX = (this.paddle.x + this.paddle.width / 2) / pixelRatio;
+      const paddleMidY = (this.paddle.y + this.paddle.height * 0.5) / pixelRatio;
+      const baseCount = Math.max(12, Math.round(16 + Math.random() * 8));
+      const maxDrift = Math.min(rect.width * 0.25, 160);
+
+      for (let index = 0; index < baseCount; index += 1) {
+        const particle = doc.createElement('div');
+        if (!particle) {
+          break;
+        }
+        particle.className = 'arcade-particle';
+        const size = 4.2 + Math.random() * 2.2;
+        const spawnX = brickLeft + Math.random() * brickWidth;
+        const spawnY = brickTop + Math.random() * brickHeight * 0.8;
+        particle.style.left = `${(spawnX - size / 2).toFixed(2)}px`;
+        particle.style.top = `${(spawnY - size / 2).toFixed(2)}px`;
+        particle.style.width = `${size.toFixed(2)}px`;
+        particle.style.height = `${size.toFixed(2)}px`;
+        particle.style.borderRadius = Math.random() < 0.45 ? '50%' : '1px';
+        const hue = Math.floor(Math.random() * 360);
+        const hueOffset = (hue + 40 + Math.random() * 60) % 360;
+        const angle = Math.floor(Math.random() * 180);
+        particle.style.background = `linear-gradient(${angle}deg, hsla(${hue}, 98%, 66%, 0.95), hsla(${hueOffset}, 82%, 58%, 0.6))`;
+        const toPaddleX = paddleCenterX - spawnX;
+        const driftFactor = 0.45 + Math.random() * 0.35;
+        const drift = clamp(toPaddleX * driftFactor, -maxDrift, maxDrift);
+        const wobble = (Math.random() - 0.5) * maxDrift * 0.6;
+        const dx = drift + wobble;
+        let dy = paddleMidY - spawnY;
+        if (!Number.isFinite(dy)) {
+          dy = rect.height * 0.45;
+        }
+        dy = Math.max(dy + Math.random() * 60, 80 + Math.random() * 40);
+        particle.style.setProperty('--arcade-particle-dx', `${dx.toFixed(2)}px`);
+        particle.style.setProperty('--arcade-particle-dy', `${dy.toFixed(2)}px`);
+        const scaleStart = 0.8 + Math.random() * 0.6;
+        const scaleEnd = 0.35 + Math.random() * 0.3;
+        particle.style.setProperty('--arcade-particle-scale-start', scaleStart.toFixed(2));
+        particle.style.setProperty('--arcade-particle-scale-end', scaleEnd.toFixed(2));
+        particle.style.setProperty('--arcade-particle-rotation', `${((Math.random() - 0.5) * 220).toFixed(1)}deg`);
+        const duration = 1600 + Math.random() * 600;
+        particle.style.setProperty('--arcade-particle-duration', `${duration.toFixed(0)}ms`);
+        particle.style.animationDelay = `${Math.random() * 90}ms`;
+        const removeParticle = () => {
+          particle.removeEventListener('animationend', removeParticle);
+          if (particle.parentNode === this.particleLayer) {
+            this.particleLayer.removeChild(particle);
+          }
+        };
+        particle.addEventListener('animationend', removeParticle);
+        this.particleLayer.appendChild(particle);
+        setTimeout(removeParticle, duration + 200);
       }
     }
 

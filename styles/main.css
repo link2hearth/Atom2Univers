@@ -817,6 +817,48 @@ body.theme-neon .arcade-header__status--info {
   cursor: pointer;
 }
 
+.arcade-particle-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.arcade-particle {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  opacity: 0;
+  border-radius: 1px;
+  background: linear-gradient(135deg, hsla(210, 95%, 75%, 0.95), hsla(265, 80%, 60%, 0.5));
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1));
+  animation: arcade-particle-fall var(--arcade-particle-duration, 2s)
+    cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes arcade-particle-fall {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1)) rotate(0deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(
+        var(--arcade-particle-dx, 0px),
+        var(--arcade-particle-dy, 140px),
+        0
+      )
+      scale(var(--arcade-particle-scale-end, 0.45))
+      rotate(var(--arcade-particle-rotation, 35deg));
+  }
+}
+
 .arcade-stage__hud {
   position: absolute;
   bottom: clamp(0.4rem, 1.6vw, 1.2rem);
