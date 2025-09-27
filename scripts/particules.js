@@ -27,6 +27,57 @@
   const POWER_UP_FALL_SPEED_RATIO = 0.00042;
   const LASER_SPEED_RATIO = -0.0026;
   const LASER_INTERVAL_MS = 420;
+  const PADDLE_STRETCH_DURATION_MS = 620;
+
+  const createCubicBezierEasing = (p1x, p1y, p2x, p2y) => {
+    const cx = 3 * p1x;
+    const bx = 3 * (p2x - p1x) - cx;
+    const ax = 1 - cx - bx;
+    const cy = 3 * p1y;
+    const by = 3 * (p2y - p1y) - cy;
+    const ay = 1 - cy - by;
+    const sampleCurveX = t => ((ax * t + bx) * t + cx) * t;
+    const sampleCurveY = t => ((ay * t + by) * t + cy) * t;
+    const sampleDerivativeX = t => (3 * ax * t + 2 * bx) * t + cx;
+    const solveCurveX = x => {
+      let t2 = x;
+      for (let i = 0; i < 8; i += 1) {
+        const x2 = sampleCurveX(t2) - x;
+        if (Math.abs(x2) < 1e-6) {
+          return t2;
+        }
+        const d2 = sampleDerivativeX(t2);
+        if (Math.abs(d2) < 1e-6) {
+          break;
+        }
+        t2 -= x2 / d2;
+      }
+      let t0 = 0;
+      let t1 = 1;
+      t2 = x;
+      for (let i = 0; i < 8; i += 1) {
+        const x2 = sampleCurveX(t2);
+        if (Math.abs(x2 - x) < 1e-6) {
+          return t2;
+        }
+        if (x > x2) {
+          t0 = t2;
+        } else {
+          t1 = t2;
+        }
+        t2 = (t0 + t1) / 2;
+      }
+      return t2;
+    };
+    return progress => {
+      if (progress <= 0) return 0;
+      if (progress >= 1) return 1;
+      const parameter = solveCurveX(progress);
+      return sampleCurveY(parameter);
+    };
+  };
+
+  const PADDLE_STRETCH_EASING = createCubicBezierEasing(0.34, 1.56, 0.64, 1);
 
   const defaultTicketFormatter = value => {
     const numeric = Math.max(0, Math.floor(Number(value) || 0));
@@ -272,6 +323,7 @@
       this.comboMessageExpiry = 0;
       this.ballSpeedMultiplier = 1;
       this.gravitonLifetimeMs = GRAVITON_LIFETIME_MS;
+      this.paddleStretchAnimation = null;
 
       this.paddle = {
         baseWidthRatio: 0.18,
@@ -374,6 +426,45 @@
       this.paddle.height = Math.max(10, this.paddle.heightRatio * this.height);
       this.paddle.y = this.height - this.paddle.height * 3;
       this.paddle.x = clamp(this.paddle.xRatio * this.width - this.paddle.width / 2, 0, Math.max(0, this.width - this.paddle.width));
+    }
+
+    triggerPaddleStretchAnimation(previousWidth, newWidth) {
+      const nextWidth = Number.isFinite(newWidth) ? newWidth : 0;
+      const priorWidth = Number.isFinite(previousWidth) ? previousWidth : 0;
+      if (nextWidth <= 0 || priorWidth <= 0 || Math.abs(nextWidth - priorWidth) < 0.5) {
+        return;
+      }
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const fromScale = clamp(priorWidth / nextWidth, 0, 1.6);
+      this.paddleStretchAnimation = {
+        start: now,
+        duration: PADDLE_STRETCH_DURATION_MS,
+        from: fromScale,
+        to: 1
+      };
+      this.startAnimation();
+    }
+
+    getPaddleStretchScale(renderTimestamp) {
+      const state = this.paddleStretchAnimation;
+      if (!state) {
+        return 1;
+      }
+      const duration = state.duration > 0 ? state.duration : PADDLE_STRETCH_DURATION_MS;
+      const elapsed = Number.isFinite(renderTimestamp) ? renderTimestamp - state.start : 0;
+      if (!Number.isFinite(elapsed)) {
+        return 1;
+      }
+      if (elapsed <= 0) {
+        return state.from;
+      }
+      if (elapsed >= duration) {
+        this.paddleStretchAnimation = null;
+        return state.to;
+      }
+      const progress = clamp(elapsed / duration, 0, 1);
+      const eased = PADDLE_STRETCH_EASING(progress);
+      return state.from + (state.to - state.from) * eased;
     }
 
     updateBallRadius() {
@@ -1477,8 +1568,12 @@
     startEffect(type, effect) {
       switch (type) {
         case POWER_UP_IDS.EXTEND:
-          this.paddle.currentWidthRatio = Math.min(0.32, this.paddle.baseWidthRatio * 1.6);
-          this.updatePaddleSize();
+          {
+            const previousWidth = this.paddle.width;
+            this.paddle.currentWidthRatio = Math.min(0.32, this.paddle.baseWidthRatio * 1.6);
+            this.updatePaddleSize();
+            this.triggerPaddleStretchAnimation(previousWidth, this.paddle.width);
+          }
           break;
         case POWER_UP_IDS.LASER:
           effect.cooldown = 0;
@@ -1873,6 +1968,12 @@
       }
       ctx.restore();
 
+      const paddleCenterX = this.paddle.x + this.paddle.width / 2;
+      const paddleScaleX = this.getPaddleStretchScale(renderTimestamp);
+      ctx.save();
+      ctx.translate(paddleCenterX, 0);
+      ctx.scale(paddleScaleX, 1);
+      ctx.translate(-paddleCenterX, 0);
       const paddleGradient = ctx.createLinearGradient(
         this.paddle.x,
         this.paddle.y,
@@ -1890,6 +1991,7 @@
       } else {
         ctx.fillRect(this.paddle.x, this.paddle.y, this.paddle.width, this.paddle.height);
       }
+      ctx.restore();
 
       this.balls.forEach(ball => {
         const electricSeed = typeof ball.electricSeed === 'number' ? ball.electricSeed : 0;
