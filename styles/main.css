@@ -867,16 +867,27 @@ body.theme-neon .arcade-header__status--info {
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1));
   animation: arcade-particle-fall var(--arcade-particle-duration, 2s)
-    cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+    cubic-bezier(0.18, 0.58, 0.28, 1) forwards;
 }
 
 @keyframes arcade-particle-fall {
   0% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1)) rotate(0deg);
+    transform: translate3d(0, 0, 0) scale(var(--arcade-particle-scale-start, 1))
+      rotate(var(--arcade-particle-rotation, 35deg));
+  }
+  35% {
+    opacity: 1;
+    transform: translate3d(
+        var(--arcade-particle-burst-x, 0px),
+        var(--arcade-particle-burst-y, -80px),
+        0
+      )
+      scale(var(--arcade-particle-scale-peak, 1.15))
+      rotate(var(--arcade-particle-rotation, 35deg));
   }
   60% {
-    opacity: 1;
+    opacity: 0.92;
   }
   100% {
     opacity: 0;

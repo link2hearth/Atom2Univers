@@ -422,6 +422,7 @@
       };
       const generator = generators[pattern] || generators.organic;
       const bricks = generator();
+      this.ensureBonusDistribution(bricks, pattern);
       return this.maybeAddGraviton(bricks);
     }
 
@@ -477,6 +478,43 @@
         type: brickType,
         particle: brickParticle
       }));
+    }
+
+    ensureBonusDistribution(bricks, pattern) {
+      if (!Array.isArray(bricks) || bricks.length === 0) {
+        return bricks;
+      }
+      const eligible = bricks.filter(brick => brick.type !== BRICK_TYPES.GRAVITON);
+      if (eligible.length === 0) {
+        return bricks;
+      }
+      const existingBonus = eligible.filter(brick => brick.type === BRICK_TYPES.BONUS).length;
+      const patternBoost = ['singleLine', 'uniformLines', 'diagonals'].includes(pattern) ? 0.32 : 0.22;
+      const desiredRatio = clamp(patternBoost + (this.level - 1) * 0.01, 0.18, 0.42);
+      const desiredCount = Math.max(1, Math.round(eligible.length * desiredRatio));
+      if (existingBonus >= desiredCount) {
+        return bricks;
+      }
+      const candidates = eligible
+        .filter(brick => brick.type !== BRICK_TYPES.BONUS)
+        .sort(() => Math.random() - 0.5);
+      const upgradesNeeded = Math.min(desiredCount - existingBonus, candidates.length);
+      for (let index = 0; index < upgradesNeeded; index += 1) {
+        const target = candidates[index];
+        if (!target) continue;
+        const bonusBrick = this.createBrick({
+          row: target.row,
+          col: target.col,
+          relX: target.relX,
+          relY: target.relY,
+          relWidth: target.relWidth,
+          relHeight: target.relHeight,
+          type: BRICK_TYPES.BONUS,
+          particle: this.pickParticle(BRICK_TYPES.BONUS)
+        });
+        Object.assign(target, bonusBrick);
+      }
+      return bricks;
     }
 
     pickLevelPattern() {
@@ -603,12 +641,12 @@
       if (horizontal) {
         const targetRow = Math.floor(Math.random() * this.gridRows);
         for (let col = 0; col < this.gridCols; col += 1) {
-          this.placeBrick(bricks, targetRow, col, geometry);
+          this.placeBrick(bricks, targetRow, col, geometry, BRICK_TYPES.BONUS);
         }
       } else {
         const targetCol = Math.floor(Math.random() * this.gridCols);
         for (let row = 0; row < this.gridRows; row += 1) {
-          this.placeBrick(bricks, row, targetCol, geometry);
+          this.placeBrick(bricks, row, targetCol, geometry, BRICK_TYPES.BONUS);
         }
       }
       return bricks;
@@ -637,14 +675,13 @@
 
     generateUniformLinesLayout(geometry) {
       const bricks = [];
-      const type = this.pickBrickType();
-      const particle = this.pickParticle(type);
+      const type = BRICK_TYPES.BONUS;
       const uniformRows = Math.random() < 0.5 ? this.pickUniformRows() : [];
       const uniformCols = uniformRows.length > 0 ? [] : this.pickUniformCols();
       if (uniformRows.length === this.gridRows) {
         for (let row = 0; row < this.gridRows; row += 1) {
           for (let col = 0; col < this.gridCols; col += 1) {
-            this.placeBrick(bricks, row, col, geometry, type, particle);
+            this.placeBrick(bricks, row, col, geometry, type);
           }
         }
         return bricks;
@@ -654,7 +691,7 @@
         for (let col = 0; col < this.gridCols; col += 1) {
           const isUniform = uniformRows.includes(row) || uniformCols.includes(col);
           if (isUniform) {
-            this.placeBrick(bricks, row, col, geometry, type, particle);
+            this.placeBrick(bricks, row, col, geometry, type);
           } else if (Math.random() < 0.7) {
             this.placeBrick(bricks, row, col, geometry, fallbackType);
           }
@@ -662,7 +699,7 @@
       }
       if (bricks.length === 0) {
         for (let col = 0; col < this.gridCols; col += 1) {
-          this.placeBrick(bricks, 0, col, geometry, type, particle);
+          this.placeBrick(bricks, 0, col, geometry, type);
         }
       }
       return bricks;
@@ -707,14 +744,13 @@
 
     generateDiagonalLayout(geometry) {
       const bricks = [];
-      const mainType = this.pickBrickType();
-      const mainParticle = this.pickParticle(mainType);
+      const mainType = BRICK_TYPES.BONUS;
       for (let row = 0; row < this.gridRows; row += 1) {
         for (let col = 0; col < this.gridCols; col += 1) {
           const onMain = row === col;
           const onSecondary = row + col === this.gridCols - 1;
           if (onMain || onSecondary) {
-            this.placeBrick(bricks, row, col, geometry, mainType, mainParticle);
+            this.placeBrick(bricks, row, col, geometry, mainType);
           } else if (Math.random() < 0.4) {
             this.placeBrick(bricks, row, col, geometry);
           }
@@ -1275,11 +1311,11 @@
       const brickTop = brick.relY * rect.height;
       const brickWidth = brick.relWidth * rect.width;
       const brickHeight = brick.relHeight * rect.height;
-      const pixelRatio = this.pixelRatio || 1;
-      const paddleCenterX = (this.paddle.x + this.paddle.width / 2) / pixelRatio;
-      const paddleMidY = (this.paddle.y + this.paddle.height * 0.5) / pixelRatio;
-      const baseCount = Math.max(12, Math.round(16 + Math.random() * 8));
-      const maxDrift = Math.min(rect.width * 0.25, 160);
+      const brickCenterX = brickLeft + brickWidth / 2;
+      const brickCenterY = brickTop + brickHeight / 2;
+      const distanceToBottom = Math.max(60, rect.height - brickCenterY);
+      const baseCount = Math.max(14, Math.round(18 + Math.random() * 10));
+      const maxHorizontalScatter = Math.min(rect.width * 0.2, 180);
 
       for (let index = 0; index < baseCount; index += 1) {
         const particle = doc.createElement('div');
@@ -1287,9 +1323,9 @@
           break;
         }
         particle.className = 'arcade-particle';
-        const size = 4.2 + Math.random() * 2.2;
-        const spawnX = brickLeft + Math.random() * brickWidth;
-        const spawnY = brickTop + Math.random() * brickHeight * 0.8;
+        const size = 3.6 + Math.random() * 2.6;
+        const spawnX = brickCenterX + (Math.random() - 0.5) * brickWidth * 0.6;
+        const spawnY = brickCenterY + (Math.random() - 0.5) * brickHeight * 0.5;
         particle.style.left = `${(spawnX - size / 2).toFixed(2)}px`;
         particle.style.top = `${(spawnY - size / 2).toFixed(2)}px`;
         particle.style.width = `${size.toFixed(2)}px`;
@@ -1299,26 +1335,27 @@
         const hueOffset = (hue + 40 + Math.random() * 60) % 360;
         const angle = Math.floor(Math.random() * 180);
         particle.style.background = `linear-gradient(${angle}deg, hsla(${hue}, 98%, 66%, 0.95), hsla(${hueOffset}, 82%, 58%, 0.6))`;
-        const toPaddleX = paddleCenterX - spawnX;
-        const driftFactor = 0.45 + Math.random() * 0.35;
-        const drift = clamp(toPaddleX * driftFactor, -maxDrift, maxDrift);
-        const wobble = (Math.random() - 0.5) * maxDrift * 0.6;
-        const dx = drift + wobble;
-        let dy = paddleMidY - spawnY;
-        if (!Number.isFinite(dy)) {
-          dy = rect.height * 0.45;
-        }
-        dy = Math.max(dy + Math.random() * 60, 80 + Math.random() * 40);
-        particle.style.setProperty('--arcade-particle-dx', `${dx.toFixed(2)}px`);
-        particle.style.setProperty('--arcade-particle-dy', `${dy.toFixed(2)}px`);
-        const scaleStart = 0.8 + Math.random() * 0.6;
-        const scaleEnd = 0.35 + Math.random() * 0.3;
+        const burstRadius = 32 + Math.random() * 72;
+        const burstAngle = Math.random() * Math.PI * 2;
+        const burstX = clamp(Math.cos(burstAngle) * burstRadius, -maxHorizontalScatter, maxHorizontalScatter);
+        const burstY = -Math.abs(Math.sin(burstAngle)) * (burstRadius * 0.82 + Math.random() * 34) - (16 + Math.random() * 28);
+        const sway = (Math.random() - 0.5) * burstRadius * 0.45;
+        const fallDistance = Math.min(rect.height * 0.95, Math.max(140, distanceToBottom * (0.65 + Math.random() * 0.55) + 90));
+        const finalDx = clamp(burstX * (0.35 + Math.random() * 0.4) + sway, -maxHorizontalScatter * 1.3, maxHorizontalScatter * 1.3);
+        particle.style.setProperty('--arcade-particle-burst-x', `${burstX.toFixed(2)}px`);
+        particle.style.setProperty('--arcade-particle-burst-y', `${burstY.toFixed(2)}px`);
+        particle.style.setProperty('--arcade-particle-dx', `${(burstX + finalDx).toFixed(2)}px`);
+        particle.style.setProperty('--arcade-particle-dy', `${fallDistance.toFixed(2)}px`);
+        const scaleStart = 0.6 + Math.random() * 0.4;
+        const peakScale = scaleStart + 0.3 + Math.random() * 0.25;
+        const scaleEnd = 0.35 + Math.random() * 0.25;
         particle.style.setProperty('--arcade-particle-scale-start', scaleStart.toFixed(2));
+        particle.style.setProperty('--arcade-particle-scale-peak', peakScale.toFixed(2));
         particle.style.setProperty('--arcade-particle-scale-end', scaleEnd.toFixed(2));
         particle.style.setProperty('--arcade-particle-rotation', `${((Math.random() - 0.5) * 220).toFixed(1)}deg`);
-        const duration = 1600 + Math.random() * 600;
+        const duration = 2000 + Math.random() * 720;
         particle.style.setProperty('--arcade-particle-duration', `${duration.toFixed(0)}ms`);
-        particle.style.animationDelay = `${Math.random() * 90}ms`;
+        particle.style.animationDelay = `${Math.random() * 130}ms`;
         const removeParticle = () => {
           particle.removeEventListener('animationend', removeParticle);
           if (particle.parentNode === this.particleLayer) {
