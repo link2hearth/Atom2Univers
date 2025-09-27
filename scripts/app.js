@@ -1417,8 +1417,9 @@ const elements = {
   arcadeReturnButton: document.getElementById('arcadeReturnButton'),
   arcadeTicketButton: document.getElementById('arcadeTicketButton'),
   arcadeTicketValue: document.getElementById('arcadeTicketValue'),
-  arcadeBonusTicketDisplay: document.getElementById('arcadeBonusTicketDisplay'),
+  arcadeBonusTicketButton: document.getElementById('arcadeBonusTicketButton'),
   arcadeBonusTicketValue: document.getElementById('arcadeBonusTicketValue'),
+  arcadeBonusTicketAnnouncement: document.getElementById('arcadeBonusTicketAnnouncement'),
   arcadeCanvas: document.getElementById('arcadeGameCanvas'),
   arcadeParticleLayer: document.getElementById('arcadeParticleLayer'),
   arcadeOverlay: document.getElementById('arcadeOverlay'),
@@ -1587,9 +1588,21 @@ function updateArcadeTicketDisplay() {
   if (elements.arcadeBonusTicketValue) {
     elements.arcadeBonusTicketValue.textContent = bonusCount.toLocaleString('fr-FR');
   }
-  if (elements.arcadeBonusTicketDisplay) {
-    elements.arcadeBonusTicketDisplay.title = `Mach3 : ${formatBonusTicketLabel(bonusCount)}`;
-    elements.arcadeBonusTicketDisplay.setAttribute('aria-label', `Mach3 : ${formatBonusTicketLabel(bonusCount)}`);
+  const bonusLabel = formatMetauxCreditLabel(bonusCount);
+  if (elements.arcadeBonusTicketAnnouncement) {
+    elements.arcadeBonusTicketAnnouncement.textContent = `Mach3 : ${bonusLabel}`;
+  }
+  if (elements.arcadeBonusTicketButton) {
+    const hasCredits = bonusCount > 0;
+    elements.arcadeBonusTicketButton.disabled = !hasCredits;
+    elements.arcadeBonusTicketButton.setAttribute('aria-disabled', hasCredits ? 'false' : 'true');
+    if (hasCredits) {
+      elements.arcadeBonusTicketButton.title = `Lancer Métaux — ${bonusLabel}`;
+      elements.arcadeBonusTicketButton.setAttribute('aria-label', `Ouvrir Métaux (Mach3 : ${bonusLabel})`);
+    } else {
+      elements.arcadeBonusTicketButton.title = 'Attrapez un graviton pour gagner un Mach3.';
+      elements.arcadeBonusTicketButton.setAttribute('aria-label', 'Mach3 indisponible — attrapez un graviton.');
+    }
   }
   updateMetauxCreditsUI();
 }
@@ -4509,7 +4522,7 @@ if (elements.metauxExitButton) {
 
 if (elements.metauxReturnButton) {
   elements.metauxReturnButton.addEventListener('click', () => {
-    showPage('options');
+    showPage('game');
   });
 }
 
@@ -4576,6 +4589,15 @@ if (elements.arcadeTicketButton) {
       return;
     }
     showPage('gacha');
+  });
+}
+
+if (elements.arcadeBonusTicketButton) {
+  elements.arcadeBonusTicketButton.addEventListener('click', () => {
+    if (elements.arcadeBonusTicketButton.disabled) {
+      return;
+    }
+    showPage('metaux');
   });
 }
 

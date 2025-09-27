@@ -154,10 +154,24 @@
             <span class="arcade-header__status-label">Tickets</span>
             <span class="arcade-header__status-value" id="arcadeTicketValue">0 ticket</span>
           </button>
-          <div class="arcade-header__status arcade-header__status--info" id="arcadeBonusTicketDisplay" role="status" aria-live="polite">
+          <button
+            class="arcade-header__status arcade-header__status--bonus"
+            id="arcadeBonusTicketButton"
+            type="button"
+            aria-describedby="arcadeBonusTicketAnnouncement"
+            aria-disabled="true"
+            disabled
+          >
             <span class="arcade-header__status-label">Mach3</span>
             <span class="arcade-header__status-value" id="arcadeBonusTicketValue">0</span>
-          </div>
+          </button>
+          <span
+            id="arcadeBonusTicketAnnouncement"
+            class="visually-hidden"
+            aria-live="polite"
+          >
+            Mach3 : 0 crédits
+          </span>
         </div>
       </header>
 
@@ -439,7 +453,7 @@
                   id="metauxReturnButton"
                   class="metaux-end-screen__button metaux-end-screen__button--ghost"
                 >
-                  Options
+                  Retour
                 </button>
               </div>
               <p id="metauxCreditStatus" class="metaux-credit-status" role="status" aria-live="polite"></p>
