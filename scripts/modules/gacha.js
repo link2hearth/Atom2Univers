@@ -2487,6 +2487,9 @@ function gainBonusParticulesTickets(amount = 1) {
   const current = Math.max(0, Math.floor(Number(gameState.bonusParticulesTickets) || 0));
   gameState.bonusParticulesTickets = current + gain;
   updateArcadeTicketDisplay();
+  if (typeof window !== 'undefined' && typeof window.updateMetauxCreditsUI === 'function') {
+    window.updateMetauxCreditsUI();
+  }
   return gain;
 }
 

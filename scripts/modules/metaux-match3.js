@@ -225,18 +225,17 @@ class MetauxMatch3Game {
     this.buildBoard();
     this.populateBoard();
     this.refreshBoard();
-    this.prepareNewSession();
-    this.updateMessage('Glissez pour échanger des lingots adjacents.');
     this.initialized = true;
+    this.enterIdleState();
   }
 
   onEnter() {
     if (!this.initialized) {
       this.initialize();
-    } else if (this.boardElement) {
-      if (!this.gameOver) {
-        this.startTimer();
-      }
+      return;
+    }
+    if (this.boardElement && !this.gameOver) {
+      this.startTimer();
       this.updateMessage('Repérez un alignement et glissez pour fusionner les métaux.');
     }
   }
@@ -808,6 +807,30 @@ class MetauxMatch3Game {
     };
   }
 
+  enterIdleState(options = {}) {
+    const message = Object.prototype.hasOwnProperty.call(options, 'message')
+      ? options.message
+      : 'Utilisez un crédit Bonus Particules pour lancer une nouvelle partie.';
+    this.pauseTimer();
+    this.clearDragState();
+    this.processing = false;
+    this.comboChain = 0;
+    this.gameOver = true;
+    this.timerState.totalElapsedMs = 0;
+    this.timerState.current = 0;
+    this.timerState.lastUpdate = null;
+    this.timerState.running = false;
+    this.matchHistory = this.createEmptyMatchHistory();
+    this.lastMatchPerType = new Map(METAUX_TILE_TYPES.map(type => [type.id, this.getNow()]));
+    this.resetStats();
+    this.updateStats();
+    this.updateTimerUI();
+    this.showEndScreen();
+    if (message) {
+      this.updateMessage(message);
+    }
+  }
+
   prepareNewSession() {
     this.resetStats();
     this.matchHistory = this.createEmptyMatchHistory();
@@ -1150,6 +1173,10 @@ class MetauxMatch3Game {
     this.updateMessage('Nouvelle session : enchaînez les alliages !');
   }
 
+  isSessionRunning() {
+    return this.initialized && !this.gameOver;
+  }
+
   getNow() {
     return typeof performance !== 'undefined' && typeof performance.now === 'function'
       ? performance.now()
@@ -1222,6 +1249,9 @@ function initMetauxGame() {
         : null
   });
   metauxGame.initialize();
+  if (typeof window !== 'undefined' && typeof window.updateMetauxCreditsUI === 'function') {
+    window.updateMetauxCreditsUI();
+  }
 }
 
 function getMetauxGame() {
