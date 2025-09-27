@@ -833,7 +833,9 @@
         radius,
         electricSeed: Math.random() * Math.PI * 2,
         attachedToPaddle: attachToPaddle,
-        inPlay: !attachToPaddle
+        inPlay: !attachToPaddle,
+        trail: [],
+        lastGhostTime: 0
       };
       if (!attachToPaddle) {
         const launchAngle = typeof angle === 'number'
@@ -890,6 +892,7 @@
       ball.vy = 0;
       ball.inPlay = false;
       ball.attachedToPaddle = true;
+      this.resetBallTrail(ball);
     }
 
     startAnimation() {
@@ -923,11 +926,11 @@
       this.updateGravitons(now);
       this.updatePowerUps(delta);
       this.updateLasers(delta);
-      this.updateBalls(delta);
+      this.updateBalls(delta, now);
       this.refreshComboMessage(now);
     }
 
-    updateBalls(delta) {
+    updateBalls(delta, now) {
       if (this.balls.length === 0) {
         return;
       }
@@ -950,10 +953,111 @@
         }
         this.handlePaddleCollision(ball);
         this.handleBrickCollisions(ball);
+        this.addBallTrailPoint(ball, now);
+        this.pruneBallTrail(ball, now);
       }
       if (lostBall && this.balls.length === 0) {
         this.handleLifeLost();
       }
+    }
+
+    addBallTrailPoint(ball, timestamp) {
+      if (!ball || !ball.inPlay) return;
+      const now = Number.isFinite(timestamp) && timestamp > 0
+        ? timestamp
+        : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (!Array.isArray(ball.trail)) {
+        ball.trail = [];
+      }
+      const lastEntry = ball.trail[ball.trail.length - 1];
+      const minDistance = Math.max(2, ball.radius * 0.35);
+      if (lastEntry) {
+        const dx = lastEntry.x - ball.x;
+        const dy = lastEntry.y - ball.y;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared < minDistance * minDistance && now - lastEntry.time < 18) {
+          return;
+        }
+      }
+      ball.trail.push({
+        x: ball.x,
+        y: ball.y,
+        time: now
+      });
+      const maxPoints = 12;
+      while (ball.trail.length > maxPoints) {
+        ball.trail.shift();
+      }
+      const ghostInterval = 68;
+      if (
+        this.particleLayer
+        && !ball.attachedToPaddle
+        && (typeof ball.lastGhostTime !== 'number' || now - ball.lastGhostTime >= ghostInterval)
+      ) {
+        this.spawnBallGhost(ball);
+        ball.lastGhostTime = now;
+      }
+    }
+
+    pruneBallTrail(ball, timestamp) {
+      if (!ball || !Array.isArray(ball.trail) || ball.trail.length === 0) return;
+      const now = Number.isFinite(timestamp) && timestamp > 0
+        ? timestamp
+        : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const maxLifetime = 260;
+      while (ball.trail.length > 0 && now - ball.trail[0].time > maxLifetime) {
+        ball.trail.shift();
+      }
+      if (!ball.inPlay && ball.trail.length > 0) {
+        ball.trail.length = 0;
+      }
+    }
+
+    resetBallTrail(ball) {
+      if (!ball) return;
+      if (Array.isArray(ball.trail)) {
+        ball.trail.length = 0;
+      }
+      ball.lastGhostTime = 0;
+    }
+
+    spawnBallGhost(ball) {
+      if (!this.particleLayer || !this.canvas || !ball) {
+        return;
+      }
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        return;
+      }
+      const doc = this.particleLayer.ownerDocument || (typeof document !== 'undefined' ? document : null);
+      if (!doc) {
+        return;
+      }
+      const pixelRatio = this.pixelRatio || 1;
+      const radius = ball.radius / pixelRatio;
+      const ghost = doc.createElement('div');
+      if (!ghost) {
+        return;
+      }
+      ghost.className = 'arcade-ball-ghost';
+      const left = ball.x / pixelRatio - radius;
+      const top = ball.y / pixelRatio - radius;
+      ghost.style.left = `${left.toFixed(2)}px`;
+      ghost.style.top = `${top.toFixed(2)}px`;
+      const size = radius * 2;
+      ghost.style.width = `${size.toFixed(2)}px`;
+      ghost.style.height = `${size.toFixed(2)}px`;
+      const blur = Math.max(6, radius * 1.4);
+      ghost.style.setProperty('--arcade-ball-ghost-blur', `${blur.toFixed(2)}px`);
+      const removeGhost = () => {
+        ghost.removeEventListener('animationend', removeGhost);
+        if (ghost.parentNode === this.particleLayer) {
+          this.particleLayer.removeChild(ghost);
+        }
+      };
+      ghost.addEventListener('animationend', removeGhost);
+      this.particleLayer.appendChild(ghost);
+      setTimeout(removeGhost, 360);
     }
 
     updateEffects(now) {
@@ -1605,8 +1709,12 @@
     render(now = 0) {
       if (!this.enabled) return;
       const ctx = this.ctx;
-      const time = typeof now === 'number' ? now / 1000 : 0;
+      const renderTimestamp = Number.isFinite(now) && now > 0
+        ? now
+        : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const time = typeof renderTimestamp === 'number' ? renderTimestamp / 1000 : 0;
       const floorShieldActive = this.effects.has(POWER_UP_IDS.FLOOR);
+      this.balls.forEach(ball => this.pruneBallTrail(ball, renderTimestamp));
       ctx.clearRect(0, 0, this.width, this.height);
       const background = ctx.createLinearGradient(0, 0, this.width, this.height);
       background.addColorStop(0, 'rgba(12, 16, 38, 0.85)');
@@ -1749,6 +1857,31 @@
       this.balls.forEach(ball => {
         const electricSeed = typeof ball.electricSeed === 'number' ? ball.electricSeed : 0;
         const pulse = 0.55 + 0.35 * Math.sin(time * 7.1 + electricSeed);
+        const trail = Array.isArray(ball.trail) ? ball.trail : [];
+        if (trail.length > 0) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+          trail.forEach(point => {
+            if (!point || typeof point.time !== 'number') return;
+            const age = renderTimestamp - point.time;
+            if (age < 0) return;
+            const lifeRatio = clamp(1 - age / 260, 0, 1);
+            if (lifeRatio <= 0) return;
+            const alpha = 0.08 + lifeRatio * 0.2;
+            ctx.globalAlpha = alpha;
+            const blur = ball.radius * (1.1 + (1 - lifeRatio) * 0.9);
+            ctx.shadowBlur = blur;
+            ctx.shadowColor = `rgba(150, 220, 255, ${0.25 + lifeRatio * 0.35})`;
+            const radius = ball.radius * (0.85 + lifeRatio * 0.35);
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.restore();
+        }
         const gradient = ctx.createRadialGradient(
           ball.x - ball.radius / 3,
           ball.y - ball.radius / 3,
