@@ -233,14 +233,14 @@ body.view-metaux .status-bar {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0;
-  padding: clamp(0.18rem, 0.5vw, 0.35rem) clamp(0.55rem, 1vw, 0.8rem);
+  gap: clamp(0.2rem, 0.45vw, 0.35rem);
+  padding: clamp(0.16rem, 0.45vw, 0.3rem) clamp(0.42rem, 0.9vw, 0.6rem);
   border-radius: 999px;
   background: linear-gradient(120deg, rgba(255, 118, 45, 0.22), rgba(255, 182, 82, 0.32));
   box-shadow: 0 0.4rem 1.4rem rgba(255, 126, 45, 0.18);
   color: #ffdcbc;
   font-family: 'Orbitron', monospace;
-  font-size: clamp(1.066rem, 1.95vw, 1.43rem);
+  font-size: clamp(0.86rem, 1.35vw, 1.1rem);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-shadow: 0 0.16rem 0.45rem rgba(0, 0, 0, 0.35);
@@ -328,7 +328,7 @@ body.view-metaux .status-bar {
 .status-crit-display::before {
   content: '';
   position: absolute;
-  inset: -35% -40% auto -40%;
+  inset: -28% -36% auto -36%;
   height: 120%;
   background: radial-gradient(65% 90% at 50% 45%, rgba(255, 190, 90, 0.6), rgba(255, 120, 40, 0));
   opacity: 0.8;
