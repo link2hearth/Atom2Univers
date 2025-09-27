@@ -12,6 +12,22 @@ const FALLBACK_TROPHIES = Array.isArray(APP_DATA.FALLBACK_TROPHIES)
   ? APP_DATA.FALLBACK_TROPHIES
   : [];
 
+const MUSIC_SUPPORTED_EXTENSIONS = Array.isArray(APP_DATA.MUSIC_SUPPORTED_EXTENSIONS)
+  && APP_DATA.MUSIC_SUPPORTED_EXTENSIONS.length
+    ? [...APP_DATA.MUSIC_SUPPORTED_EXTENSIONS]
+    : Array.isArray(APP_DATA.DEFAULT_MUSIC_SUPPORTED_EXTENSIONS)
+      && APP_DATA.DEFAULT_MUSIC_SUPPORTED_EXTENSIONS.length
+      ? [...APP_DATA.DEFAULT_MUSIC_SUPPORTED_EXTENSIONS]
+      : ['mp3', 'ogg', 'wav', 'webm', 'm4a'];
+
+const MUSIC_FALLBACK_TRACKS = Array.isArray(APP_DATA.MUSIC_FALLBACK_TRACKS)
+  && APP_DATA.MUSIC_FALLBACK_TRACKS.length
+    ? [...APP_DATA.MUSIC_FALLBACK_TRACKS]
+    : Array.isArray(APP_DATA.DEFAULT_MUSIC_FALLBACK_TRACKS)
+      && APP_DATA.DEFAULT_MUSIC_FALLBACK_TRACKS.length
+      ? [...APP_DATA.DEFAULT_MUSIC_FALLBACK_TRACKS]
+      : [];
+
 function createInitialStats() {
   const now = Date.now();
   return {
@@ -1672,15 +1688,8 @@ const soundEffects = (() => {
 
 const musicPlayer = (() => {
   const MUSIC_DIR = 'Assets/Music/';
-  const SUPPORTED_EXTENSIONS = ['mp3', 'ogg', 'wav', 'webm', 'm4a'];
-  const FALLBACK_TRACKS = [
-    'Piste1.mp3',
-    'Piste2.mp3',
-    'Piste3.mp3',
-    'Piste4.mp3',
-    'Piste5.mp3',
-    'Piste6.mp3'
-  ];
+  const SUPPORTED_EXTENSIONS = MUSIC_SUPPORTED_EXTENSIONS;
+  const FALLBACK_TRACKS = MUSIC_FALLBACK_TRACKS;
 
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     const resolved = Promise.resolve([]);
@@ -3544,12 +3553,31 @@ function updateClickHistory(now = performance.now()) {
   targetClickStrength = Math.min(1, curved * 1.08);
 }
 
-const glowStops = [
-  { stop: 0, color: [248, 226, 158] },
-  { stop: 0.35, color: [255, 202, 112] },
-  { stop: 0.65, color: [255, 130, 54] },
-  { stop: 1, color: [255, 46, 18] }
-];
+const glowStops = (() => {
+  const source = Array.isArray(APP_DATA.GLOW_STOPS) && APP_DATA.GLOW_STOPS.length
+    ? APP_DATA.GLOW_STOPS
+    : Array.isArray(APP_DATA.DEFAULT_GLOW_STOPS) && APP_DATA.DEFAULT_GLOW_STOPS.length
+      ? APP_DATA.DEFAULT_GLOW_STOPS
+      : [];
+  if (!source.length) {
+    return [
+      { stop: 0, color: [255, 255, 255] }
+    ];
+  }
+  return source.map(entry => {
+    const stop = Number(entry?.stop);
+    const colorSource = Array.isArray(entry?.color) ? entry.color : [];
+    const color = [0, 0, 0];
+    for (let i = 0; i < 3; i += 1) {
+      const value = Number(colorSource[i]);
+      color[i] = Number.isFinite(value) ? value : 0;
+    }
+    return {
+      stop: Number.isFinite(stop) ? stop : 0,
+      color
+    };
+  }).sort((a, b) => a.stop - b.stop);
+})();
 
 function interpolateGlowColor(strength) {
   const clamped = Math.max(0, Math.min(1, strength));
@@ -3840,21 +3868,35 @@ function initStarfield() {
   elements.starfield.appendChild(fragment);
 }
 
-const CRIT_CONFETTI_COLORS = [
-  '#ff8ba7', '#ffd166', '#6fffe9', '#a5b4ff', '#ff9ff3',
-  '#70d6ff', '#fcd5ce', '#caffbf', '#bdb2ff', '#ffe066'
-];
+const CRIT_CONFETTI_COLORS = (() => {
+  const source = Array.isArray(APP_DATA.CRIT_CONFETTI_COLORS) && APP_DATA.CRIT_CONFETTI_COLORS.length
+    ? APP_DATA.CRIT_CONFETTI_COLORS
+    : Array.isArray(APP_DATA.DEFAULT_CRIT_CONFETTI_COLORS) && APP_DATA.DEFAULT_CRIT_CONFETTI_COLORS.length
+      ? APP_DATA.DEFAULT_CRIT_CONFETTI_COLORS
+      : [];
+  if (!source.length) {
+    return ['#ffffff'];
+  }
+  return source.map(value => String(value));
+})();
 
-const CRIT_CONFETTI_SHAPES = [
-  { className: 'crit-confetti--circle', widthFactor: 1, heightFactor: 1 },
-  { className: 'crit-confetti--oval', widthFactor: 1.4, heightFactor: 1 },
-  { className: 'crit-confetti--heart', widthFactor: 1.1, heightFactor: 1.1 },
-  { className: 'crit-confetti--star', widthFactor: 1.2, heightFactor: 1.2 },
-  { className: 'crit-confetti--square', widthFactor: 1, heightFactor: 1 },
-  { className: 'crit-confetti--triangle', widthFactor: 1.15, heightFactor: 1.3 },
-  { className: 'crit-confetti--rectangle', widthFactor: 1.8, heightFactor: 0.7 },
-  { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
-];
+const CRIT_CONFETTI_SHAPES = (() => {
+  const source = Array.isArray(APP_DATA.CRIT_CONFETTI_SHAPES) && APP_DATA.CRIT_CONFETTI_SHAPES.length
+    ? APP_DATA.CRIT_CONFETTI_SHAPES
+    : Array.isArray(APP_DATA.DEFAULT_CRIT_CONFETTI_SHAPES) && APP_DATA.DEFAULT_CRIT_CONFETTI_SHAPES.length
+      ? APP_DATA.DEFAULT_CRIT_CONFETTI_SHAPES
+      : [];
+  if (!source.length) {
+    return [{ className: 'crit-confetti--circle', widthFactor: 1, heightFactor: 1 }];
+  }
+  return source
+    .map(entry => ({
+      className: String(entry?.className ?? ''),
+      widthFactor: Number(entry?.widthFactor) || 1,
+      heightFactor: Number(entry?.heightFactor) || 1
+    }))
+    .filter(entry => entry.className);
+})();
 
 function ensureCritConfettiLayer() {
   if (elements.critConfettiLayer && elements.critConfettiLayer.isConnected) {

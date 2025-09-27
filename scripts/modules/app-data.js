@@ -1,4 +1,8 @@
 (function initAppData(global) {
+  const existingAppData = global.APP_DATA && typeof global.APP_DATA === 'object'
+    ? global.APP_DATA
+    : null;
+
   const DEFAULT_ATOM_SCALE_TROPHY_DATA = [
     {
       id: 'scaleHumanCell',
@@ -254,10 +258,267 @@
     }
   ];
 
-  const appData = global.APP_DATA && typeof global.APP_DATA === 'object' ? { ...global.APP_DATA } : {};
+  const DEFAULT_MUSIC_SUPPORTED_EXTENSIONS = Object.freeze(['mp3', 'ogg', 'wav', 'webm', 'm4a']);
+
+  const DEFAULT_MUSIC_FALLBACK_TRACKS = Object.freeze([
+    'Piste1.mp3',
+    'Piste2.mp3',
+    'Piste3.mp3',
+    'Piste4.mp3',
+    'Piste5.mp3',
+    'Piste6.mp3'
+  ]);
+
+  function sanitizeMusicExtensions(raw) {
+    const candidates = Array.isArray(raw)
+      ? raw
+      : raw != null
+        ? [raw]
+        : [];
+    const seen = new Set();
+    const sanitized = [];
+    candidates.forEach(entry => {
+      let value = null;
+      if (typeof entry === 'string') {
+        value = entry;
+      } else if (entry && typeof entry === 'object') {
+        value = entry.extension ?? entry.ext ?? entry.value ?? null;
+      }
+      if (!value) {
+        return;
+      }
+      const normalized = String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/^[.]+/, '');
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      sanitized.push(normalized);
+    });
+    if (!sanitized.length) {
+      return [...DEFAULT_MUSIC_SUPPORTED_EXTENSIONS];
+    }
+    return sanitized;
+  }
+
+  function sanitizeFallbackTracks(raw) {
+    const candidates = Array.isArray(raw)
+      ? raw
+      : raw != null
+        ? [raw]
+        : [];
+    const sanitized = [];
+    candidates.forEach(entry => {
+      let value = null;
+      if (typeof entry === 'string') {
+        value = entry;
+      } else if (entry && typeof entry === 'object') {
+        value = entry.path
+          ?? entry.src
+          ?? entry.url
+          ?? entry.file
+          ?? entry.filename
+          ?? entry.name
+          ?? null;
+      }
+      if (!value) {
+        return;
+      }
+      const normalized = String(value).trim();
+      if (!normalized) {
+        return;
+      }
+      sanitized.push(normalized);
+    });
+    if (!sanitized.length) {
+      return [...DEFAULT_MUSIC_FALLBACK_TRACKS];
+    }
+    return sanitized;
+  }
+
+  function parseRgbColor(value) {
+    if (Array.isArray(value)) {
+      const color = [];
+      for (let i = 0; i < 3; i += 1) {
+        const numeric = Number(value[i]);
+        if (!Number.isFinite(numeric)) {
+          return null;
+        }
+        color.push(Math.max(0, Math.min(255, Math.round(numeric))));
+      }
+      return color;
+    }
+    if (typeof value === 'string') {
+      let hex = value.trim();
+      if (!hex) {
+        return null;
+      }
+      if (hex.startsWith('#')) {
+        hex = hex.slice(1);
+      }
+      if (hex.length === 3) {
+        hex = hex
+          .split('')
+          .map(char => `${char}${char}`)
+          .join('');
+      }
+      if (hex.length !== 6 || /[^0-9a-f]/i.test(hex)) {
+        return null;
+      }
+      const color = [
+        parseInt(hex.slice(0, 2), 16),
+        parseInt(hex.slice(2, 4), 16),
+        parseInt(hex.slice(4, 6), 16)
+      ];
+      return color;
+    }
+    return null;
+  }
+
+  const DEFAULT_GLOW_STOPS = Object.freeze([
+    { stop: 0, color: [248, 226, 158] },
+    { stop: 0.35, color: [255, 202, 112] },
+    { stop: 0.65, color: [255, 130, 54] },
+    { stop: 1, color: [255, 46, 18] }
+  ]);
+
+  function sanitizeGlowStops(raw) {
+    const base = Array.isArray(raw) ? raw : [];
+    const sanitized = [];
+    base.forEach(entry => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+      const stopValue = Number(entry.stop ?? entry.position ?? entry.offset ?? entry.value);
+      if (!Number.isFinite(stopValue)) {
+        return;
+      }
+      const color = parseRgbColor(entry.color ?? entry.rgb ?? entry.hex ?? entry.value);
+      if (!color) {
+        return;
+      }
+      sanitized.push({
+        stop: Math.max(0, Math.min(1, stopValue)),
+        color
+      });
+    });
+    if (sanitized.length < 2) {
+      return DEFAULT_GLOW_STOPS.map(entry => ({ stop: entry.stop, color: [...entry.color] }));
+    }
+    sanitized.sort((a, b) => a.stop - b.stop);
+    return sanitized;
+  }
+
+  const DEFAULT_CRIT_CONFETTI_COLORS = Object.freeze([
+    '#ff8ba7', '#ffd166', '#6fffe9', '#a5b4ff', '#ff9ff3',
+    '#70d6ff', '#fcd5ce', '#caffbf', '#bdb2ff', '#ffe066'
+  ]);
+
+  function sanitizeConfettiColors(raw) {
+    const candidates = Array.isArray(raw) ? raw : [];
+    const seen = new Set();
+    const sanitized = [];
+    candidates.forEach(entry => {
+      const value = typeof entry === 'string'
+        ? entry
+        : (entry && typeof entry === 'object' ? entry.color ?? entry.value ?? null : null);
+      if (!value) {
+        return;
+      }
+      const normalized = String(value).trim();
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      sanitized.push(normalized);
+    });
+    if (!sanitized.length) {
+      return [...DEFAULT_CRIT_CONFETTI_COLORS];
+    }
+    return sanitized;
+  }
+
+  const DEFAULT_CRIT_CONFETTI_SHAPES = Object.freeze([
+    { className: 'crit-confetti--circle', widthFactor: 1, heightFactor: 1 },
+    { className: 'crit-confetti--oval', widthFactor: 1.4, heightFactor: 1 },
+    { className: 'crit-confetti--heart', widthFactor: 1.1, heightFactor: 1.1 },
+    { className: 'crit-confetti--star', widthFactor: 1.2, heightFactor: 1.2 },
+    { className: 'crit-confetti--square', widthFactor: 1, heightFactor: 1 },
+    { className: 'crit-confetti--triangle', widthFactor: 1.15, heightFactor: 1.3 },
+    { className: 'crit-confetti--rectangle', widthFactor: 1.8, heightFactor: 0.7 },
+    { className: 'crit-confetti--hexagon', widthFactor: 1.1, heightFactor: 1 }
+  ]);
+
+  function sanitizeConfettiShapes(raw) {
+    const base = Array.isArray(raw) ? raw : [];
+    const sanitized = [];
+    base.forEach(entry => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+      const rawClassName = entry.className ?? entry.class ?? entry.name ?? entry.id;
+      const className = rawClassName ? String(rawClassName).trim() : '';
+      if (!className) {
+        return;
+      }
+      const width = Number(entry.widthFactor ?? entry.width ?? entry.w ?? entry.scaleX ?? entry.scale ?? entry.size ?? 1);
+      const height = Number(entry.heightFactor ?? entry.height ?? entry.h ?? entry.scaleY ?? entry.scale ?? entry.size ?? 1);
+      const normalizedWidth = Number.isFinite(width) && width > 0 ? width : 1;
+      const normalizedHeight = Number.isFinite(height) && height > 0 ? height : 1;
+      sanitized.push({
+        className,
+        widthFactor: normalizedWidth,
+        heightFactor: normalizedHeight
+      });
+    });
+    if (!sanitized.length) {
+      return DEFAULT_CRIT_CONFETTI_SHAPES.map(entry => ({
+        className: entry.className,
+        widthFactor: entry.widthFactor,
+        heightFactor: entry.heightFactor
+      }));
+    }
+    return sanitized;
+  }
+
+  const MUSIC_SUPPORTED_EXTENSIONS = sanitizeMusicExtensions(
+    existingAppData?.MUSIC_SUPPORTED_EXTENSIONS ?? global.MUSIC_SUPPORTED_EXTENSIONS
+  );
+
+  const MUSIC_FALLBACK_TRACKS = sanitizeFallbackTracks(
+    existingAppData?.MUSIC_FALLBACK_TRACKS ?? global.MUSIC_FALLBACK_TRACKS
+  );
+
+  const GLOW_STOPS = sanitizeGlowStops(existingAppData?.GLOW_STOPS ?? global.GLOW_STOPS);
+
+  const CRIT_CONFETTI_COLORS = sanitizeConfettiColors(existingAppData?.CRIT_CONFETTI_COLORS ?? global.CRIT_CONFETTI_COLORS);
+
+  const CRIT_CONFETTI_SHAPES = sanitizeConfettiShapes(existingAppData?.CRIT_CONFETTI_SHAPES ?? global.CRIT_CONFETTI_SHAPES);
+
+  const appData = existingAppData ? { ...existingAppData } : {};
   appData.DEFAULT_ATOM_SCALE_TROPHY_DATA = DEFAULT_ATOM_SCALE_TROPHY_DATA;
   appData.ATOM_SCALE_TROPHY_DATA = ATOM_SCALE_TROPHY_DATA;
   appData.FALLBACK_MILESTONES = FALLBACK_MILESTONES;
   appData.FALLBACK_TROPHIES = FALLBACK_TROPHIES;
+  appData.DEFAULT_MUSIC_SUPPORTED_EXTENSIONS = [...DEFAULT_MUSIC_SUPPORTED_EXTENSIONS];
+  appData.MUSIC_SUPPORTED_EXTENSIONS = [...MUSIC_SUPPORTED_EXTENSIONS];
+  appData.DEFAULT_MUSIC_FALLBACK_TRACKS = [...DEFAULT_MUSIC_FALLBACK_TRACKS];
+  appData.MUSIC_FALLBACK_TRACKS = [...MUSIC_FALLBACK_TRACKS];
+  appData.DEFAULT_GLOW_STOPS = DEFAULT_GLOW_STOPS.map(entry => ({ stop: entry.stop, color: [...entry.color] }));
+  appData.GLOW_STOPS = GLOW_STOPS.map(entry => ({ stop: entry.stop, color: [...entry.color] }));
+  appData.DEFAULT_CRIT_CONFETTI_COLORS = [...DEFAULT_CRIT_CONFETTI_COLORS];
+  appData.CRIT_CONFETTI_COLORS = [...CRIT_CONFETTI_COLORS];
+  appData.DEFAULT_CRIT_CONFETTI_SHAPES = DEFAULT_CRIT_CONFETTI_SHAPES.map(entry => ({
+    className: entry.className,
+    widthFactor: entry.widthFactor,
+    heightFactor: entry.heightFactor
+  }));
+  appData.CRIT_CONFETTI_SHAPES = CRIT_CONFETTI_SHAPES.map(entry => ({
+    className: entry.className,
+    widthFactor: entry.widthFactor,
+    heightFactor: entry.heightFactor
+  }));
   global.APP_DATA = appData;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
