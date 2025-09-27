@@ -652,6 +652,7 @@ const GAME_CONFIG = {
    * - popEffect : animation lors de la disparition, paramétrable.
    * - maxShuffleAttempts : nombre maximal de tentatives de redistribution.
    * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
+   * - timer : configuration du chrono (valeur initiale, gains, pénalités, cadence de mise à jour).
    */
   metaux: {
     rows: 8,
@@ -670,7 +671,16 @@ const GAME_CONFIG = {
       { id: 'or', label: 'Au', color: '#E6C838' },
       { id: 'platine', label: 'Pt', color: '#45A9E2' },
       { id: 'diamant', label: 'C', color: '#E9F6FD' }
-    ]
+    ],
+    timer: {
+      initialSeconds: 6,
+      maxSeconds: 6,
+      matchRewardSeconds: 2,
+      penaltyWindowSeconds: 30,
+      penaltyAmountSeconds: 1,
+      minMaxSeconds: 1,
+      tickIntervalMs: 100
+    }
   },
 
   /**
