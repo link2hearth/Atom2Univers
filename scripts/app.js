@@ -351,7 +351,7 @@ function normalizeApsCritState(raw) {
     raw.chronoSeconds ?? raw.chrono ?? raw.time ?? raw.seconds ?? raw.chronoSecs ?? 0
   );
   if (Number.isFinite(chronoValue) && chronoValue > 0) {
-    state.chronoSeconds = Math.max(0, Math.round(chronoValue));
+    state.chronoSeconds = Math.max(0, chronoValue);
   }
   const multiplierValue = Number(raw.multiplier ?? raw.multi ?? raw.factor ?? 0);
   if (Number.isFinite(multiplierValue) && multiplierValue > 0) {
@@ -940,7 +940,7 @@ function ensureApsCritState() {
   }
   const state = gameState.apsCrit;
   const chrono = Number(state.chronoSeconds);
-  state.chronoSeconds = Number.isFinite(chrono) && chrono > 0 ? Math.max(0, Math.round(chrono)) : 0;
+  state.chronoSeconds = Number.isFinite(chrono) && chrono > 0 ? Math.max(0, chrono) : 0;
   const multiplier = Number(state.multiplier);
   state.multiplier = Number.isFinite(multiplier) && multiplier > 0 ? Math.max(1, multiplier) : 1;
   return state;
@@ -948,6 +948,10 @@ function ensureApsCritState() {
 
 function getApsCritMultiplier() {
   const state = ensureApsCritState();
+  const chrono = Number(state.chronoSeconds) || 0;
+  if (chrono <= 0) {
+    return 1;
+  }
   return Math.max(1, Number(state.multiplier) || 1);
 }
 
@@ -3607,6 +3611,27 @@ function renderProductionBreakdown(container, entry, context = null) {
 let toastElement = null;
 let apsCritPulseTimeoutId = null;
 
+const APS_CRIT_TIMER_EPSILON = 1e-3;
+
+function updateApsCritTimer(deltaSeconds) {
+  if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+    return;
+  }
+  const state = ensureApsCritState();
+  const previousSeconds = Number(state.chronoSeconds) || 0;
+  if (previousSeconds <= 0) {
+    state.chronoSeconds = 0;
+    return;
+  }
+  const remaining = previousSeconds - deltaSeconds;
+  if (remaining <= APS_CRIT_TIMER_EPSILON) {
+    state.chronoSeconds = 0;
+    recalcProduction();
+  } else {
+    state.chronoSeconds = remaining;
+  }
+}
+
 const CLICK_WINDOW_MS = CONFIG.presentation?.clicks?.windowMs ?? 1000;
 const MAX_CLICKS_PER_SECOND = CONFIG.presentation?.clicks?.maxClicksPerSecond ?? 20;
 const clickHistory = [];
@@ -4474,7 +4499,7 @@ function handleMetauxSessionEnd(summary) {
   }
   const apsCrit = ensureApsCritState();
   if (secondsEarned > 0) {
-    apsCrit.chronoSeconds = Math.max(0, Math.round(apsCrit.chronoSeconds || 0) + secondsEarned);
+    apsCrit.chronoSeconds = Math.max(0, (Number(apsCrit.chronoSeconds) || 0) + secondsEarned);
   }
   if (matchesEarned > 0) {
     apsCrit.multiplier = Math.max(1, (Number(apsCrit.multiplier) || 1) + matchesEarned);
@@ -6592,7 +6617,7 @@ function updateFrenzyIndicators(now = performance.now()) {
 }
 
 function formatApsCritChrono(seconds) {
-  const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+  const totalSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
   if (totalSeconds >= 3600) {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -6628,7 +6653,10 @@ function updateApsCritDisplay() {
     elements.statusApsCritChrono.textContent = formatApsCritChrono(state.chronoSeconds);
   }
   if (elements.statusApsCritMultiplier) {
-    const multiplierDisplay = Math.max(1, Number(state.multiplier) || 1);
+    const chronoActive = Number(state.chronoSeconds) > 0;
+    const multiplierDisplay = chronoActive
+      ? Math.max(1, Number(state.multiplier) || 1)
+      : 1;
     elements.statusApsCritMultiplier.textContent = `×${multiplierDisplay.toLocaleString('fr-FR')}`;
   }
   if (elements.statusApsCritTotal) {
@@ -6945,7 +6973,7 @@ function serializeState() {
     apsCrit: (() => {
       const state = ensureApsCritState();
       return {
-        chronoSeconds: Math.max(0, Math.round(Number(state.chronoSeconds) || 0)),
+        chronoSeconds: Math.max(0, Number(state.chronoSeconds) || 0),
         multiplier: Math.max(1, Number(state.multiplier) || 1)
       };
     })(),
@@ -7436,6 +7464,8 @@ function loop(now) {
     const gain = gameState.perSecond.multiplyNumber(delta);
     gainAtoms(gain, 'aps');
   }
+
+  updateApsCritTimer(delta);
 
   updateClickVisuals(now);
   updatePlaytime(delta);
