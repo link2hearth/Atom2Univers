@@ -652,16 +652,16 @@ const GAME_CONFIG = {
    * - tileTypes : définition des métaux disponibles (identifiant, libellé, couleur).
    */
   metaux: {
-    rows: 9,
+    rows: 8,
     cols: 16,
     clearDelayMs: 200,
     maxShuffleAttempts: 120,
     tileTypes: [
-      { id: 'bronze', label: 'Bronze', color: 'rgba(199, 126, 54, 0.72)' },
-      { id: 'argent', label: 'Argent', color: 'rgba(173, 190, 202, 0.78)' },
-      { id: 'or', label: 'Or', color: 'rgba(245, 204, 79, 0.82)' },
-      { id: 'platine', label: 'Platine', color: 'rgba(166, 211, 227, 0.82)' },
-      { id: 'diamant', label: 'Diamant', color: 'rgba(130, 217, 255, 0.88)' }
+      { id: 'bronze', label: 'Cu', color: 'rgba(199, 126, 54, 0.72)' },
+      { id: 'argent', label: 'Ag', color: 'rgba(173, 190, 202, 0.78)' },
+      { id: 'or', label: 'Au', color: 'rgba(245, 204, 79, 0.82)' },
+      { id: 'platine', label: 'Pt', color: 'rgba(166, 211, 227, 0.82)' },
+      { id: 'diamant', label: 'C', color: 'rgba(130, 217, 255, 0.88)' }
     ]
   },
 
