@@ -339,7 +339,27 @@ function normalizeFrenzyStats(raw) {
 }
 
 function createDefaultApsCritState() {
-  return { chronoSeconds: 0, multiplier: 1 };
+  return { effects: [] };
+}
+
+function normalizeApsCritEffect(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const multiplierAdd = Number(raw.multiplierAdd ?? raw.add ?? raw.multiplier ?? raw.value ?? 0);
+  const remainingSeconds = Number(
+    raw.remainingSeconds ?? raw.seconds ?? raw.time ?? raw.duration ?? raw.chrono ?? 0
+  );
+  if (!Number.isFinite(multiplierAdd) || !Number.isFinite(remainingSeconds)) {
+    return null;
+  }
+  if (multiplierAdd <= 0 || remainingSeconds <= 0) {
+    return null;
+  }
+  return {
+    multiplierAdd: Math.max(0, multiplierAdd),
+    remainingSeconds: Math.max(0, remainingSeconds)
+  };
 }
 
 function normalizeApsCritState(raw) {
@@ -347,15 +367,23 @@ function normalizeApsCritState(raw) {
   if (!raw || typeof raw !== 'object') {
     return state;
   }
+  if (Array.isArray(raw.effects)) {
+    state.effects = raw.effects
+      .map(entry => normalizeApsCritEffect(entry))
+      .filter(effect => effect != null);
+    if (state.effects.length) {
+      return state;
+    }
+  }
   const chronoValue = Number(
     raw.chronoSeconds ?? raw.chrono ?? raw.time ?? raw.seconds ?? raw.chronoSecs ?? 0
   );
-  if (Number.isFinite(chronoValue) && chronoValue > 0) {
-    state.chronoSeconds = Math.max(0, chronoValue);
-  }
   const multiplierValue = Number(raw.multiplier ?? raw.multi ?? raw.factor ?? 0);
-  if (Number.isFinite(multiplierValue) && multiplierValue > 0) {
-    state.multiplier = Math.max(1, multiplierValue);
+  if (Number.isFinite(chronoValue) && chronoValue > 0 && Number.isFinite(multiplierValue) && multiplierValue > 1) {
+    state.effects = [{
+      multiplierAdd: Math.max(0, multiplierValue - 1),
+      remainingSeconds: Math.max(0, chronoValue)
+    }];
   }
   return state;
 }
@@ -939,20 +967,41 @@ function ensureApsCritState() {
     return gameState.apsCrit;
   }
   const state = gameState.apsCrit;
-  const chrono = Number(state.chronoSeconds);
-  state.chronoSeconds = Number.isFinite(chrono) && chrono > 0 ? Math.max(0, chrono) : 0;
-  const multiplier = Number(state.multiplier);
-  state.multiplier = Number.isFinite(multiplier) && multiplier > 0 ? Math.max(1, multiplier) : 1;
+  if (!Array.isArray(state.effects)) {
+    state.effects = [];
+  }
+  state.effects = state.effects
+    .map(entry => normalizeApsCritEffect(entry))
+    .filter(effect => effect != null);
   return state;
 }
 
-function getApsCritMultiplier() {
-  const state = ensureApsCritState();
-  const chrono = Number(state.chronoSeconds) || 0;
-  if (chrono <= 0) {
+function getApsCritRemainingSeconds(state = ensureApsCritState()) {
+  if (!state || !Array.isArray(state.effects) || !state.effects.length) {
+    return 0;
+  }
+  return state.effects.reduce(
+    (max, effect) => Math.max(max, Number(effect?.remainingSeconds) || 0),
+    0
+  );
+}
+
+function getApsCritMultiplier(state = ensureApsCritState()) {
+  if (!state || !Array.isArray(state.effects) || !state.effects.length) {
     return 1;
   }
-  return Math.max(1, Number(state.multiplier) || 1);
+  const totalAdd = state.effects.reduce((sum, effect) => {
+    const timeLeft = Number(effect?.remainingSeconds) || 0;
+    if (timeLeft <= 0) {
+      return sum;
+    }
+    const value = Number(effect?.multiplierAdd) || 0;
+    if (value <= 0) {
+      return sum;
+    }
+    return sum + value;
+  }, 0);
+  return totalAdd > 0 ? 1 + totalAdd : 1;
 }
 
 const DEVKIT_STATE = {
@@ -1554,7 +1603,6 @@ const elements = {
   statusApsCrit: document.getElementById('statusApsCrit'),
   statusApsCritChrono: document.getElementById('statusApsCritChrono'),
   statusApsCritMultiplier: document.getElementById('statusApsCritMultiplier'),
-  statusApsCritTotal: document.getElementById('statusApsCritTotal'),
   statusApcFrenzy: document.getElementById('statusApcFrenzy'),
   statusApsFrenzy: document.getElementById('statusApsFrenzy'),
   atomButton: document.getElementById('atomButton'),
@@ -3618,17 +3666,40 @@ function updateApsCritTimer(deltaSeconds) {
     return;
   }
   const state = ensureApsCritState();
-  const previousSeconds = Number(state.chronoSeconds) || 0;
-  if (previousSeconds <= 0) {
-    state.chronoSeconds = 0;
+  if (!state.effects.length) {
     return;
   }
-  const remaining = previousSeconds - deltaSeconds;
-  if (remaining <= APS_CRIT_TIMER_EPSILON) {
-    state.chronoSeconds = 0;
+  const previousMultiplier = getApsCritMultiplier(state);
+  state.effects = state.effects
+    .map(effect => {
+      if (!effect) {
+        return null;
+      }
+      const remaining = Number(effect.remainingSeconds) || 0;
+      if (remaining <= 0) {
+        return null;
+      }
+      const next = remaining - deltaSeconds;
+      if (next <= APS_CRIT_TIMER_EPSILON) {
+        return null;
+      }
+      return {
+        multiplierAdd: Number(effect.multiplierAdd) || 0,
+        remainingSeconds: next
+      };
+    })
+    .filter(effect => effect != null);
+  if (!state.effects.length) {
+    if (previousMultiplier !== 1) {
+      recalcProduction();
+    }
+    updateUI();
+    return;
+  }
+  const currentMultiplier = getApsCritMultiplier(state);
+  if (currentMultiplier !== previousMultiplier) {
     recalcProduction();
-  } else {
-    state.chronoSeconds = remaining;
+    updateUI();
   }
 }
 
@@ -4498,20 +4569,47 @@ function handleMetauxSessionEnd(summary) {
     return;
   }
   const apsCrit = ensureApsCritState();
-  if (secondsEarned > 0) {
-    apsCrit.chronoSeconds = Math.max(0, (Number(apsCrit.chronoSeconds) || 0) + secondsEarned);
+  const hadEffects = apsCrit.effects.length > 0;
+  const previousMultiplier = getApsCritMultiplier(apsCrit);
+  const currentRemaining = getApsCritRemainingSeconds(apsCrit);
+  let chronoAdded = 0;
+  let effectAdded = false;
+  if (!hadEffects) {
+    if (secondsEarned > 0 && matchesEarned > 0) {
+      apsCrit.effects.push({
+        multiplierAdd: matchesEarned,
+        remainingSeconds: secondsEarned
+      });
+      chronoAdded = secondsEarned;
+      effectAdded = true;
+    }
+  } else if (matchesEarned > 0 && currentRemaining > 0) {
+    apsCrit.effects.push({
+      multiplierAdd: matchesEarned,
+      remainingSeconds: currentRemaining
+    });
+    effectAdded = true;
   }
-  if (matchesEarned > 0) {
-    apsCrit.multiplier = Math.max(1, (Number(apsCrit.multiplier) || 1) + matchesEarned);
-  } else {
-    apsCrit.multiplier = Math.max(1, Number(apsCrit.multiplier) || 1);
+  if (!effectAdded) {
+    return;
   }
-  recalcProduction();
+  apsCrit.effects = apsCrit.effects.filter(effect => {
+    const remaining = Number(effect?.remainingSeconds) || 0;
+    const value = Number(effect?.multiplierAdd) || 0;
+    return remaining > 0 && value > 0;
+  });
+  if (!apsCrit.effects.length) {
+    return;
+  }
+  const newMultiplier = getApsCritMultiplier(apsCrit);
+  if (newMultiplier !== previousMultiplier) {
+    recalcProduction();
+  }
   updateUI();
   pulseApsCritPanel();
   const messageParts = [];
-  if (secondsEarned > 0) {
-    messageParts.push(`Chrono +${secondsEarned.toLocaleString('fr-FR')} s`);
+  if (chronoAdded > 0) {
+    messageParts.push(`Chrono +${chronoAdded.toLocaleString('fr-FR')} s`);
   }
   if (matchesEarned > 0) {
     messageParts.push(`Multi +${matchesEarned.toLocaleString('fr-FR')}`);
@@ -6649,31 +6747,31 @@ function updateApsCritDisplay() {
     return;
   }
   const state = ensureApsCritState();
+  const remainingSeconds = getApsCritRemainingSeconds(state);
+  const isActive = remainingSeconds > APS_CRIT_TIMER_EPSILON;
+  panel.hidden = !isActive;
+  panel.classList.toggle('is-active', isActive);
+  panel.setAttribute('aria-hidden', String(!isActive));
+  const chronoText = isActive ? formatApsCritChrono(remainingSeconds) : '';
   if (elements.statusApsCritChrono) {
-    elements.statusApsCritChrono.textContent = formatApsCritChrono(state.chronoSeconds);
+    elements.statusApsCritChrono.textContent = chronoText;
   }
+  const multiplierValue = isActive ? getApsCritMultiplier(state) : 1;
+  const multiplierText = `×${multiplierValue.toLocaleString('fr-FR')}`;
   if (elements.statusApsCritMultiplier) {
-    const chronoActive = Number(state.chronoSeconds) > 0;
-    const multiplierDisplay = chronoActive
-      ? Math.max(1, Number(state.multiplier) || 1)
-      : 1;
-    elements.statusApsCritMultiplier.textContent = `×${multiplierDisplay.toLocaleString('fr-FR')}`;
+    elements.statusApsCritMultiplier.textContent = multiplierText;
   }
-  if (elements.statusApsCritTotal) {
-    elements.statusApsCritTotal.textContent = gameState.perSecond.toString();
-  }
-  const chronoText = elements.statusApsCritChrono?.textContent ?? '';
-  const multiplierText = elements.statusApsCritMultiplier?.textContent ?? '';
-  const apsText = elements.statusApsCritTotal?.textContent ?? '';
   panel.setAttribute(
     'aria-label',
-    `Compteur critique APS : chrono ${chronoText}, multiplicateur ${multiplierText}, production ${apsText} atomes par seconde.`
+    isActive
+      ? `Compteur critique APS actif : ${multiplierText} pendant ${chronoText}.`
+      : `Compteur critique APS inactif.`
   );
 }
 
 function pulseApsCritPanel() {
   const panel = elements.statusApsCrit;
-  if (!panel) {
+  if (!panel || panel.hidden) {
     return;
   }
   panel.classList.remove('is-pulsing');
@@ -6688,8 +6786,7 @@ function pulseApsCritPanel() {
   }, 620);
   [
     elements.statusApsCritChrono,
-    elements.statusApsCritMultiplier,
-    elements.statusApsCritTotal
+    elements.statusApsCritMultiplier
   ].forEach(valueElement => {
     if (!valueElement) {
       return;
@@ -6972,10 +7069,15 @@ function serializeState() {
     },
     apsCrit: (() => {
       const state = ensureApsCritState();
-      return {
-        chronoSeconds: Math.max(0, Number(state.chronoSeconds) || 0),
-        multiplier: Math.max(1, Number(state.multiplier) || 1)
-      };
+      const effects = Array.isArray(state.effects)
+        ? state.effects
+            .map(effect => ({
+              remainingSeconds: Math.max(0, Number(effect?.remainingSeconds) || 0),
+              multiplierAdd: Math.max(0, Number(effect?.multiplierAdd) || 0)
+            }))
+            .filter(effect => effect.remainingSeconds > 0 && effect.multiplierAdd > 0)
+        : [];
+      return { effects };
     })(),
     music: {
       selectedTrack: musicPlayer.getCurrentTrackId() ?? gameState.musicTrackId ?? null,
